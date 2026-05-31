@@ -1,15 +1,18 @@
 -- Migration: 002_payment_devices
 -- Adds support for Cashmatic (automated cash), Ingenico card terminal and
 -- Epson fiscal printer to the payments flow, plus a device audit log.
+--
+-- NOTE: the live `payments` table uses columns: method, reference, received_by
+-- (see database_schema.sql). This migration extends that table.
 
 -- Add Cashmatic as a payment method (automated cash machine).
 ALTER TABLE payments
-    MODIFY COLUMN payment_method ENUM('cash','card','mpesa','cash_machine') NOT NULL;
+    MODIFY COLUMN method ENUM('cash','card','mpesa','other','cash_machine') NOT NULL;
 
 -- Device / payment metadata captured at payment time.
 ALTER TABLE payments
     ADD COLUMN currency_code            SMALLINT UNSIGNED NULL AFTER amount,
-    ADD COLUMN cashmatic_transaction_id INT          NULL AFTER change_amount,
+    ADD COLUMN cashmatic_transaction_id INT          NULL AFTER reference,
     ADD COLUMN card_transaction_id      VARCHAR(64)  NULL AFTER cashmatic_transaction_id,
     ADD COLUMN card_auth_code           VARCHAR(32)  NULL AFTER card_transaction_id,
     ADD COLUMN card_pan_masked          VARCHAR(32)  NULL AFTER card_auth_code,
