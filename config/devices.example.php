@@ -33,15 +33,18 @@ return [
         'verify_ssl' => false,
     ],
 
-    // ---- Card terminal / POS client (Ingenico/Nexi) -------------------
-    // "Pay by card" button. The POS client charges the card; the fiscal
-    // printer below then prints the receipt. Reached over Tailscale.
+    // ---- Card terminal / POS client (RTS WebDoReMi -> Ingenico) -------
+    // "Pay by card" button. base_url is the RTS WebDoremiposWS HTTP service
+    // on the till LAN (reached over Tailscale); it wraps Protocol 17 to the
+    // Ingenico terminal. terminal_name is the <terminal name="…"> from RTS.
+    // Leave base_url empty to hide the "Pay by card" button.
     'pos' => [
-        'enabled'     => true,
-        'host'        => '100.x.y.z',   // card terminal / POS bridge (Tailscale)
-        'port'        => 5040,
-        'terminal_id' => '',
-        'timeout_ms'  => 35000,         // card tap can take ~30s
+        'enabled'         => true,
+        'base_url'        => 'http://100.x.y.z/WebDoremiposWS',  // RTS service (Tailscale)
+        'terminal_name'   => 'Ingenico-XXXXXXXX',                // RTS terminal name
+        'protocol_type'   => '0',       // 0 auto / 1 credit / 2 debit
+        'connect_timeout' => 5,
+        'read_timeout'    => 90,        // covers card tap + acquirer auth
     ],
 
     // ---- Epson fiscal printer (Registratore Telematico) ---------------
