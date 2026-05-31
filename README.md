@@ -1,5 +1,7 @@
 # RestoPOS - Restaurant Management System
 
+> Deployed via git. Test pull: this line was added to verify the server pull workflow.
+
 A comprehensive PHP-based Point of Sale system for restaurants with support for multiple roles, real-time kitchen display, order management, and payment processing.
 
 ## Features
