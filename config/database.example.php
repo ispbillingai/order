@@ -1,19 +1,22 @@
 <?php
 /**
- * Database Configuration
+ * Database Configuration (EXAMPLE)
  * Restaurant POS System
+ *
+ * Copy this file to database.php and fill in your real credentials.
+ * database.php is git-ignored so secrets stay out of the repository.
  */
 
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'order');
-define('DB_USER', 'order');
-define('DB_PASS', 'order');
+define('DB_NAME', 'your_database_name');
+define('DB_USER', 'your_database_user');
+define('DB_PASS', 'your_database_password');
 define('DB_CHARSET', 'utf8mb4');
 
 // PDO Connection
 function getDBConnection() {
     static $pdo = null;
-    
+
     if ($pdo === null) {
         try {
             $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
@@ -27,7 +30,7 @@ function getDBConnection() {
             die("Database connection failed: " . $e->getMessage());
         }
     }
-    
+
     return $pdo;
 }
 

@@ -1,0 +1,7 @@
+# Database configuration (contains credentials)
+config/database.php
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
