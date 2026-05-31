@@ -1,6 +1,9 @@
 # Database configuration (contains credentials)
 config/database.php
 
+# Device integration config (Cashmatic / Ingenico / Epson / QR credentials & IPs)
+config/devices.php
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
