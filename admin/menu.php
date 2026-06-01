@@ -76,19 +76,19 @@ if ($editItemId) {
     $itemComponents = getMenuItemComponents($editItemId);
 }
 
-$pageTitle = 'Menu Management';
+$pageTitle = t('menu_management');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-utensils"></i> Menu Management</h1>
+    <h1><i class="fas fa-utensils"></i> <?= te('menu_management') ?></h1>
     <div class="d-flex gap-sm">
         <button class="btn btn-primary" onclick="openModal('addCategoryModal')">
-            <i class="fas fa-folder-plus"></i> Add Category
+            <i class="fas fa-folder-plus"></i> <?= te('menu_add_category') ?>
         </button>
         <button class="btn btn-success" onclick="openModal('addItemModal')">
-            <i class="fas fa-plus"></i> Add Item
+            <i class="fas fa-plus"></i> <?= te('menu_add_item') ?>
         </button>
     </div>
 </div>
@@ -98,10 +98,10 @@ include __DIR__ . '/../includes/header.php';
         <i class="fas fa-check-circle"></i>
         <?php
         switch ($_GET['success']) {
-            case 'category_added': echo 'Category added successfully!'; break;
-            case 'item_added': echo 'Menu item added successfully!'; break;
-            case 'item_deleted': echo 'Menu item removed!'; break;
-            case 'component_added': echo 'Component added successfully!'; break;
+            case 'category_added': echo te('msg_category_added'); break;
+            case 'item_added': echo te('msg_item_added'); break;
+            case 'item_deleted': echo te('msg_item_deleted'); break;
+            case 'component_added': echo te('msg_component_added'); break;
         }
         ?>
     </div>
@@ -111,7 +111,7 @@ include __DIR__ . '/../includes/header.php';
     <!-- Categories Sidebar -->
     <div class="card">
         <div class="card-header">
-            <h2>Categories</h2>
+            <h2><?= te('categories') ?></h2>
         </div>
         <div style="padding: var(--space-sm);">
             <?php foreach ($categories as $cat): ?>
@@ -131,25 +131,25 @@ include __DIR__ . '/../includes/header.php';
     <!-- Menu Items -->
     <div class="card">
         <div class="card-header">
-            <h2>Menu Items</h2>
+            <h2><?= te('menu_items') ?></h2>
         </div>
         <?php if (empty($menuItems)): ?>
             <div class="card-body text-center" style="padding: 60px;">
                 <i class="fas fa-pizza-slice" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 16px;"></i>
-                <p class="text-muted">No items in this category.</p>
+                <p class="text-muted"><?= te('no_items_cat') ?></p>
                 <button class="btn btn-primary mt-md" onclick="openModal('addItemModal')">
-                    <i class="fas fa-plus"></i> Add First Item
+                    <i class="fas fa-plus"></i> <?= te('add_first_item') ?>
                 </button>
             </div>
         <?php else: ?>
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Price</th>
-                        <th>Prep Time</th>
-                        <th>Actions</th>
+                        <th><?= te('name') ?></th>
+                        <th><?= te('description') ?></th>
+                        <th><?= te('price') ?></th>
+                        <th><?= te('prep_time') ?></th>
+                        <th><?= te('actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,13 +158,13 @@ include __DIR__ . '/../includes/header.php';
                             <td><strong><?= htmlspecialchars($item['name']) ?></strong></td>
                             <td class="text-muted"><?= htmlspecialchars(substr($item['description'] ?? '', 0, 50)) ?>...</td>
                             <td><strong class="text-primary"><?= formatCurrency($item['base_price']) ?></strong></td>
-                            <td><?= $item['preparation_time'] ?> min</td>
+                            <td><?= $item['preparation_time'] ?> <?= te('minutes_short') ?></td>
                             <td>
                                 <div class="d-flex gap-sm">
                                     <a href="?category=<?= $selectedCategoryId ?>&item=<?= $item['id'] ?>" class="btn btn-sm btn-outline">
-                                        <i class="fas fa-list"></i> Components
+                                        <i class="fas fa-list"></i> <?= te('components') ?>
                                     </a>
-                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Remove this item?');">
+                                    <form method="POST" style="display: inline;" onsubmit="return confirm('<?= te('remove_item_confirm') ?>');">
                                         <input type="hidden" name="action" value="delete_item">
                                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                                         <button type="submit" class="btn btn-sm btn-danger">
@@ -185,9 +185,9 @@ include __DIR__ . '/../includes/header.php';
 <!-- Components Editor -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h2><i class="fas fa-puzzle-piece"></i> Components for: <?= htmlspecialchars($editItem['name']) ?></h2>
+        <h2><i class="fas fa-puzzle-piece"></i> <?= te('components_for') ?> <?= htmlspecialchars($editItem['name']) ?></h2>
         <a href="?category=<?= $selectedCategoryId ?>" class="btn btn-sm btn-outline">
-            <i class="fas fa-times"></i> Close
+            <i class="fas fa-times"></i> <?= te('close') ?>
         </a>
     </div>
     <div class="card-body">
@@ -196,41 +196,41 @@ include __DIR__ . '/../includes/header.php';
             <input type="hidden" name="menu_item_id" value="<?= $editItem['id'] ?>">
             
             <div class="form-group">
-                <label class="form-label">Component Name</label>
-                <input type="text" name="component_name" class="form-control" required placeholder="e.g., Extra Cheese">
+                <label class="form-label"><?= te('component_name') ?></label>
+                <input type="text" name="component_name" class="form-control" required placeholder="<?= te('component_name') ?>">
             </div>
-            
+
             <div class="form-group">
-                <label class="form-label">Extra Price</label>
+                <label class="form-label"><?= te('extra_price') ?></label>
                 <input type="number" name="extra_price" class="form-control" step="0.01" value="0">
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label">&nbsp;</label>
                 <div class="d-flex gap-md">
-                    <label><input type="checkbox" name="is_default" checked> Default</label>
-                    <label><input type="checkbox" name="removable" checked> Removable</label>
+                    <label><input type="checkbox" name="is_default" checked> <?= te('default_label') ?></label>
+                    <label><input type="checkbox" name="removable" checked> <?= te('removable') ?></label>
                 </div>
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label">&nbsp;</label>
                 <button type="submit" class="btn btn-success">
-                    <i class="fas fa-plus"></i> Add
+                    <i class="fas fa-plus"></i> <?= te('add') ?>
                 </button>
             </div>
         </form>
-        
+
         <?php if (empty($itemComponents)): ?>
-            <p class="text-muted">No components yet. Add components above.</p>
+            <p class="text-muted"><?= te('no_components') ?></p>
         <?php else: ?>
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Component</th>
-                        <th>Default</th>
-                        <th>Extra Price</th>
-                        <th>Removable</th>
+                        <th><?= te('component') ?></th>
+                        <th><?= te('default_label') ?></th>
+                        <th><?= te('extra_price') ?></th>
+                        <th><?= te('removable') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -239,13 +239,13 @@ include __DIR__ . '/../includes/header.php';
                             <td><?= htmlspecialchars($comp['component_name']) ?></td>
                             <td>
                                 <?php if ($comp['is_default']): ?>
-                                    <span class="badge badge-success">Yes</span>
+                                    <span class="badge badge-success"><?= te('yes') ?></span>
                                 <?php else: ?>
-                                    <span class="badge badge-warning">Add-on</span>
+                                    <span class="badge badge-warning"><?= te('addon') ?></span>
                                 <?php endif; ?>
                             </td>
                             <td><?= $comp['extra_price'] > 0 ? formatCurrency($comp['extra_price']) : '-' ?></td>
-                            <td><?= $comp['removable'] ? 'Yes' : 'No' ?></td>
+                            <td><?= $comp['removable'] ? te('yes') : te('no') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -259,45 +259,45 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addCategoryModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Add Category</h3>
+            <h3><?= te('menu_add_category') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_category">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Category Name</label>
+                    <label class="form-label"><?= te('category_name') ?></label>
                     <input type="text" name="name" class="form-control" required>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">Description</label>
+                    <label class="form-label"><?= te('description') ?></label>
                     <textarea name="description" class="form-control" rows="2"></textarea>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Icon (FontAwesome)</label>
+                        <label class="form-label"><?= te('icon_fa') ?></label>
                         <input type="text" name="icon" class="form-control" value="utensils" placeholder="e.g., pizza-slice">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Sort Order</label>
+                        <label class="form-label"><?= te('sort_order') ?></label>
                         <input type="number" name="sort_order" class="form-control" value="0">
                     </div>
                 </div>
-                
+
                 <div class="form-group">
                     <label>
                         <input type="checkbox" name="allow_composition" checked>
-                        Allow item composition (ingredients)
+                        <?= te('allow_composition') ?>
                     </label>
-                    <small class="text-muted d-block">Uncheck for simple items like drinks</small>
+                    <small class="text-muted d-block"><?= te('uncheck_simple') ?></small>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('addCategoryModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Category</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('addCategoryModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('menu_add_category') ?></button>
             </div>
         </form>
     </div>
@@ -307,15 +307,15 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addItemModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Add Menu Item</h3>
+            <h3><?= te('add_menu_item') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_item">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Category</label>
+                    <label class="form-label"><?= te('category') ?></label>
                     <select name="category_id" class="form-control" required>
                         <?php foreach ($categories as $cat): ?>
                             <option value="<?= $cat['id'] ?>" <?= $cat['id'] == $selectedCategoryId ? 'selected' : '' ?>>
@@ -326,29 +326,29 @@ include __DIR__ . '/../includes/header.php';
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Item Name</label>
+                    <label class="form-label"><?= te('item_name') ?></label>
                     <input type="text" name="name" class="form-control" required>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">Description</label>
+                    <label class="form-label"><?= te('description') ?></label>
                     <textarea name="description" class="form-control" rows="2"></textarea>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Price</label>
+                        <label class="form-label"><?= te('price') ?></label>
                         <input type="number" name="base_price" class="form-control" step="0.01" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Prep Time (min)</label>
+                        <label class="form-label"><?= te('prep_time_min') ?></label>
                         <input type="number" name="preparation_time" class="form-control" value="15">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('addItemModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">Add Item</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('addItemModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-success"><?= te('menu_add_item') ?></button>
             </div>
         </form>
     </div>
