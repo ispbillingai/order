@@ -123,16 +123,16 @@ include __DIR__ . '/../includes/header.php';
                     </td>
                     <td>
                         <div class="d-flex gap-sm">
-                            <button class="btn btn-sm btn-outline" onclick="openResetModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')">
-                                <i class="fas fa-key"></i>
+                            <button class="btn btn-sm btn-outline" onclick="openResetModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" title="<?= te('reset_password') ?>">
+                                <i class="fas fa-key"></i> <?= te('reset_password') ?>
                             </button>
-                            
+
                             <?php if ($user['id'] != $_SESSION['user_id']): ?>
-                                <form method="POST" style="display: inline;">
+                                <form method="POST" style="display: inline;" onsubmit="return confirm('<?= $user['active'] ? te('disable_confirm') : te('enable_confirm') ?>');">
                                     <input type="hidden" name="action" value="toggle_status">
                                     <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                     <button type="submit" class="btn btn-sm <?= $user['active'] ? 'btn-warning' : 'btn-success' ?>">
-                                        <i class="fas fa-<?= $user['active'] ? 'ban' : 'check' ?>"></i>
+                                        <i class="fas fa-<?= $user['active'] ? 'ban' : 'check' ?>"></i> <?= $user['active'] ? te('disable') : te('enable') ?>
                                     </button>
                                 </form>
                             <?php endif; ?>

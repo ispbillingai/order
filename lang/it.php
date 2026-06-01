@@ -360,6 +360,10 @@ return [
     'reset_password'     => 'Reimposta Password',
     'reset_password_for' => 'Reimposta password per:',
     'new_password'       => 'Nuova Password',
+    'disable'            => 'Disabilita',
+    'enable'             => 'Abilita',
+    'disable_confirm'    => 'Disabilitare questo utente? Non potrà più accedere.',
+    'enable_confirm'     => 'Abilitare questo utente?',
 
     // ---- Admin: Settings ----
     'msg_settings_saved' => 'Impostazioni salvate con successo!',

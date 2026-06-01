@@ -360,6 +360,10 @@ return [
     'reset_password'     => 'Reset Password',
     'reset_password_for' => 'Reset password for:',
     'new_password'       => 'New Password',
+    'disable'            => 'Disable',
+    'enable'             => 'Enable',
+    'disable_confirm'    => 'Disable this user? They will no longer be able to log in.',
+    'enable_confirm'     => 'Enable this user?',
 
     // ---- Admin: Settings ----
     'msg_settings_saved' => 'Settings saved successfully!',
