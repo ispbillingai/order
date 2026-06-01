@@ -42,6 +42,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /admin/users.php?success=password_reset');
         exit;
     }
+
+    if ($action === 'delete_user') {
+        $uid = (int) ($_POST['user_id'] ?? 0);
+        // Never delete yourself.
+        if ($uid && $uid !== (int) ($_SESSION['user_id'] ?? 0)) {
+            // Refuse if the user has history (orders/payments) — those records
+            // reference the user and must be preserved. Disable instead.
+            $stmt = $pdo->prepare(
+                "SELECT (SELECT COUNT(*) FROM orders WHERE waiter_id = ?)
+                      + (SELECT COUNT(*) FROM payments WHERE received_by = ?) AS refs"
+            );
+            $stmt->execute([$uid, $uid]);
+            $refs = (int) ($stmt->fetch()['refs'] ?? 0);
+            if ($refs > 0) {
+                header('Location: /admin/users.php?error=user_has_history');
+                exit;
+            }
+            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+            $stmt->execute([$uid]);
+            logActivity('user_deleted', 'users', $uid);
+            header('Location: /admin/users.php?success=user_deleted');
+            exit;
+        }
+        header('Location: /admin/users.php');
+        exit;
+    }
 }
 
 // Get all users
@@ -68,8 +94,15 @@ include __DIR__ . '/../includes/header.php';
             case 'user_added': echo te('msg_user_added'); break;
             case 'status_updated': echo te('msg_status_updated'); break;
             case 'password_reset': echo te('msg_password_reset'); break;
+            case 'user_deleted': echo te('msg_user_deleted'); break;
         }
         ?>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error']) && $_GET['error'] === 'user_has_history'): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te('err_user_has_history') ?>
     </div>
 <?php endif; ?>
 
@@ -133,6 +166,13 @@ include __DIR__ . '/../includes/header.php';
                                     <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                     <button type="submit" class="btn btn-sm <?= $user['active'] ? 'btn-warning' : 'btn-success' ?>">
                                         <i class="fas fa-<?= $user['active'] ? 'ban' : 'check' ?>"></i> <?= $user['active'] ? te('disable') : te('enable') ?>
+                                    </button>
+                                </form>
+                                <form method="POST" style="display: inline;" onsubmit="return confirm('<?= te('delete_user_confirm') ?>');">
+                                    <input type="hidden" name="action" value="delete_user">
+                                    <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="<?= te('delete') ?>">
+                                        <i class="fas fa-trash"></i> <?= te('delete') ?>
                                     </button>
                                 </form>
                             <?php endif; ?>

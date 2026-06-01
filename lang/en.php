@@ -364,6 +364,9 @@ return [
     'enable'             => 'Enable',
     'disable_confirm'    => 'Disable this user? They will no longer be able to log in.',
     'enable_confirm'     => 'Enable this user?',
+    'delete_user_confirm'=> 'Delete this user permanently? This cannot be undone.',
+    'msg_user_deleted'   => 'User deleted.',
+    'err_user_has_history' => 'This user has orders or payments and cannot be deleted — disable them instead.',
 
     // ---- Admin: Settings ----
     'msg_settings_saved' => 'Settings saved successfully!',
