@@ -2,7 +2,7 @@
     </div>
 
     <footer class="main-footer">
-        <p>&copy; <?= date('Y') ?> RestoPOS - <?= te('footer_tagline') ?></p>
+        <p>&copy; <?= date('Y') ?> <?= te('app_name') ?> - <?= te('footer_tagline') ?></p>
     </footer>
     
     <!-- Toast notifications container -->

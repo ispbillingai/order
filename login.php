@@ -83,7 +83,7 @@ function redirectToRole($role) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= te('login_title') ?> - RestoPOS</title>
+    <title><?= te('login_title') ?> - <?= te('app_name') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
@@ -101,7 +101,7 @@ function redirectToRole($role) {
         </div>
         <div class="login-logo">
             <i class="fas fa-utensils"></i>
-            <h1>RestoPOS</h1>
+            <h1><?= te('app_name') ?></h1>
             <p class="text-muted"><?= te('login_subtitle') ?></p>
         </div>
         

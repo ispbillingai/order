@@ -4,7 +4,7 @@
  */
 return [
     // ---- App / chrome ----
-    'app_name'        => 'RestoPOS',
+    'app_name'        => 'RistoUpgrade',
     'footer_tagline'  => 'Restaurant Management System',
     'language'        => 'Language',
 

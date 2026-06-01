@@ -6,7 +6,7 @@
 
 $currentUser = getCurrentUser();
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$pageTitle = $pageTitle ?? 'RestoPOS';
+$pageTitle = $pageTitle ?? 'RistoUpgrade';
 $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 0;
 $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
     && strpos($_SERVER['PHP_SELF'] ?? '', '/admin/') !== false;
@@ -16,7 +16,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= sanitize($pageTitle) ?> - RestoPOS</title>
+    <title><?= sanitize($pageTitle) ?> - <?= te('app_name') ?></title>
     <style>
         .lang-switch { display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(255,255,255,.28); border-radius:999px; margin-right:10px; background:rgba(255,255,255,.06); }
         .lang-switch a { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none; color:rgba(255,255,255,.85); }
@@ -47,7 +47,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
     <nav class="main-nav">
         <div class="nav-brand">
             <i class="fas fa-utensils"></i>
-            <span>RestoPOS</span>
+            <span><?= te('app_name') ?></span>
         </div>
         
         <?php if ($currentUser): ?>
