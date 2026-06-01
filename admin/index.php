@@ -111,8 +111,11 @@ include __DIR__ . '/../includes/header.php';
             <a href="/admin/reports.php" class="btn btn-outline">
                 <i class="fas fa-chart-bar"></i> Reports
             </a>
+            <a href="/admin/printers.php" class="btn btn-outline">
+                <i class="fas fa-print"></i> <?= te('printers') ?>
+            </a>
             <a href="/admin/settings.php" class="btn btn-outline">
-                <i class="fas fa-cog"></i> Settings
+                <i class="fas fa-cog"></i> <?= te('settings') ?>
             </a>
         </div>
     </div>

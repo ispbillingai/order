@@ -22,6 +22,17 @@ function deviceConfig(?string $section = null)
         if (!is_array($cfg)) {
             $cfg = [];
         }
+        // Overlay printer settings configured in the admin panel (DB) on top of
+        // the file defaults, so printers (and their IPs) are managed from the UI.
+        require_once __DIR__ . '/settings.php';
+        $dbPrinters = getSetting('printers', []);
+        if (is_array($dbPrinters)) {
+            foreach (['kitchen_printer', 'cashier_printer', 'fiscal_printer'] as $pk) {
+                if (!empty($dbPrinters[$pk]) && is_array($dbPrinters[$pk])) {
+                    $cfg[$pk] = array_merge($cfg[$pk] ?? [], $dbPrinters[$pk]);
+                }
+            }
+        }
     }
     if ($section === null) {
         return $cfg;
