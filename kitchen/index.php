@@ -281,11 +281,9 @@ include __DIR__ . '/../includes/header.php';
                                                 <i class="fas fa-play"></i> <?= te('start') ?>
                                             </button>
                                         <?php endif; ?>
-                                        <?php if ($item['status'] === 'in_kitchen'): ?>
-                                            <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
-                                                <i class="fas fa-check"></i> <?= te('ready') ?>
-                                            </button>
-                                        <?php endif; ?>
+                                        <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
+                                            <i class="fas fa-check"></i> <?= te('ready') ?>
+                                        </button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
