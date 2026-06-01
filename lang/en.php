@@ -50,6 +50,8 @@ return [
     'login_password'  => 'Password',
     'login_button'    => 'Sign In',
     'login_error'     => 'Invalid username or password',
+    'login_enter_both'=> 'Please enter both username and password.',
+    'demo_credentials'=> 'Demo Credentials:',
 
     // ---- Cashier dashboard ----
     'cashier_dashboard'   => 'Cashier Dashboard',

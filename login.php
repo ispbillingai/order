@@ -11,6 +11,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/includes/i18n.php';
+i18n_init();
+
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
     $pdo = getDBConnection();
@@ -31,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     if (empty($username) || empty($password)) {
-        $error = 'Please enter both username and password.';
+        $error = t('login_enter_both');
     } else {
         $pdo = getDBConnection();
         $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND active = 1");
@@ -50,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             redirectToRole($user['role']);
         } else {
-            $error = 'Invalid username or password.';
+            $error = t('login_error');
         }
     }
 }
@@ -76,11 +79,11 @@ function redirectToRole($role) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(currentLang()) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - RestoPOS</title>
+    <title><?= te('login_title') ?> - RestoPOS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
@@ -89,10 +92,17 @@ function redirectToRole($role) {
 </head>
 <body class="login-page">
     <div class="login-container">
+        <div style="text-align:center; margin-bottom:12px;">
+            <span class="lang-switch" style="display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(0,0,0,.12); border-radius:999px;">
+                <?php foreach (langLabels() as $label => $code): ?>
+                    <a href="<?= htmlspecialchars(langSwitchUrl($code)) ?>" style="padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;text-decoration:none;<?= $code === currentLang() ? 'background:#e74c3c;color:#fff;' : 'color:#888;' ?>"><?= $label ?></a>
+                <?php endforeach; ?>
+            </span>
+        </div>
         <div class="login-logo">
             <i class="fas fa-utensils"></i>
             <h1>RestoPOS</h1>
-            <p class="text-muted">Restaurant Management System</p>
+            <p class="text-muted"><?= te('login_subtitle') ?></p>
         </div>
         
         <?php if ($error): ?>
@@ -105,23 +115,23 @@ function redirectToRole($role) {
         <form method="POST" class="login-form">
             <div class="form-group">
                 <i class="fas fa-user"></i>
-                <input type="text" name="username" class="form-control" placeholder="Username" 
+                <input type="text" name="username" class="form-control" placeholder="<?= te('login_username') ?>"
                        value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus>
             </div>
             
             <div class="form-group">
                 <i class="fas fa-lock"></i>
-                <input type="password" name="password" class="form-control" placeholder="Password" required>
+                <input type="password" name="password" class="form-control" placeholder="<?= te('login_password') ?>" required>
             </div>
             
             <button type="submit" class="btn btn-primary btn-lg btn-block">
                 <i class="fas fa-sign-in-alt"></i>
-                Sign In
+                <?= te('login_button') ?>
             </button>
         </form>
-        
+
         <div class="mt-lg text-center text-muted" style="font-size: 0.85rem;">
-            <p><strong>Demo Credentials:</strong></p>
+            <p><strong><?= te('demo_credentials') ?></strong></p>
             <p>Admin: admin / password</p>
             <p>Waiter: waiter1 / password</p>
             <p>Cashier: cashier1 / password</p>

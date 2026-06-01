@@ -50,6 +50,8 @@ return [
     'login_password'  => 'Password',
     'login_button'    => 'Accedi',
     'login_error'     => 'Nome utente o password non validi',
+    'login_enter_both'=> 'Inserisci nome utente e password.',
+    'demo_credentials'=> 'Credenziali Demo:',
 
     // ---- Cashier dashboard ----
     'cashier_dashboard'   => 'Pannello Cassa',
