@@ -28,6 +28,24 @@ $jsCfg  = [
     'currency_symbol' => $sym,
     'cashmatic'       => !empty($cm['enabled']) && !empty($cm['base_url']),
     'pos'             => !empty($pos['enabled']) && !empty($pos['base_url']),
+    'i18n'            => [
+        'follow_terminal' => t('follow_terminal'),
+        'starting'        => t('starting'),
+        'waiting'         => t('waiting_for_cash'),
+        'working'         => t('working'),
+        'recording'       => t('recording'),
+        'card_declined'   => t('js_card_declined'),
+        'start_failed'    => t('js_start_failed'),
+        'payment_failed'  => t('js_payment_failed'),
+        'fiscal_no'       => t('js_fiscal_no'),
+        'card_approved'   => t('js_card_approved'),
+        'cash_received'   => t('js_cash_received'),
+        'change_not_disp' => t('js_change_not_disp'),
+        'recorded'        => t('js_recorded'),
+        'failed'          => t('js_failed'),
+        'pay_by_card'     => t('pay_by_card'),
+        'start_cash'      => t('start_payment_cash'),
+    ],
 ];
 
 $pageTitle = "Payment - Order #{$order['order_number']}";
@@ -48,8 +66,8 @@ include __DIR__ . '/../includes/header.php';
 </style>
 
 <div class="page-header">
-    <h1><i class="fas fa-cash-register"></i> Process Payment</h1>
-    <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</a>
+    <h1><i class="fas fa-cash-register"></i> <?= te('process_payment') ?></h1>
+    <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
 </div>
 
 <div class="payment-layout" style="display:grid;grid-template-columns:1fr 420px;gap:24px;">
@@ -57,8 +75,8 @@ include __DIR__ . '/../includes/header.php';
     <div>
         <div class="card mb-lg">
             <div class="card-header">
-                <h2>Order #<?= htmlspecialchars($order['order_number']) ?></h2>
-                <span class="badge badge-info">Table <?= htmlspecialchars($order['table_number']) ?> • <?= htmlspecialchars($order['room_name']) ?></span>
+                <h2><?= te('order_no') ?><?= htmlspecialchars($order['order_number']) ?></h2>
+                <span class="badge badge-info"><?= te('table') ?> <?= htmlspecialchars($order['table_number']) ?> • <?= htmlspecialchars($order['room_name']) ?></span>
             </div>
             <div class="card-body">
                 <?php foreach ($orderItems as $item): ?>
@@ -68,30 +86,30 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                 <?php endforeach; ?>
                 <div class="dev-row">
-                    <div>Cover Charge (<?= (int) $order['number_of_people'] ?>)</div>
+                    <div><?= te('cover_charge') ?> (<?= (int) $order['number_of_people'] ?>)</div>
                     <strong><?= formatCurrency($order['number_of_people'] * $order['cover_charge_per_person']) ?></strong>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header"><h2><i class="fas fa-percent"></i> Apply Discount</h2></div>
+            <div class="card-header"><h2><i class="fas fa-percent"></i> <?= te('apply_discount') ?></h2></div>
             <div class="card-body">
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Type</label>
+                        <label class="form-label"><?= te('discount_type') ?></label>
                         <select id="discountType" class="form-control">
-                            <option value="">No Discount</option>
-                            <option value="percent" <?= $order['discount_type'] === 'percent' ? 'selected' : '' ?>>Percentage (%)</option>
-                            <option value="fixed" <?= $order['discount_type'] === 'fixed' ? 'selected' : '' ?>>Fixed</option>
+                            <option value=""><?= te('no_discount') ?></option>
+                            <option value="percent" <?= $order['discount_type'] === 'percent' ? 'selected' : '' ?>><?= te('percentage') ?></option>
+                            <option value="fixed" <?= $order['discount_type'] === 'fixed' ? 'selected' : '' ?>><?= te('fixed') ?></option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Value</label>
+                        <label class="form-label"><?= te('discount_value') ?></label>
                         <input type="number" id="discountValue" class="form-control" value="<?= $order['discount_value'] ?>" min="0" step="0.01">
                     </div>
                 </div>
-                <button class="btn btn-secondary" onclick="applyDiscountAction()"><i class="fas fa-tag"></i> Apply &amp; Recalculate</button>
+                <button class="btn btn-secondary" onclick="applyDiscountAction()"><i class="fas fa-tag"></i> <?= te('apply_recalc') ?></button>
             </div>
         </div>
     </div>
@@ -101,13 +119,13 @@ include __DIR__ . '/../includes/header.php';
         <!-- Summary / choose method -->
         <div id="k-choose" class="card">
             <div class="card-body">
-                <div style="color:var(--text-secondary);text-align:center;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;">Total to pay</div>
+                <div style="color:var(--text-secondary);text-align:center;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;"><?= te('total_to_pay') ?></div>
                 <div class="kiosk-amount"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
                 <div class="kiosk-actions">
-                    <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> Start payment (cash)</button><?php endif; ?>
-                    <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> Pay by card</button><?php endif; ?>
-                    <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> M-Pesa / manual</button>
-                    <button class="btn-cancel" onclick="location.href='/cashier/index.php'">Cancel</button>
+                    <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> <?= te('start_payment_cash') ?></button><?php endif; ?>
+                    <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> <?= te('pay_by_card') ?></button><?php endif; ?>
+                    <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> <?= te('mpesa_manual') ?></button>
+                    <button class="btn-cancel" onclick="location.href='/cashier/index.php'"><?= te('cancel') ?></button>
                 </div>
                 <p id="k-choose-err" class="dev-err" style="margin-top:10px;text-align:center;"></p>
             </div>
@@ -117,48 +135,48 @@ include __DIR__ . '/../includes/header.php';
         <div id="k-manual" class="card hidden">
             <div class="card-body">
                 <div class="form-group">
-                    <label class="form-label">Method</label>
+                    <label class="form-label"><?= te('method') ?></label>
                     <select id="manualMethod" class="form-control">
-                        <option value="mpesa">M-Pesa</option>
-                        <option value="cash">Cash (manual)</option>
-                        <option value="card">Card (manual)</option>
-                        <option value="other">Other</option>
+                        <option value="mpesa"><?= te('mpesa') ?></option>
+                        <option value="cash"><?= te('cash_manual') ?></option>
+                        <option value="card"><?= te('card_manual') ?></option>
+                        <option value="other"><?= te('other') ?></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Amount Received</label>
+                    <label class="form-label"><?= te('amount_received') ?></label>
                     <input type="number" id="manualAmount" class="form-control" step="0.01" value="<?= number_format($order['total'], 2, '.', '') ?>">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Reference (optional)</label>
-                    <input type="text" id="manualRef" class="form-control" placeholder="Transaction reference">
+                    <label class="form-label"><?= te('reference_optional') ?></label>
+                    <input type="text" id="manualRef" class="form-control" placeholder="<?= te('transaction_ref') ?>">
                 </div>
-                <button class="btn btn-success btn-block" onclick="payManual()"><i class="fas fa-check"></i> Complete Payment</button>
-                <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="toggleManual()">Back</button>
+                <button class="btn btn-success btn-block" onclick="payManual()"><i class="fas fa-check"></i> <?= te('complete_payment') ?></button>
+                <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="toggleManual()"><?= te('back') ?></button>
             </div>
         </div>
 
         <!-- Cash machine in progress -->
         <div id="k-cash" class="card hidden">
             <div class="card-body">
-                <h2 style="text-align:center;">Insert cash…</h2>
-                <div class="dev-row"><span>Requested</span><b><span id="c-req">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
-                <div class="dev-row"><span>Inserted</span><b><span id="c-ins">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
-                <div class="dev-row"><span>Change</span><b><span id="c-disp">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
+                <h2 style="text-align:center;"><?= te('insert_cash') ?></h2>
+                <div class="dev-row"><span><?= te('requested') ?></span><b><span id="c-req">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
+                <div class="dev-row"><span><?= te('inserted') ?></span><b><span id="c-ins">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
+                <div class="dev-row"><span><?= te('change') ?></span><b><span id="c-disp">0.00</span> <?= htmlspecialchars($sym) ?></b></div>
                 <div class="dev-status" id="c-status"></div>
-                <button class="btn btn-danger btn-block" onclick="cancelCash()">Cancel machine payment</button>
+                <button class="btn btn-danger btn-block" onclick="cancelCash()"><?= te('cancel_machine') ?></button>
             </div>
         </div>
 
         <!-- Working / result -->
-        <div id="k-busy" class="card hidden"><div class="card-body"><div class="dev-status" id="busy-status">Working…</div></div></div>
+        <div id="k-busy" class="card hidden"><div class="card-body"><div class="dev-status" id="busy-status"><?= te('working') ?></div></div></div>
         <div id="k-done" class="card hidden">
             <div class="card-body" style="text-align:center;">
                 <div style="font-size:3rem;color:var(--success);"><i class="fas fa-check-circle"></i></div>
-                <h2 class="dev-ok">Payment received</h2>
+                <h2 class="dev-ok"><?= te('payment_received') ?></h2>
                 <p id="done-receipt" style="color:var(--text-secondary);"></p>
-                <a id="done-print" class="btn btn-primary btn-block" href="#"><i class="fas fa-receipt"></i> Print order receipt</a>
-                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="/cashier/index.php">Done</a>
+                <a id="done-print" class="btn btn-primary btn-block" href="#"><i class="fas fa-receipt"></i> <?= te('print_order_receipt') ?></a>
+                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="/cashier/index.php"><?= te('done') ?></a>
             </div>
         </div>
     </div>
@@ -190,11 +208,11 @@ function done(receiptText) {
 
 /* ---- Card (Ingenico via RTS POS) ---- */
 async function payCard() {
-    showPanel('k-busy'); $('busy-status').textContent = 'Follow the prompt on the card terminal…';
+    showPanel('k-busy'); $('busy-status').textContent = CFG.i18n.follow_terminal;
     try {
         const r = await post('/api/card-pay.php', { order_id: CFG.order_id });
-        if (!r.ok) { $('k-choose-err').textContent = 'Card: ' + (r.error || 'declined'); showPanel('k-choose'); return; }
-        done(r.receipt && r.receipt.receipt_number ? ('Fiscal receipt #' + r.receipt.receipt_number) : 'Card approved' + (r.auth_code ? ' (auth ' + r.auth_code + ')' : ''));
+        if (!r.ok) { $('k-choose-err').textContent = CFG.i18n.pay_by_card + ': ' + (r.error || CFG.i18n.card_declined); showPanel('k-choose'); return; }
+        done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number) : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
     } catch (e) { $('k-choose-err').textContent = e.message; showPanel('k-choose'); }
 }
 
@@ -202,10 +220,10 @@ async function payCard() {
 async function payCash() {
     showPanel('k-cash'); finishing = false;
     $('c-req').textContent = CFG.total.toFixed(2);
-    $('c-status').textContent = 'Starting…';
+    $('c-status').textContent = CFG.i18n.starting;
     const sp = await post('/api/cashmatic-start.php', { order_id: CFG.order_id });
-    if (!sp.ok) { $('k-choose-err').textContent = 'Cash: ' + (sp.error || 'start failed'); showPanel('k-choose'); return; }
-    $('c-status').textContent = 'Waiting for cash…';
+    if (!sp.ok) { $('k-choose-err').textContent = CFG.i18n.start_cash + ': ' + (sp.error || CFG.i18n.start_failed); showPanel('k-choose'); return; }
+    $('c-status').textContent = CFG.i18n.waiting;
     pollTimer = setTimeout(pollCash, 600);
 }
 async function pollCash() {
@@ -218,9 +236,9 @@ async function pollCash() {
         if (r.operation !== 'idle') { again = true; return; }
         finishing = true;
         const f = await post('/api/cashmatic-finish.php', { order_id: CFG.order_id });
-        if (!f.ok) { alert('Cash payment: ' + (f.error || f.end || 'failed')); showPanel('k-choose'); return; }
-        let msg = f.receipt && f.receipt.receipt_number ? ('Fiscal receipt #' + f.receipt.receipt_number) : 'Cash received';
-        if (f.notDispensed > 0) msg += ' — change NOT dispensed ' + SYM + fmtc(f.notDispensed);
+        if (!f.ok) { alert(CFG.i18n.payment_failed + ': ' + (f.error || f.end || CFG.i18n.failed)); showPanel('k-choose'); return; }
+        let msg = f.receipt && f.receipt.receipt_number ? (CFG.i18n.fiscal_no + f.receipt.receipt_number) : CFG.i18n.cash_received;
+        if (f.notDispensed > 0) msg += ' — ' + CFG.i18n.change_not_disp + ' ' + SYM + fmtc(f.notDispensed);
         done(msg);
     } catch (e) { $('c-status').textContent = e.message; again = true; }
     finally { if (again && !finishing) pollTimer = setTimeout(pollCash, 400); }
@@ -236,11 +254,11 @@ async function payManual() {
     const method = $('manualMethod').value;
     const amount = parseFloat($('manualAmount').value) || CFG.total;
     const reference = $('manualRef').value;
-    showPanel('k-busy'); $('busy-status').textContent = 'Recording…';
+    showPanel('k-busy'); $('busy-status').textContent = CFG.i18n.recording;
     try {
         const r = await post('/api/payments.php', { action:'process_payment', order_id: CFG.order_id, method, amount, reference });
-        if (!r.success) { alert(r.message || 'Payment failed'); showPanel('k-choose'); return; }
-        done('Recorded (' + method + ')');
+        if (!r.success) { alert(r.message || CFG.i18n.payment_failed); showPanel('k-choose'); return; }
+        done(CFG.i18n.recorded + ' (' + method + ')');
     } catch (e) { alert(e.message); showPanel('k-choose'); }
 }
 
@@ -250,7 +268,7 @@ async function applyDiscountAction() {
     const value = parseFloat($('discountValue').value) || 0;
     try {
         const r = await post('/api/payments.php', { action:'apply_discount', order_id: CFG.order_id, discount_type: type, discount_value: value });
-        if (r.success) location.reload(); else alert(r.message || 'Failed');
+        if (r.success) location.reload(); else alert(r.message || CFG.i18n.failed);
     } catch (e) { alert(e.message); }
 }
 </script>
