@@ -103,6 +103,16 @@ return [
     'cash_manual'         => 'Cash (manual)',
     'card_manual'         => 'Card (manual)',
     'other'               => 'Other',
+    'transaction_ref'     => 'Transaction reference',
+    'js_card_declined'    => 'Card declined',
+    'js_start_failed'     => 'Could not start',
+    'js_payment_failed'   => 'Payment failed',
+    'js_fiscal_no'        => 'Fiscal receipt #',
+    'js_card_approved'    => 'Card approved',
+    'js_cash_received'    => 'Cash received',
+    'js_change_not_disp'  => 'change NOT dispensed',
+    'js_recorded'         => 'Recorded',
+    'js_failed'           => 'Failed',
 
     // ---- Kitchen ----
     'kitchen_display'     => 'Kitchen Display',

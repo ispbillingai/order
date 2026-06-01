@@ -103,6 +103,16 @@ return [
     'cash_manual'         => 'Contanti (manuale)',
     'card_manual'         => 'Carta (manuale)',
     'other'               => 'Altro',
+    'transaction_ref'     => 'Riferimento transazione',
+    'js_card_declined'    => 'Carta rifiutata',
+    'js_start_failed'     => 'Avvio non riuscito',
+    'js_payment_failed'   => 'Pagamento non riuscito',
+    'js_fiscal_no'        => 'Scontrino fiscale n. ',
+    'js_card_approved'    => 'Carta approvata',
+    'js_cash_received'    => 'Contanti ricevuti',
+    'js_change_not_disp'  => 'resto NON erogato',
+    'js_recorded'         => 'Registrato',
+    'js_failed'           => 'Non riuscito',
 
     // ---- Kitchen ----
     'kitchen_display'     => 'Display Cucina',

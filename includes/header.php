@@ -16,9 +16,10 @@ $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= sanitize($pageTitle) ?> - RestoPOS</title>
     <style>
-        .lang-switch { display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(0,0,0,.12); border-radius:999px; margin-right:10px; }
-        .lang-switch a { padding:3px 9px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none; color:inherit; opacity:.6; }
-        .lang-switch a.active { background:var(--primary,#e74c3c); color:#fff; opacity:1; }
+        .lang-switch { display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(255,255,255,.28); border-radius:999px; margin-right:10px; background:rgba(255,255,255,.06); }
+        .lang-switch a { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none; color:rgba(255,255,255,.85); }
+        .lang-switch a:hover { color:#fff; }
+        .lang-switch a.active { background:var(--primary,#e74c3c); color:#fff; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
