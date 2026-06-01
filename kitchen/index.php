@@ -66,7 +66,7 @@ foreach ($items as $item) {
     $orderGroups[$orderId]['items'][] = $item;
 }
 
-$pageTitle = 'Kitchen Display';
+$pageTitle = t('kitchen_display');
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -124,19 +124,19 @@ include __DIR__ . '/../includes/header.php';
 </style>
 
 <div class="kitchen-header">
-    <h1><i class="fas fa-fire-burner"></i> Kitchen Display</h1>
+    <h1><i class="fas fa-fire-burner"></i> <?= te('kitchen_display') ?></h1>
     <div class="kitchen-stats">
         <div class="kitchen-stat">
             <div class="number" style="color: var(--warning);"><?= count(array_filter($items, fn($i) => $i['status'] === 'pending')) ?></div>
-            <div class="label">Queued</div>
+            <div class="label"><?= te('queued') ?></div>
         </div>
         <div class="kitchen-stat">
             <div class="number" style="color: var(--info);"><?= count(array_filter($items, fn($i) => $i['status'] === 'in_kitchen')) ?></div>
-            <div class="label">In Progress</div>
+            <div class="label"><?= te('in_progress') ?></div>
         </div>
         <div class="kitchen-stat">
             <div class="number"><?= count($orderGroups) ?></div>
-            <div class="label">Orders</div>
+            <div class="label"><?= te('orders') ?></div>
         </div>
     </div>
 </div>
@@ -144,8 +144,8 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($orderGroups)): ?>
     <div class="card" style="padding: 80px; text-align: center;">
         <i class="fas fa-check-circle" style="font-size: 4rem; color: var(--success); margin-bottom: 24px;"></i>
-        <h2>All Caught Up!</h2>
-        <p class="text-muted">No pending orders in the kitchen.</p>
+        <h2><?= te('all_caught_up') ?></h2>
+        <p class="text-muted"><?= te('no_pending_kitchen') ?></p>
     </div>
 <?php else: ?>
     <div class="kitchen-grid">
@@ -176,7 +176,7 @@ include __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                     <div class="ticket-time <?= $timeClass ?>">
-                        <i class="fas fa-clock"></i> <?= $minutes ?> min
+                        <i class="fas fa-clock"></i> <?= $minutes ?> <?= te('minutes_short') ?>
                     </div>
                 </div>
                 
@@ -187,7 +187,7 @@ include __DIR__ . '/../includes/header.php';
                                 <span class="qty"><?= $item['quantity'] ?>×</span>
                                 <strong><?= htmlspecialchars($item['item_name']) ?></strong>
                                 <span class="badge badge-<?= $item['status'] === 'in_kitchen' ? 'info' : 'warning' ?>" style="margin-left: 8px;">
-                                    <?= $item['status'] === 'in_kitchen' ? 'Cooking' : 'Queued' ?>
+                                    <?= $item['status'] === 'in_kitchen' ? te('cooking') : te('queued') ?>
                                 </span>
                             </div>
                             
@@ -199,7 +199,7 @@ include __DIR__ . '/../includes/header.php';
                                     <?php foreach ($item['modifications'] as $mod): ?>
                                         <div>
                                             <span class="<?= $mod['action'] === 'removed' ? 'text-danger' : 'text-success' ?>">
-                                                <?= $mod['action'] === 'removed' ? '− NO' : '+ ADD' ?>
+                                                <?= $mod['action'] === 'removed' ? '− ' . te('mod_no') : '+ ' . te('mod_add') ?>
                                             </span>
                                             <?= htmlspecialchars($mod['component_name']) ?>
                                         </div>
@@ -210,22 +210,22 @@ include __DIR__ . '/../includes/header.php';
                             <div class="mt-sm d-flex gap-sm">
                                 <?php if ($item['status'] === 'pending'): ?>
                                     <button class="btn btn-sm btn-info" onclick="startItem(<?= $item['order_item_id'] ?>)">
-                                        <i class="fas fa-play"></i> Start
+                                        <i class="fas fa-play"></i> <?= te('start') ?>
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($item['status'] === 'in_kitchen'): ?>
                                     <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
-                                        <i class="fas fa-check"></i> Ready
+                                        <i class="fas fa-check"></i> <?= te('ready') ?>
                                     </button>
                                 <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
-                
+
                 <div class="ticket-actions">
                     <button class="btn btn-success" onclick="markAllReady(<?= $group['order_id'] ?>)">
-                        <i class="fas fa-check-double"></i> All Ready
+                        <i class="fas fa-check-double"></i> <?= te('all_ready') ?>
                     </button>
                 </div>
             </div>
@@ -234,15 +234,21 @@ include __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <script>
+const T = {
+    started: <?= json_encode(t('toast_started')) ?>,
+    updateFailed: <?= json_encode(t('toast_update_failed')) ?>,
+    markedReady: <?= json_encode(t('toast_marked_ready')) ?>,
+    allReady: <?= json_encode(t('toast_all_ready')) ?>,
+};
 async function startItem(orderItemId) {
     try {
         const result = await updateKitchenStatus(orderItemId, 'in_kitchen');
         if (result.success) {
-            showToast('Started cooking!', 'info');
+            showToast(T.started, 'info');
             location.reload();
         }
     } catch (error) {
-        showToast('Failed to update', 'error');
+        showToast(T.updateFailed, 'error');
     }
 }
 
@@ -250,11 +256,11 @@ async function markReady(orderItemId) {
     try {
         const result = await updateKitchenStatus(orderItemId, 'ready');
         if (result.success) {
-            showToast('Marked as ready!', 'success');
+            showToast(T.markedReady, 'success');
             location.reload();
         }
     } catch (error) {
-        showToast('Failed to update', 'error');
+        showToast(T.updateFailed, 'error');
     }
 }
 
@@ -265,11 +271,11 @@ async function markAllReady(orderId) {
             order_id: orderId
         });
         if (result.success) {
-            showToast('All items marked ready!', 'success');
+            showToast(T.allReady, 'success');
             location.reload();
         }
     } catch (error) {
-        showToast('Failed to update', 'error');
+        showToast(T.updateFailed, 'error');
     }
 }
 

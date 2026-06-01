@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 requireRole(['admin', 'waiter']);
 
-$pageTitle = 'Tables';
+$pageTitle = t('waiter_dashboard');
 $rooms = getRooms();
 $selectedRoomId = $_GET['room'] ?? ($rooms[0]['id'] ?? null);
 
@@ -38,10 +38,10 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-th-large"></i> Select Table</h1>
+    <h1><i class="fas fa-th-large"></i> <?= te('select_table') ?></h1>
     <div class="d-flex gap-md">
         <a href="/waiter/orders.php" class="btn btn-secondary">
-            <i class="fas fa-list"></i> My Orders
+            <i class="fas fa-list"></i> <?= te('my_orders') ?>
         </a>
     </div>
 </div>
@@ -69,15 +69,15 @@ include __DIR__ . '/../includes/header.php';
             <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
             <div class="table-capacity">
                 <i class="fas fa-users"></i>
-                <?= $table['capacity'] ?> seats
+                <?= $table['capacity'] ?> <?= te('seats') ?>
             </div>
             <div class="table-status">
                 <?php if ($status === 'free'): ?>
-                    Available
+                    <?= te('available') ?>
                 <?php elseif ($status === 'occupied'): ?>
-                    Occupied
+                    <?= te('occupied') ?>
                 <?php elseif ($status === 'bill_requested'): ?>
-                    Bill Requested
+                    <?= te('bill_requested') ?>
                 <?php endif; ?>
             </div>
             <?php if ($order): ?>
@@ -91,7 +91,7 @@ include __DIR__ . '/../includes/header.php';
     <?php if (empty($tables)): ?>
         <div class="card" style="grid-column: 1/-1; padding: 40px; text-align: center;">
             <i class="fas fa-chair" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 16px;"></i>
-            <p class="text-muted">No tables in this room. Add tables in Admin settings.</p>
+            <p class="text-muted"><?= te('no_tables_room') ?></p>
         </div>
     <?php endif; ?>
 </div>
@@ -100,21 +100,21 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="newOrderModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Start New Order</h3>
+            <h3><?= te('start_new_order') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
-            <p class="mb-md">Table: <strong id="modalTableNumber"></strong></p>
-            
+            <p class="mb-md"><?= te('table') ?>: <strong id="modalTableNumber"></strong></p>
+
             <div class="form-group">
-                <label class="form-label">Number of Guests</label>
+                <label class="form-label"><?= te('number_of_guests') ?></label>
                 <input type="number" id="numberOfPeople" class="form-control" min="1" max="20" value="1">
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeModal('newOrderModal')">Cancel</button>
+            <button class="btn btn-outline" onclick="closeModal('newOrderModal')"><?= te('cancel') ?></button>
             <button class="btn btn-primary" onclick="startNewOrder()">
-                <i class="fas fa-plus"></i> Start Order
+                <i class="fas fa-plus"></i> <?= te('start_order') ?>
             </button>
         </div>
     </div>
@@ -145,11 +145,11 @@ async function startNewOrder() {
         const result = await createOrder(selectedTableId, numberOfPeople);
         
         if (result.success) {
-            showToast('Order created!', 'success');
+            showToast(<?= json_encode(t('toast_order_created')) ?>, 'success');
             window.location.href = `/waiter/order.php?order=${result.order_id}`;
         }
     } catch (error) {
-        showToast('Failed to create order', 'error');
+        showToast(<?= json_encode(t('toast_order_failed')) ?>, 'error');
     }
 }
 

@@ -195,4 +195,29 @@ return [
     'fiscal_role_hint'   => 'Official fiscal receipt, printed after payment (Epson RT).',
     'test_ok'            => 'Test sent to printer.',
     'test_failed'        => 'Test failed',
+
+    // ---- Kitchen display ----
+    'all_caught_up'      => 'All Caught Up!',
+    'no_pending_kitchen' => 'No pending orders in the kitchen.',
+    'cooking'            => 'Cooking',
+    'start'              => 'Start',
+    'all_ready'          => 'All Ready',
+    'mod_no'             => 'NO',
+    'mod_add'            => 'ADD',
+    'toast_started'      => 'Started cooking!',
+    'toast_update_failed'=> 'Failed to update',
+    'toast_marked_ready' => 'Marked as ready!',
+    'toast_all_ready'    => 'All items marked ready!',
+    'orders'             => 'Orders',
+
+    // ---- Waiter / tables ----
+    'select_table'       => 'Select Table',
+    'my_orders'          => 'My Orders',
+    'seats'              => 'seats',
+    'no_tables_room'     => 'No tables in this room. Add tables in Admin settings.',
+    'start_new_order'    => 'Start New Order',
+    'number_of_guests'   => 'Number of Guests',
+    'start_order'        => 'Start Order',
+    'toast_order_created'=> 'Order created!',
+    'toast_order_failed' => 'Failed to create order',
 ];

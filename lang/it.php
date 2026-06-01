@@ -195,4 +195,29 @@ return [
     'fiscal_role_hint'   => 'Scontrino fiscale ufficiale, stampato dopo il pagamento (Epson RT).',
     'test_ok'            => 'Prova inviata alla stampante.',
     'test_failed'        => 'Prova non riuscita',
+
+    // ---- Kitchen display ----
+    'all_caught_up'      => 'Tutto Fatto!',
+    'no_pending_kitchen' => 'Nessun ordine in attesa in cucina.',
+    'cooking'            => 'In cottura',
+    'start'              => 'Avvia',
+    'all_ready'          => 'Tutto Pronto',
+    'mod_no'             => 'NO',
+    'mod_add'            => 'AGG',
+    'toast_started'      => 'Cottura avviata!',
+    'toast_update_failed'=> 'Aggiornamento non riuscito',
+    'toast_marked_ready' => 'Segnato come pronto!',
+    'toast_all_ready'    => 'Tutti gli articoli pronti!',
+    'orders'             => 'Ordini',
+
+    // ---- Waiter / tables ----
+    'select_table'       => 'Seleziona Tavolo',
+    'my_orders'          => 'I Miei Ordini',
+    'seats'              => 'posti',
+    'no_tables_room'     => 'Nessun tavolo in questa sala. Aggiungi tavoli nelle impostazioni Admin.',
+    'start_new_order'    => 'Inizia Nuovo Ordine',
+    'number_of_guests'   => 'Numero di Coperti',
+    'start_order'        => 'Inizia Ordine',
+    'toast_order_created'=> 'Ordine creato!',
+    'toast_order_failed' => 'Creazione ordine non riuscita',
 ];
