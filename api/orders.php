@@ -209,35 +209,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         case 'send_to_kitchen':
             $orderId = $input['order_id'] ?? null;
-            
+
             if (!$orderId) {
                 jsonResponse(['success' => false, 'message' => 'Order ID required']);
             }
-            
+
+            // Capture the items being sent NOW (still 'pending') so the kitchen
+            // ticket prints exactly these dishes — not ones already in the kitchen.
+            $stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND status = 'pending'");
+            $stmt->execute([$orderId]);
+            $sentItemIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+
             // Update pending items to in_kitchen
             $stmt = $pdo->prepare("
-                UPDATE order_items 
-                SET status = 'in_kitchen', sent_to_kitchen_at = NOW() 
+                UPDATE order_items
+                SET status = 'in_kitchen', sent_to_kitchen_at = NOW()
                 WHERE order_id = ? AND status = 'pending'
             ");
             $stmt->execute([$orderId]);
-            
+
             // Update order status
             $stmt = $pdo->prepare("UPDATE orders SET status = 'sent_to_kitchen' WHERE id = ?");
             $stmt->execute([$orderId]);
-            
+
             // Create kitchen tickets for pending items
             $stmt = $pdo->prepare("
                 INSERT INTO kitchen_tickets (order_id, order_item_id, status)
-                SELECT ?, id, 'queued' FROM order_items 
+                SELECT ?, id, 'queued' FROM order_items
                 WHERE order_id = ? AND status = 'in_kitchen'
                 AND id NOT IN (SELECT order_item_id FROM kitchen_tickets WHERE order_id = ?)
             ");
             $stmt->execute([$orderId, $orderId, $orderId]);
-            
+
             logActivity('sent_to_kitchen', 'orders', $orderId);
-            
-            jsonResponse(['success' => true]);
+
+            // Print the kitchen ticket (table number + dishes only, no prices).
+            // Non-fatal: if the printer is offline the order is still sent.
+            $print = ['ok' => false, 'error' => 'no_items'];
+            if (!empty($sentItemIds)) {
+                require_once __DIR__ . '/../includes/kitchen_ticket.php';
+                $print = printKitchenTicketForOrder((int) $orderId, $sentItemIds);
+            }
+
+            jsonResponse(['success' => true, 'printed' => $print['ok'], 'print_error' => $print['error'] ?? null]);
             break;
             
         case 'request_bill':

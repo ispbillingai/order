@@ -59,6 +59,19 @@ return [
         'verify_ssl' => false,
     ],
 
+    // ---- Kitchen thermal printer (ESC/POS over raw TCP) ---------------
+    // Prints a kitchen ticket (table number + dishes, NO prices) when an
+    // order is sent to the kitchen. Reached server-side over Tailscale.
+    // Set host empty / enabled false to disable kitchen printing.
+    'kitchen_printer' => [
+        'enabled'  => true,
+        'host'     => '100.x.y.z',   // network thermal printer (Tailscale)
+        'port'     => 9100,
+        'timeout'  => 5,
+        'width'    => 32,            // characters per line (58mm=32, 80mm=48)
+        'codepage' => 2,            // 2 = CP850 (accented letters)
+    ],
+
     // ---- QR codes (digital receipt) -----------------------------------
     'qr' => [
         'enabled'      => true,
