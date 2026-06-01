@@ -1,7 +1,7 @@
     </main>
     
     <footer class="main-footer">
-        <p>&copy; <?= date('Y') ?> RestoPOS - Restaurant Management System</p>
+        <p>&copy; <?= date('Y') ?> RestoPOS - <?= te('footer_tagline') ?></p>
     </footer>
     
     <!-- Toast notifications container -->

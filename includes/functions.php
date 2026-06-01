@@ -11,6 +11,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Initialise translations (?lang / cookie / default). Provides t() everywhere.
+require_once __DIR__ . '/i18n.php';
+i18n_init();
+
 /**
  * Check if user is logged in
  */
