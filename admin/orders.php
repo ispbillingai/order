@@ -40,13 +40,13 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $orders = $stmt->fetchAll();
 
-$pageTitle = 'All Orders';
+$pageTitle = t('all_orders');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-list-alt"></i> All Orders</h1>
+    <h1><i class="fas fa-list-alt"></i> <?= te('all_orders') ?></h1>
 </div>
 
 <!-- Filters -->
@@ -54,24 +54,24 @@ include __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <form method="GET" class="d-flex gap-md align-center" style="flex-wrap: wrap;">
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">Date</label>
+                <label class="form-label"><?= te('date') ?></label>
                 <input type="date" name="date" class="form-control" value="<?= $date ?>">
             </div>
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">Status</label>
+                <label class="form-label"><?= te('status') ?></label>
                 <select name="status" class="form-control">
-                    <option value="">All Statuses</option>
-                    <option value="open" <?= $status === 'open' ? 'selected' : '' ?>>Open</option>
-                    <option value="sent_to_kitchen" <?= $status === 'sent_to_kitchen' ? 'selected' : '' ?>>In Kitchen</option>
-                    <option value="bill_requested" <?= $status === 'bill_requested' ? 'selected' : '' ?>>Bill Requested</option>
-                    <option value="paid" <?= $status === 'paid' ? 'selected' : '' ?>>Paid</option>
-                    <option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                    <option value=""><?= te('all_statuses') ?></option>
+                    <option value="open" <?= $status === 'open' ? 'selected' : '' ?>><?= te('status_open') ?></option>
+                    <option value="sent_to_kitchen" <?= $status === 'sent_to_kitchen' ? 'selected' : '' ?>><?= te('status_sent_to_kitchen') ?></option>
+                    <option value="bill_requested" <?= $status === 'bill_requested' ? 'selected' : '' ?>><?= te('status_bill_requested') ?></option>
+                    <option value="paid" <?= $status === 'paid' ? 'selected' : '' ?>><?= te('status_paid') ?></option>
+                    <option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>><?= te('status_cancelled') ?></option>
                 </select>
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">&nbsp;</label>
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-filter"></i> Filter
+                    <i class="fas fa-filter"></i> <?= te('filter') ?>
                 </button>
             </div>
         </form>
@@ -82,16 +82,16 @@ include __DIR__ . '/../includes/header.php';
     <table class="data-table">
         <thead>
             <tr>
-                <th>Order #</th>
-                <th>Table</th>
-                <th>Waiter</th>
-                <th>Guests</th>
-                <th>Subtotal</th>
-                <th>Discount</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Opened</th>
-                <th>Actions</th>
+                <th><?= te('order_no') ?></th>
+                <th><?= te('table') ?></th>
+                <th><?= te('waiter') ?></th>
+                <th><?= te('guests') ?></th>
+                <th><?= te('subtotal') ?></th>
+                <th><?= te('discount') ?></th>
+                <th><?= te('total') ?></th>
+                <th><?= te('status') ?></th>
+                <th><?= te('opened') ?></th>
+                <th><?= te('actions') ?></th>
             </tr>
         </thead>
         <tbody>
@@ -119,7 +119,7 @@ include __DIR__ . '/../includes/header.php';
                             ($order['status'] === 'cancelled' ? 'danger' : 
                             ($order['status'] === 'bill_requested' ? 'warning' : 'info')) 
                         ?>">
-                            <?= ucfirst(str_replace('_', ' ', $order['status'])) ?>
+                            <?= htmlspecialchars(statusLabel($order['status'])) ?>
                         </span>
                     </td>
                     <td><?= date('H:i', strtotime($order['opened_at'])) ?></td>
@@ -138,7 +138,7 @@ include __DIR__ . '/../includes/header.php';
             <?php if (empty($orders)): ?>
                 <tr>
                     <td colspan="10" class="text-center text-muted" style="padding: 40px;">
-                        No orders found for the selected criteria.
+                        <?= te('no_orders_found') ?>
                     </td>
                 </tr>
             <?php endif; ?>

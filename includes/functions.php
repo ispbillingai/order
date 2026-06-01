@@ -15,6 +15,9 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/i18n.php';
 i18n_init();
 
+// Device/currency config — provides currencySymbol() used by formatCurrency().
+require_once __DIR__ . '/devices.php';
+
 /**
  * Check if user is logged in
  */
@@ -82,7 +85,10 @@ function generateOrderNumber() {
  * Format currency
  */
 function formatCurrency($amount) {
-    return CURRENCY_SYMBOL . number_format($amount, 2);
+    // Use the configured currency symbol (default €). Falls back to the
+    // CURRENCY_SYMBOL constant only if the device config isn't available.
+    $symbol = function_exists('currencySymbol') ? currencySymbol() : (defined('CURRENCY_SYMBOL') ? CURRENCY_SYMBOL : '€');
+    return $symbol . number_format((float) $amount, 2);
 }
 
 /**

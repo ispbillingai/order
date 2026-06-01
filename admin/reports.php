@@ -109,13 +109,13 @@ $stmt = $pdo->prepare("
 $stmt->execute([$startDate, $endDate]);
 $paymentMethods = $stmt->fetchAll();
 
-$pageTitle = 'Reports';
+$pageTitle = t('reports');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-chart-bar"></i> Reports</h1>
+    <h1><i class="fas fa-chart-bar"></i> <?= te('reports') ?></h1>
 </div>
 
 <!-- Date Filter -->
@@ -123,25 +123,25 @@ include __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <form method="GET" class="d-flex gap-md align-center" style="flex-wrap: wrap;">
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">Start Date</label>
+                <label class="form-label"><?= te('start_date') ?></label>
                 <input type="date" name="start" class="form-control" value="<?= $startDate ?>">
             </div>
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">End Date</label>
+                <label class="form-label"><?= te('end_date') ?></label>
                 <input type="date" name="end" class="form-control" value="<?= $endDate ?>">
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">&nbsp;</label>
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-filter"></i> Apply Filter
+                    <i class="fas fa-filter"></i> <?= te('apply_filter') ?>
                 </button>
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">&nbsp;</label>
                 <div class="d-flex gap-sm">
-                    <a href="?start=<?= date('Y-m-d') ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm">Today</a>
-                    <a href="?start=<?= date('Y-m-d', strtotime('-7 days')) ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm">Last 7 days</a>
-                    <a href="?start=<?= date('Y-m-01') ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm">This Month</a>
+                    <a href="?start=<?= date('Y-m-d') ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm"><?= te('today') ?></a>
+                    <a href="?start=<?= date('Y-m-d', strtotime('-7 days')) ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm"><?= te('last_7_days') ?></a>
+                    <a href="?start=<?= date('Y-m-01') ?>&end=<?= date('Y-m-d') ?>" class="btn btn-outline btn-sm"><?= te('this_month') ?></a>
                 </div>
             </div>
         </form>
@@ -156,7 +156,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($summary['total_revenue']) ?></div>
-            <div class="stat-label">Total Revenue</div>
+            <div class="stat-label"><?= te('total_revenue') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -165,7 +165,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $summary['total_orders'] ?></div>
-            <div class="stat-label">Total Orders</div>
+            <div class="stat-label"><?= te('total_orders') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -174,7 +174,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($summary['avg_order']) ?></div>
-            <div class="stat-label">Avg Order Value</div>
+            <div class="stat-label"><?= te('avg_order') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -183,7 +183,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $summary['total_guests'] ?></div>
-            <div class="stat-label">Total Guests</div>
+            <div class="stat-label"><?= te('total_guests') ?></div>
         </div>
     </div>
 </div>
@@ -192,14 +192,14 @@ include __DIR__ . '/../includes/header.php';
     <!-- Daily Revenue -->
     <div class="card">
         <div class="card-header">
-            <h2><i class="fas fa-chart-line"></i> Daily Revenue</h2>
+            <h2><i class="fas fa-chart-line"></i> <?= te('daily_revenue') ?></h2>
         </div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Orders</th>
-                    <th>Revenue</th>
+                    <th><?= te('date') ?></th>
+                    <th><?= te('orders') ?></th>
+                    <th><?= te('revenue') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -211,7 +211,7 @@ include __DIR__ . '/../includes/header.php';
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($dailyRevenue)): ?>
-                    <tr><td colspan="3" class="text-center text-muted">No data for this period</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted"><?= te('no_data_period') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -220,14 +220,14 @@ include __DIR__ . '/../includes/header.php';
     <!-- Top Selling Items -->
     <div class="card">
         <div class="card-header">
-            <h2><i class="fas fa-star"></i> Top Selling Items</h2>
+            <h2><i class="fas fa-star"></i> <?= te('top_selling') ?></h2>
         </div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Item</th>
-                    <th>Qty Sold</th>
-                    <th>Revenue</th>
+                    <th><?= te('item') ?></th>
+                    <th><?= te('qty_sold') ?></th>
+                    <th><?= te('revenue') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -239,7 +239,7 @@ include __DIR__ . '/../includes/header.php';
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($topItems)): ?>
-                    <tr><td colspan="3" class="text-center text-muted">No data for this period</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted"><?= te('no_data_period') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -248,14 +248,14 @@ include __DIR__ . '/../includes/header.php';
     <!-- Category Revenue -->
     <div class="card">
         <div class="card-header">
-            <h2><i class="fas fa-th-large"></i> Revenue by Category</h2>
+            <h2><i class="fas fa-th-large"></i> <?= te('revenue_by_category') ?></h2>
         </div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Category</th>
-                    <th>Items Sold</th>
-                    <th>Revenue</th>
+                    <th><?= te('category') ?></th>
+                    <th><?= te('items_sold') ?></th>
+                    <th><?= te('revenue') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -267,7 +267,7 @@ include __DIR__ . '/../includes/header.php';
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($categoryRevenue)): ?>
-                    <tr><td colspan="3" class="text-center text-muted">No data for this period</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted"><?= te('no_data_period') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -276,14 +276,14 @@ include __DIR__ . '/../includes/header.php';
     <!-- Waiter Performance -->
     <div class="card">
         <div class="card-header">
-            <h2><i class="fas fa-user-tie"></i> Waiter Performance</h2>
+            <h2><i class="fas fa-user-tie"></i> <?= te('waiter_performance') ?></h2>
         </div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Waiter</th>
-                    <th>Orders</th>
-                    <th>Revenue</th>
+                    <th><?= te('waiter') ?></th>
+                    <th><?= te('orders') ?></th>
+                    <th><?= te('revenue') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -295,7 +295,7 @@ include __DIR__ . '/../includes/header.php';
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($waiterPerformance)): ?>
-                    <tr><td colspan="3" class="text-center text-muted">No data for this period</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted"><?= te('no_data_period') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -305,9 +305,10 @@ include __DIR__ . '/../includes/header.php';
 <!-- Payment Methods -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h2><i class="fas fa-credit-card"></i> Payment Methods</h2>
+        <h2><i class="fas fa-credit-card"></i> <?= te('payment_methods') ?></h2>
     </div>
     <div class="card-body">
+        <?php $pmLabels = ['cash' => te('pm_cash'), 'card' => te('pm_card'), 'mpesa' => te('pm_mpesa'), 'cash_machine' => te('pm_cash_machine'), 'other' => te('other')]; ?>
         <div class="d-flex gap-lg" style="flex-wrap: wrap;">
             <?php foreach ($paymentMethods as $method): ?>
                 <div class="stat-card" style="flex: 1; min-width: 200px;">
@@ -316,7 +317,7 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                     <div>
                         <div class="stat-value"><?= formatCurrency($method['total']) ?></div>
-                        <div class="stat-label"><?= ucfirst($method['method']) ?> (<?= $method['count'] ?> transactions)</div>
+                        <div class="stat-label"><?= $pmLabels[$method['method']] ?? ucfirst($method['method']) ?> (<?= $method['count'] ?> <?= te('transactions') ?>)</div>
                     </div>
                 </div>
             <?php endforeach; ?>
