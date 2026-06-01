@@ -61,6 +61,14 @@ function t(string $key, array $vars = []): string
     return $s;
 }
 
+/** Translate an order/item status code (e.g. 'sent_to_kitchen') to a label. */
+function statusLabel(string $status): string
+{
+    $key = 'status_' . $status;
+    $val = t($key);
+    return $val === $key ? ucfirst(str_replace('_', ' ', $status)) : $val;
+}
+
 /** Translate + HTML-escape (handy in templates). */
 function te(string $key, array $vars = []): string
 {

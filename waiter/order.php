@@ -58,19 +58,19 @@ include __DIR__ . '/../includes/header.php';
     </h1>
     <div class="d-flex gap-md align-center">
         <span class="badge badge-<?= $order['status'] === 'open' ? 'warning' : 'info' ?>">
-            <?= ucfirst(str_replace('_', ' ', $order['status'])) ?>
+            <?= htmlspecialchars(statusLabel($order['status'])) ?>
         </span>
         <a href="/waiter/index.php" class="btn btn-outline">
-            <i class="fas fa-arrow-left"></i> Tables
+            <i class="fas fa-arrow-left"></i> <?= te('tables_btn') ?>
         </a>
     </div>
 </div>
 
 <div class="order-info mb-lg" style="display: flex; gap: 24px; flex-wrap: wrap;">
-    <div><strong>Table:</strong> <?= htmlspecialchars($order['table_number']) ?></div>
-    <div><strong>Room:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
-    <div><strong>Guests:</strong> <?= $order['number_of_people'] ?></div>
-    <div><strong>Waiter:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
+    <div><strong><?= te('table') ?>:</strong> <?= htmlspecialchars($order['table_number']) ?></div>
+    <div><strong><?= te('room') ?>:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
+    <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
+    <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
 </div>
 
 <div class="order-page">
@@ -101,7 +101,7 @@ include __DIR__ . '/../includes/header.php';
             
             <?php if (empty($menuItems)): ?>
                 <div class="card" style="grid-column: 1/-1; padding: 40px; text-align: center;">
-                    <p class="text-muted">No items in this category.</p>
+                    <p class="text-muted"><?= te('no_items_cat') ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -110,17 +110,17 @@ include __DIR__ . '/../includes/header.php';
     <!-- Order Panel -->
     <div class="order-panel">
         <div class="order-header">
-            <h3>Current Order</h3>
+            <h3><?= te('current_order') ?></h3>
             <div class="order-info">
-                Table <?= htmlspecialchars($order['table_number']) ?> • <?= $order['number_of_people'] ?> guests
+                <?= te('table') ?> <?= htmlspecialchars($order['table_number']) ?> • <?= $order['number_of_people'] ?> <?= te('guests') ?>
             </div>
         </div>
-        
+
         <div class="order-items" id="orderItemsList">
             <?php if (empty($orderItems)): ?>
                 <div class="text-center text-muted" style="padding: 40px;">
                     <i class="fas fa-shopping-basket" style="font-size: 2rem; margin-bottom: 16px;"></i>
-                    <p>No items yet. Select from menu.</p>
+                    <p><?= te('no_items_yet') ?></p>
                 </div>
             <?php else: ?>
                 <?php foreach ($orderItems as $item): 
@@ -144,7 +144,7 @@ include __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                             <div class="mt-sm">
                                 <span class="badge badge-<?= $item['status'] === 'pending' ? 'warning' : ($item['status'] === 'ready' ? 'success' : 'info') ?>">
-                                    <?= ucfirst($item['status']) ?>
+                                    <?= htmlspecialchars(statusLabel($item['status'])) ?>
                                 </span>
                             </div>
                         </div>
@@ -165,33 +165,33 @@ include __DIR__ . '/../includes/header.php';
         
         <div class="order-totals">
             <div class="total-row">
-                <span>Items</span>
+                <span><?= te('items_label') ?></span>
                 <span id="itemsTotal"><?= formatCurrency($order['subtotal'] - ($order['number_of_people'] * $order['cover_charge_per_person'])) ?></span>
             </div>
             <div class="total-row">
-                <span>Cover (<?= $order['number_of_people'] ?> × <?= formatCurrency($order['cover_charge_per_person']) ?>)</span>
+                <span><?= te('cover') ?> (<?= $order['number_of_people'] ?> × <?= formatCurrency($order['cover_charge_per_person']) ?>)</span>
                 <span><?= formatCurrency($order['number_of_people'] * $order['cover_charge_per_person']) ?></span>
             </div>
             <?php if ($order['discount_amount'] > 0): ?>
                 <div class="total-row text-danger">
-                    <span>Discount</span>
+                    <span><?= te('discount') ?></span>
                     <span>-<?= formatCurrency($order['discount_amount']) ?></span>
                 </div>
             <?php endif; ?>
             <div class="total-row grand-total">
-                <span>Total</span>
+                <span><?= te('total') ?></span>
                 <span id="grandTotal"><?= formatCurrency($order['total']) ?></span>
             </div>
         </div>
-        
+
         <div class="order-actions">
             <?php if ($order['status'] === 'open'): ?>
                 <button class="btn btn-primary" onclick="sendOrderToKitchen()">
-                    <i class="fas fa-fire"></i> Send to Kitchen
+                    <i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?>
                 </button>
             <?php endif; ?>
             <button class="btn btn-warning" onclick="requestBillAction()">
-                <i class="fas fa-receipt"></i> Bill
+                <i class="fas fa-receipt"></i> <?= te('bill') ?>
             </button>
         </div>
     </div>
@@ -201,12 +201,12 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addItemModal">
     <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
-            <h3 id="modalItemName">Add Item</h3>
+            <h3 id="modalItemName"><?= te('menu_add_item') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label class="form-label">Quantity</label>
+                <label class="form-label"><?= te('quantity') ?></label>
                 <div class="d-flex align-center gap-md">
                     <button class="btn btn-outline btn-icon" onclick="adjustModalQty(-1)">−</button>
                     <input type="number" id="modalQuantity" class="form-control" value="1" min="1" max="99" style="width: 80px; text-align: center;">
@@ -216,19 +216,19 @@ include __DIR__ . '/../includes/header.php';
             </div>
             
             <div id="componentsSection" class="hidden">
-                <label class="form-label">Customize</label>
+                <label class="form-label"><?= te('customize') ?></label>
                 <div id="componentsList" style="display: grid; gap: 8px;"></div>
             </div>
-            
+
             <div class="form-group mt-lg">
-                <label class="form-label">Special Instructions</label>
-                <textarea id="modalNotes" class="form-control" rows="2" placeholder="e.g., well done, no onions, allergies..."></textarea>
+                <label class="form-label"><?= te('special_instructions') ?></label>
+                <textarea id="modalNotes" class="form-control" rows="2" placeholder="<?= te('special_instr_ph') ?>"></textarea>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeModal('addItemModal')">Cancel</button>
+            <button class="btn btn-outline" onclick="closeModal('addItemModal')"><?= te('cancel') ?></button>
             <button class="btn btn-primary" onclick="confirmAddItem()">
-                <i class="fas fa-plus"></i> Add to Order
+                <i class="fas fa-plus"></i> <?= te('add_to_order') ?>
             </button>
         </div>
     </div>
@@ -238,6 +238,18 @@ include __DIR__ . '/../includes/header.php';
 const orderId = <?= $orderId ?>;
 let selectedItem = null;
 let itemComponents = [];
+const T = {
+    added: <?= json_encode(t('toast_item_added')) ?>,
+    addFailed: <?= json_encode(t('toast_item_add_failed')) ?>,
+    confirmRemove: <?= json_encode(t('confirm_remove_item')) ?>,
+    removed: <?= json_encode(t('toast_item_removed')) ?>,
+    qtyUpdated: <?= json_encode(t('toast_qty_updated')) ?>,
+    updateFailed: <?= json_encode(t('toast_update_failed')) ?>,
+    sentKitchen: <?= json_encode(t('toast_sent_kitchen')) ?>,
+    sendKitchenFailed: <?= json_encode(t('toast_send_kitchen_failed')) ?>,
+    billRequested: <?= json_encode(t('toast_bill_requested')) ?>,
+    billFailed: <?= json_encode(t('toast_bill_failed')) ?>,
+};
 
 async function selectMenuItem(item, allowComposition) {
     selectedItem = item;
@@ -349,12 +361,12 @@ async function confirmAddItem() {
         const result = await addItemToOrder(orderId, selectedItem.id, quantity, notes, modifications);
         
         if (result.success) {
-            showToast('Item added!', 'success');
+            showToast(T.added, 'success');
             closeModal('addItemModal');
             location.reload(); // Refresh to show new item
         }
     } catch (error) {
-        showToast('Failed to add item', 'error');
+        showToast(T.addFailed, 'error');
     }
 }
 
@@ -365,24 +377,24 @@ async function changeQuantity(orderItemId, delta) {
     let newQty = currentQty + delta;
     
     if (newQty < 1) {
-        if (await confirmAction('Remove this item from order?')) {
+        if (await confirmAction(T.confirmRemove)) {
             newQty = 0;
         } else {
             return;
         }
     }
-    
+
     try {
         if (newQty === 0) {
             await removeItem(orderItemId);
-            showToast('Item removed', 'info');
+            showToast(T.removed, 'info');
         } else {
             await updateItemQuantity(orderItemId, newQty);
-            showToast('Quantity updated', 'success');
+            showToast(T.qtyUpdated, 'success');
         }
         location.reload();
     } catch (error) {
-        showToast('Failed to update', 'error');
+        showToast(T.updateFailed, 'error');
     }
 }
 
@@ -390,11 +402,11 @@ async function sendOrderToKitchen() {
     try {
         const result = await sendToKitchen(orderId);
         if (result.success) {
-            showToast('Order sent to kitchen!', 'success');
+            showToast(T.sentKitchen, 'success');
             location.reload();
         }
     } catch (error) {
-        showToast('Failed to send to kitchen', 'error');
+        showToast(T.sendKitchenFailed, 'error');
     }
 }
 
@@ -402,11 +414,11 @@ async function requestBillAction() {
     try {
         const result = await requestBill(orderId);
         if (result.success) {
-            showToast('Bill requested - Cashier notified!', 'success');
+            showToast(T.billRequested, 'success');
             location.reload();
         }
     } catch (error) {
-        showToast('Failed to request bill', 'error');
+        showToast(T.billFailed, 'error');
     }
 }
 </script>

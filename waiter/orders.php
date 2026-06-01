@@ -30,25 +30,25 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($user['role'] !== 'admin' ? [$user['id']] : []);
 $orders = $stmt->fetchAll();
 
-$pageTitle = 'My Orders';
+$pageTitle = t('my_orders');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-list-alt"></i> My Active Orders</h1>
+    <h1><i class="fas fa-list-alt"></i> <?= te('my_active_orders') ?></h1>
     <a href="/waiter/index.php" class="btn btn-primary">
-        <i class="fas fa-plus"></i> New Order
+        <i class="fas fa-plus"></i> <?= te('new_order') ?>
     </a>
 </div>
 
 <?php if (empty($orders)): ?>
     <div class="card" style="padding: 60px; text-align: center;">
         <i class="fas fa-clipboard" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 16px;"></i>
-        <h3 class="text-muted">No Active Orders</h3>
-        <p class="text-muted">Start a new order by selecting a table.</p>
+        <h3 class="text-muted"><?= te('no_active_orders') ?></h3>
+        <p class="text-muted"><?= te('start_by_table') ?></p>
         <a href="/waiter/index.php" class="btn btn-primary mt-lg">
-            <i class="fas fa-th-large"></i> Go to Tables
+            <i class="fas fa-th-large"></i> <?= te('go_to_tables') ?>
         </a>
     </div>
 <?php else: ?>
@@ -56,15 +56,15 @@ include __DIR__ . '/../includes/header.php';
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Order #</th>
-                    <th>Table</th>
-                    <th>Room</th>
-                    <th>Guests</th>
-                    <th>Items</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                    <th>Actions</th>
+                    <th><?= te('order_no') ?></th>
+                    <th><?= te('table') ?></th>
+                    <th><?= te('room') ?></th>
+                    <th><?= te('guests') ?></th>
+                    <th><?= te('items_label') ?></th>
+                    <th><?= te('total') ?></th>
+                    <th><?= te('status') ?></th>
+                    <th><?= te('time') ?></th>
+                    <th><?= te('actions') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -82,13 +82,13 @@ include __DIR__ . '/../includes/header.php';
                                 ($order['status'] === 'sent_to_kitchen' ? 'info' : 
                                 ($order['status'] === 'bill_requested' ? 'success' : 'primary')) 
                             ?>">
-                                <?= ucfirst(str_replace('_', ' ', $order['status'])) ?>
+                                <?= htmlspecialchars(statusLabel($order['status'])) ?>
                             </span>
                         </td>
                         <td><?= date('H:i', strtotime($order['opened_at'])) ?></td>
                         <td>
                             <a href="/waiter/order.php?order=<?= $order['id'] ?>" class="btn btn-sm btn-primary">
-                                <i class="fas fa-edit"></i> View
+                                <i class="fas fa-edit"></i> <?= te('view') ?>
                             </a>
                         </td>
                     </tr>

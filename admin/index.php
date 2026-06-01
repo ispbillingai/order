@@ -43,13 +43,13 @@ $stmt = $pdo->query("
 ");
 $recentOrders = $stmt->fetchAll();
 
-$pageTitle = 'Admin Dashboard';
+$pageTitle = t('admin_dashboard');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+    <h1><i class="fas fa-tachometer-alt"></i> <?= te('dashboard') ?></h1>
 </div>
 
 <!-- Stats -->
@@ -60,7 +60,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $stats['today']['count'] ?></div>
-            <div class="stat-label">Orders Today</div>
+            <div class="stat-label"><?= te('orders_today') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -69,7 +69,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($stats['today']['total']) ?></div>
-            <div class="stat-label">Revenue Today</div>
+            <div class="stat-label"><?= te('revenue_today') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -78,7 +78,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $stats['active_orders'] ?></div>
-            <div class="stat-label">Active Orders</div>
+            <div class="stat-label"><?= te('active_orders') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -87,36 +87,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $stats['tables']['occupied'] ?? 0 ?>/<?= $stats['tables']['total'] ?? 0 ?></div>
-            <div class="stat-label">Tables Occupied</div>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Links -->
-<div class="card mb-lg">
-    <div class="card-header">
-        <h2>Quick Actions</h2>
-    </div>
-    <div class="card-body">
-        <div class="d-flex gap-md" style="flex-wrap: wrap;">
-            <a href="/admin/rooms.php" class="btn btn-primary">
-                <i class="fas fa-door-open"></i> Manage Rooms & Tables
-            </a>
-            <a href="/admin/menu.php" class="btn btn-secondary">
-                <i class="fas fa-utensils"></i> Menu Management
-            </a>
-            <a href="/admin/users.php" class="btn btn-outline">
-                <i class="fas fa-users"></i> Users (<?= $stats['users'] ?>)
-            </a>
-            <a href="/admin/reports.php" class="btn btn-outline">
-                <i class="fas fa-chart-bar"></i> Reports
-            </a>
-            <a href="/admin/printers.php" class="btn btn-outline">
-                <i class="fas fa-print"></i> <?= te('printers') ?>
-            </a>
-            <a href="/admin/settings.php" class="btn btn-outline">
-                <i class="fas fa-cog"></i> <?= te('settings') ?>
-            </a>
+            <div class="stat-label"><?= te('tables_occupied') ?></div>
         </div>
     </div>
 </div>
@@ -124,18 +95,18 @@ include __DIR__ . '/../includes/header.php';
 <!-- Recent Orders -->
 <div class="card">
     <div class="card-header">
-        <h2>Recent Orders</h2>
-        <a href="/admin/orders.php" class="btn btn-sm btn-outline">View All</a>
+        <h2><?= te('recent_orders') ?></h2>
+        <a href="/admin/orders.php" class="btn btn-sm btn-outline"><?= te('view_all') ?></a>
     </div>
     <table class="data-table">
         <thead>
             <tr>
-                <th>Order #</th>
-                <th>Table</th>
-                <th>Waiter</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Time</th>
+                <th><?= te('order_no') ?></th>
+                <th><?= te('table') ?></th>
+                <th><?= te('waiter') ?></th>
+                <th><?= te('total') ?></th>
+                <th><?= te('status') ?></th>
+                <th><?= te('time') ?></th>
             </tr>
         </thead>
         <tbody>
@@ -151,7 +122,7 @@ include __DIR__ . '/../includes/header.php';
                             ($order['status'] === 'cancelled' ? 'danger' : 
                             ($order['status'] === 'bill_requested' ? 'warning' : 'info')) 
                         ?>">
-                            <?= ucfirst(str_replace('_', ' ', $order['status'])) ?>
+                            <?= htmlspecialchars(statusLabel($order['status'])) ?>
                         </span>
                     </td>
                     <td><?= date('H:i', strtotime($order['created_at'])) ?></td>

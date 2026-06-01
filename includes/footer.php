@@ -1,5 +1,6 @@
     </main>
-    
+    </div>
+
     <footer class="main-footer">
         <p>&copy; <?= date('Y') ?> RestoPOS - <?= te('footer_tagline') ?></p>
     </footer>

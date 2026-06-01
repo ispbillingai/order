@@ -8,6 +8,8 @@ $currentUser = getCurrentUser();
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $pageTitle = $pageTitle ?? 'RestoPOS';
 $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 0;
+$inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
+    && strpos($_SERVER['PHP_SELF'] ?? '', '/admin/') !== false;
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars(currentLang()) ?>">
@@ -20,6 +22,15 @@ $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 
         .lang-switch a { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none; color:rgba(255,255,255,.85); }
         .lang-switch a:hover { color:#fff; }
         .lang-switch a.active { background:var(--primary,#e74c3c); color:#fff; }
+        /* Admin sidebar layout */
+        .app-body { display:flex; align-items:stretch; }
+        .app-body > .main-content { flex:1 1 auto; min-width:0; }
+        .admin-sidebar { flex:0 0 230px; width:230px; background:#16233a; min-height:calc(100vh - 70px); padding:16px 12px; }
+        .admin-sidebar a { display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:8px; color:rgba(255,255,255,.82); text-decoration:none; font-size:.95rem; margin-bottom:3px; }
+        .admin-sidebar a i { width:18px; text-align:center; }
+        .admin-sidebar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .admin-sidebar a.active { background:var(--primary,#e74c3c); color:#fff; }
+        @media (max-width:900px){ .app-body{flex-direction:column;} .admin-sidebar{flex:none;width:auto;min-height:0;display:flex;flex-wrap:wrap;} }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -110,4 +121,18 @@ $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 
         </div>
     </div>
     
+    <div class="app-body">
+        <?php if ($inAdmin): ?>
+        <aside class="admin-sidebar">
+            <a href="/admin/index.php" class="<?= $currentPage === 'index' ? 'active' : '' ?>"><i class="fas fa-tachometer-alt"></i> <?= te('dashboard') ?></a>
+            <a href="/admin/rooms.php" class="<?= $currentPage === 'rooms' ? 'active' : '' ?>"><i class="fas fa-door-open"></i> <?= te('rooms_tables') ?></a>
+            <a href="/admin/menu.php" class="<?= $currentPage === 'menu' ? 'active' : '' ?>"><i class="fas fa-utensils"></i> <?= te('menu_management') ?></a>
+            <a href="/admin/users.php" class="<?= $currentPage === 'users' ? 'active' : '' ?>"><i class="fas fa-users"></i> <?= te('users') ?></a>
+            <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'active' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
+            <a href="/admin/reports.php" class="<?= $currentPage === 'reports' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i> <?= te('reports') ?></a>
+            <a href="/admin/printers.php" class="<?= $currentPage === 'printers' ? 'active' : '' ?>"><i class="fas fa-print"></i> <?= te('printers') ?></a>
+            <a href="/admin/activity.php" class="<?= $currentPage === 'activity' ? 'active' : '' ?>"><i class="fas fa-history"></i> <?= te('activity') ?></a>
+            <a href="/admin/settings.php" class="<?= $currentPage === 'settings' ? 'active' : '' ?>"><i class="fas fa-cog"></i> <?= te('settings') ?></a>
+        </aside>
+        <?php endif; ?>
     <main class="main-content">
