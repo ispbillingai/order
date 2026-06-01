@@ -270,4 +270,16 @@ return [
     'tables_occupied'    => 'Tavoli Occupati',
     'recent_orders'      => 'Ordini Recenti',
     'view_all'           => 'Vedi Tutti',
+
+    // ---- Activity log / misc pages ----
+    'activity_log'       => 'Registro Attività',
+    'user'               => 'Utente',
+    'action'             => 'Azione',
+    'entity'             => 'Entità',
+    'details'            => 'Dettagli',
+    'system'             => 'Sistema',
+    'no_activity'        => 'Nessuna attività registrata.',
+    'access_denied'      => 'Accesso Negato',
+    'no_permission'      => 'Non hai i permessi per accedere a questa pagina.',
+    'go_to_dashboard'    => 'Vai al Pannello',
 ];

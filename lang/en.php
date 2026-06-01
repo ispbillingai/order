@@ -270,4 +270,16 @@ return [
     'tables_occupied'    => 'Tables Occupied',
     'recent_orders'      => 'Recent Orders',
     'view_all'           => 'View All',
+
+    // ---- Activity log / misc pages ----
+    'activity_log'       => 'Activity Log',
+    'user'               => 'User',
+    'action'             => 'Action',
+    'entity'             => 'Entity',
+    'details'            => 'Details',
+    'system'             => 'System',
+    'no_activity'        => 'No activity recorded yet.',
+    'access_denied'      => 'Access Denied',
+    'no_permission'      => "You don't have permission to access this page.",
+    'go_to_dashboard'    => 'Go to Dashboard',
 ];

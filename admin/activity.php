@@ -19,25 +19,25 @@ $stmt = $pdo->query("
 ");
 $activities = $stmt->fetchAll();
 
-$pageTitle = 'Activity Log';
+$pageTitle = t('activity_log');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-history"></i> Activity Log</h1>
+    <h1><i class="fas fa-history"></i> <?= te('activity_log') ?></h1>
 </div>
 
 <div class="card">
     <table class="data-table">
         <thead>
             <tr>
-                <th>Time</th>
-                <th>User</th>
-                <th>Action</th>
-                <th>Entity</th>
-                <th>Details</th>
-                <th>IP Address</th>
+                <th><?= te('time') ?></th>
+                <th><?= te('user') ?></th>
+                <th><?= te('action') ?></th>
+                <th><?= te('entity') ?></th>
+                <th><?= te('details') ?></th>
+                <th><?= te('ip_address') ?></th>
             </tr>
         </thead>
         <tbody>
@@ -49,7 +49,7 @@ include __DIR__ . '/../includes/header.php';
                             <?= htmlspecialchars($activity['full_name']) ?>
                             <small class="text-muted">(<?= htmlspecialchars($activity['username']) ?>)</small>
                         <?php else: ?>
-                            <span class="text-muted">System</span>
+                            <span class="text-muted"><?= te('system') ?></span>
                         <?php endif; ?>
                     </td>
                     <td>
@@ -84,7 +84,7 @@ include __DIR__ . '/../includes/header.php';
             <?php if (empty($activities)): ?>
                 <tr>
                     <td colspan="6" class="text-center text-muted" style="padding: 40px;">
-                        No activity recorded yet.
+                        <?= te('no_activity') ?>
                     </td>
                 </tr>
             <?php endif; ?>
