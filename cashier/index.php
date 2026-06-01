@@ -75,13 +75,13 @@ try {
     $todayStats = ['total_orders' => 0, 'total_revenue' => 0];
 }
 
-$pageTitle = 'Cashier';
+$pageTitle = t('nav_cashier');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-cash-register"></i> Cashier Dashboard</h1>
+    <h1><i class="fas fa-cash-register"></i> <?= te('cashier_dashboard') ?></h1>
 </div>
 
 <!-- Stats -->
@@ -92,7 +92,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= $todayStats['total_orders'] ?? 0 ?></div>
-            <div class="stat-label">Orders Today</div>
+            <div class="stat-label"><?= te('orders_today') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -101,7 +101,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($todayStats['total_revenue'] ?? 0) ?></div>
-            <div class="stat-label">Revenue Today</div>
+            <div class="stat-label"><?= te('revenue_today') ?></div>
         </div>
     </div>
     <div class="stat-card">
@@ -110,7 +110,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <div class="stat-value"><?= is_array($pendingBills) ? count($pendingBills) : 0 ?></div>
-            <div class="stat-label">Pending Bills</div>
+            <div class="stat-label"><?= te('pending_bills') ?></div>
         </div>
     </div>
 </div>
@@ -119,17 +119,17 @@ include __DIR__ . '/../includes/header.php';
 <!-- Pending Bills -->
 <div class="card mb-lg">
     <div class="card-header">
-        <h2><i class="fas fa-exclamation-circle text-warning"></i> Bills Awaiting Payment</h2>
+        <h2><i class="fas fa-exclamation-circle text-warning"></i> <?= te('bills_awaiting') ?></h2>
     </div>
     <table class="data-table">
         <thead>
             <tr>
-                <th>Table</th>
-                <th>Order #</th>
-                <th>Guests</th>
-                <th>Waiter</th>
-                <th>Total</th>
-                <th>Actions</th>
+                <th><?= te('table') ?></th>
+                <th><?= te('order_no') ?></th>
+                <th><?= te('guests') ?></th>
+                <th><?= te('waiter') ?></th>
+                <th><?= te('total') ?></th>
+                <th><?= te('actions') ?></th>
             </tr>
         </thead>
         <tbody>
@@ -145,7 +145,7 @@ include __DIR__ . '/../includes/header.php';
                     <td><strong class="text-primary" style="font-size: 1.1rem;"><?= formatCurrency($bill['total'] ?? 0) ?></strong></td>
                     <td>
                         <a href="/cashier/payment.php?order=<?= $bill['id'] ?>" class="btn btn-sm btn-success">
-                            <i class="fas fa-money-bill"></i> Process Payment
+                            <i class="fas fa-money-bill"></i> <?= te('process_payment') ?>
                         </a>
                     </td>
                 </tr>
@@ -158,7 +158,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- All Tables -->
 <div class="card">
     <div class="card-header">
-        <h2>Table Overview</h2>
+        <h2><?= te('table_overview') ?></h2>
     </div>
     <div class="card-body">
         <div class="tables-grid">
@@ -177,11 +177,11 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="table-status">
                         <?php if ($status === 'free'): ?>
-                            Available
+                            <?= te('available') ?>
                         <?php elseif ($status === 'occupied'): ?>
-                            Occupied
+                            <?= te('occupied') ?>
                         <?php elseif ($status === 'bill_requested'): ?>
-                            <i class="fas fa-bell"></i> Bill Requested
+                            <i class="fas fa-bell"></i> <?= te('bill_requested') ?>
                         <?php endif; ?>
                     </div>
                     <?php if ($table['order_id'] && isset($table['total'])): ?>
