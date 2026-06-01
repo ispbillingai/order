@@ -45,6 +45,7 @@ $jsCfg  = [
         'failed'          => t('js_failed'),
         'pay_by_card'     => t('pay_by_card'),
         'start_cash'      => t('start_payment_cash'),
+        'bill_printed'    => t('js_bill_printed'),
     ],
 ];
 
@@ -122,6 +123,7 @@ include __DIR__ . '/../includes/header.php';
                 <div style="color:var(--text-secondary);text-align:center;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;"><?= te('total_to_pay') ?></div>
                 <div class="kiosk-amount"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
                 <div class="kiosk-actions">
+                    <button class="btn-cancel" onclick="printBill(this)"><i class="fas fa-print"></i> <?= te('print_bill') ?></button>
                     <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> <?= te('start_payment_cash') ?></button><?php endif; ?>
                     <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> <?= te('pay_by_card') ?></button><?php endif; ?>
                     <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> <?= te('mpesa_manual') ?></button>
@@ -204,6 +206,19 @@ function done(receiptText) {
     $('done-receipt').textContent = receiptText || '';
     $('done-print').href = '/cashier/receipt.php?order=' + CFG.order_id;
     showPanel('k-done');
+}
+
+/* ---- Closing: print the non-fiscal proforma bill (with prices) ---- */
+async function printBill(btn) {
+    const err = $('k-choose-err');
+    err.style.color = ''; err.textContent = '';
+    if (btn) btn.disabled = true;
+    try {
+        const r = await post('/api/print-bill.php', { order_id: CFG.order_id });
+        if (!r.ok) { err.textContent = (r.error || CFG.i18n.failed); }
+        else { err.style.color = 'var(--success)'; err.textContent = CFG.i18n.bill_printed; }
+    } catch (e) { err.textContent = e.message; }
+    finally { if (btn) btn.disabled = false; }
 }
 
 /* ---- Card (Ingenico via RTS POS) ---- */

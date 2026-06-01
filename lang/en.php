@@ -113,6 +113,8 @@ return [
     'js_change_not_disp'  => 'change NOT dispensed',
     'js_recorded'         => 'Recorded',
     'js_failed'           => 'Failed',
+    'print_bill'          => 'Print bill',
+    'js_bill_printed'     => 'Bill printed',
 
     // ---- Kitchen ----
     'kitchen_display'     => 'Kitchen Display',

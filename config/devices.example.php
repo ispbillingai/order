@@ -59,6 +59,19 @@ return [
         'verify_ssl' => false,
     ],
 
+    // ---- Cashier thermal printer (ESC/POS over raw TCP) ---------------
+    // Prints the NON-FISCAL proforma bill (itemised, WITH prices + total) at
+    // the cash desk when the cashier closes the order. The official fiscal
+    // receipt is emitted separately by the Epson printer after payment.
+    'cashier_printer' => [
+        'enabled'  => true,
+        'host'     => '100.x.y.z',   // cash-desk thermal printer (Tailscale)
+        'port'     => 9100,
+        'timeout'  => 5,
+        'width'    => 32,            // 32 for 58mm paper, 48 for 80mm
+        'codepage' => 2,
+    ],
+
     // ---- Kitchen thermal printer (ESC/POS over raw TCP) ---------------
     // Prints a kitchen ticket (table number + dishes, NO prices) when an
     // order is sent to the kitchen. Reached server-side over Tailscale.

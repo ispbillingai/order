@@ -113,6 +113,8 @@ return [
     'js_change_not_disp'  => 'resto NON erogato',
     'js_recorded'         => 'Registrato',
     'js_failed'           => 'Non riuscito',
+    'print_bill'          => 'Stampa conto',
+    'js_bill_printed'     => 'Conto stampato',
 
     // ---- Kitchen ----
     'kitchen_display'     => 'Display Cucina',
