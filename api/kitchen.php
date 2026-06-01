@@ -123,10 +123,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             logActivity('all_items_ready', 'orders', $orderId);
-            
+
             jsonResponse(['success' => true]);
             break;
-            
+
+        case 'mark_items_ready':
+            // Mark a specific set of items (a course) ready, leaving the rest cooking.
+            $ids = $input['order_item_ids'] ?? [];
+            $course = trim((string) ($input['course'] ?? ''));
+            if (!is_array($ids) || empty($ids)) {
+                jsonResponse(['success' => false, 'message' => 'order_item_ids required']);
+            }
+            $ids = array_values(array_filter(array_map('intval', $ids)));
+            if (empty($ids)) {
+                jsonResponse(['success' => false, 'message' => 'order_item_ids required']);
+            }
+            $in = implode(',', array_fill(0, count($ids), '?'));
+
+            $stmt = $pdo->prepare(
+                "UPDATE order_items SET status = 'ready', ready_at = NOW()
+                 WHERE id IN ($in) AND status IN ('pending', 'in_kitchen')"
+            );
+            $stmt->execute($ids);
+
+            $stmt = $pdo->prepare("UPDATE kitchen_tickets SET status = 'ready' WHERE order_item_id IN ($in)");
+            $stmt->execute($ids);
+
+            // Notify the waiter once for the whole course.
+            $stmt = $pdo->prepare("
+                SELECT o.id AS order_id, o.waiter_id, t.table_number
+                FROM order_items oi
+                JOIN orders o ON oi.order_id = o.id
+                JOIN tables_restaurant t ON o.table_id = t.id
+                WHERE oi.id = ? LIMIT 1
+            ");
+            $stmt->execute([$ids[0]]);
+            $info = $stmt->fetch();
+            if ($info) {
+                createNotification(
+                    $info['waiter_id'],
+                    'dish_ready',
+                    'Course Ready!',
+                    ($course !== '' ? $course . ' — ' : '') . "ready for Table {$info['table_number']}",
+                    null,
+                    ['order_id' => $info['order_id'], 'course' => $course]
+                );
+                logActivity('course_ready', 'orders', (int) $info['order_id'], ['course' => $course, 'items' => count($ids)]);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
         default:
             jsonResponse(['success' => false, 'message' => 'Invalid action']);
     }

@@ -396,4 +396,5 @@ return [
     'ph_room_example'    => 'e.g., Main Hall, Terrace, VIP',
     'ph_table_example'   => 'e.g., T1, VIP1',
     'ph_prefix_example'  => 'e.g., T, VIP',
+    'course_ready'       => 'Course ready',
 ];

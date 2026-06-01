@@ -396,4 +396,5 @@ return [
     'ph_room_example'    => 'es. Sala Principale, Terrazza, VIP',
     'ph_table_example'   => 'es. T1, VIP1',
     'ph_prefix_example'  => 'es. T, VIP',
+    'course_ready'       => 'Portata pronta',
 ];

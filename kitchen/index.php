@@ -25,6 +25,7 @@ $stmt = $pdo->query("
         r.name as room_name,
         mi.name as item_name,
         mc.name as category_name,
+        mc.sort_order as category_sort,
         u.full_name as waiter_name
     FROM order_items oi
     JOIN orders o ON oi.order_id = o.id
@@ -45,7 +46,7 @@ $stmt = $pdo->query("
 ");
 $items = $stmt->fetchAll();
 
-// Group by order
+// Group by order, then by course (menu category) within each order.
 $orderGroups = [];
 foreach ($items as $item) {
     $orderId = $item['order_id'];
@@ -57,14 +58,32 @@ foreach ($items as $item) {
             'room_name' => $item['room_name'],
             'waiter_name' => $item['waiter_name'],
             'first_item_time' => $item['sent_to_kitchen_at'] ?? $item['created_at'],
-            'items' => []
+            'items' => [],
+            'courses' => [],
         ];
     }
-    
+
     // Get modifications for this item
     $item['modifications'] = getItemModifications($item['order_item_id']);
     $orderGroups[$orderId]['items'][] = $item;
+
+    // Sub-group by course so each course can be fired/marked ready separately.
+    $cat = $item['category_name'] ?? '—';
+    if (!isset($orderGroups[$orderId]['courses'][$cat])) {
+        $orderGroups[$orderId]['courses'][$cat] = [
+            'name'  => $cat,
+            'sort'  => (int) ($item['category_sort'] ?? 0),
+            'items' => [],
+        ];
+    }
+    $orderGroups[$orderId]['courses'][$cat]['items'][] = $item;
 }
+// Order the courses within each ticket by the menu category order
+// (antipasti -> primi -> secondi -> contorni -> dolci -> drinks).
+foreach ($orderGroups as &$g) {
+    uasort($g['courses'], fn($a, $b) => $a['sort'] <=> $b['sort']);
+}
+unset($g);
 
 $pageTitle = t('kitchen_display');
 
@@ -120,6 +139,39 @@ include __DIR__ . '/../includes/header.php';
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+
+.course-group {
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-md, 10px);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.course-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-light, #f3f4f6);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.course-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.course-group .ticket-item {
+    padding: 10px 12px;
+    border-bottom: 1px dashed var(--border-color, #e5e7eb);
+}
+
+.course-group .ticket-item:last-child {
+    border-bottom: none;
 }
 </style>
 
@@ -181,44 +233,62 @@ include __DIR__ . '/../includes/header.php';
                 </div>
                 
                 <div class="ticket-items">
-                    <?php foreach ($group['items'] as $item): ?>
-                        <div class="ticket-item" data-item-id="<?= $item['order_item_id'] ?>">
-                            <div>
-                                <span class="qty"><?= $item['quantity'] ?>×</span>
-                                <strong><?= htmlspecialchars($item['item_name']) ?></strong>
-                                <span class="badge badge-<?= $item['status'] === 'in_kitchen' ? 'info' : 'warning' ?>" style="margin-left: 8px;">
-                                    <?= $item['status'] === 'in_kitchen' ? te('cooking') : te('queued') ?>
-                                </span>
+                    <?php foreach ($group['courses'] as $course): ?>
+                        <?php
+                        $coursePendingIds = [];
+                        foreach ($course['items'] as $ci) {
+                            if ($ci['status'] !== 'ready') { $coursePendingIds[] = (int) $ci['order_item_id']; }
+                        }
+                        ?>
+                        <div class="course-group">
+                            <div class="course-header">
+                                <span class="course-name"><i class="fas fa-utensils"></i> <?= htmlspecialchars($course['name']) ?></span>
+                                <?php if (!empty($coursePendingIds)): ?>
+                                    <button class="btn btn-sm btn-success" onclick='markCourseReady(<?= htmlspecialchars(json_encode($coursePendingIds), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($course['name']), ENT_QUOTES) ?>)'>
+                                        <i class="fas fa-check"></i> <?= te('course_ready') ?>
+                                    </button>
+                                <?php endif; ?>
                             </div>
-                            
-                            <?php if ($item['notes'] || !empty($item['modifications'])): ?>
-                                <div class="mods">
-                                    <?php if ($item['notes']): ?>
-                                        <div><i class="fas fa-sticky-note"></i> <?= htmlspecialchars($item['notes']) ?></div>
-                                    <?php endif; ?>
-                                    <?php foreach ($item['modifications'] as $mod): ?>
-                                        <div>
-                                            <span class="<?= $mod['action'] === 'removed' ? 'text-danger' : 'text-success' ?>">
-                                                <?= $mod['action'] === 'removed' ? '− ' . te('mod_no') : '+ ' . te('mod_add') ?>
-                                            </span>
-                                            <?= htmlspecialchars($mod['component_name']) ?>
+                            <?php foreach ($course['items'] as $item): ?>
+                                <div class="ticket-item" data-item-id="<?= $item['order_item_id'] ?>">
+                                    <div>
+                                        <span class="qty"><?= $item['quantity'] ?>×</span>
+                                        <strong><?= htmlspecialchars($item['item_name']) ?></strong>
+                                        <span class="badge badge-<?= $item['status'] === 'in_kitchen' ? 'info' : 'warning' ?>" style="margin-left: 8px;">
+                                            <?= $item['status'] === 'in_kitchen' ? te('cooking') : te('queued') ?>
+                                        </span>
+                                    </div>
+
+                                    <?php if ($item['notes'] || !empty($item['modifications'])): ?>
+                                        <div class="mods">
+                                            <?php if ($item['notes']): ?>
+                                                <div><i class="fas fa-sticky-note"></i> <?= htmlspecialchars($item['notes']) ?></div>
+                                            <?php endif; ?>
+                                            <?php foreach ($item['modifications'] as $mod): ?>
+                                                <div>
+                                                    <span class="<?= $mod['action'] === 'removed' ? 'text-danger' : 'text-success' ?>">
+                                                        <?= $mod['action'] === 'removed' ? '− ' . te('mod_no') : '+ ' . te('mod_add') ?>
+                                                    </span>
+                                                    <?= htmlspecialchars($mod['component_name']) ?>
+                                                </div>
+                                            <?php endforeach; ?>
                                         </div>
-                                    <?php endforeach; ?>
+                                    <?php endif; ?>
+
+                                    <div class="mt-sm d-flex gap-sm">
+                                        <?php if ($item['status'] === 'pending'): ?>
+                                            <button class="btn btn-sm btn-info" onclick="startItem(<?= $item['order_item_id'] ?>)">
+                                                <i class="fas fa-play"></i> <?= te('start') ?>
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if ($item['status'] === 'in_kitchen'): ?>
+                                            <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
+                                                <i class="fas fa-check"></i> <?= te('ready') ?>
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                            <?php endif; ?>
-                            
-                            <div class="mt-sm d-flex gap-sm">
-                                <?php if ($item['status'] === 'pending'): ?>
-                                    <button class="btn btn-sm btn-info" onclick="startItem(<?= $item['order_item_id'] ?>)">
-                                        <i class="fas fa-play"></i> <?= te('start') ?>
-                                    </button>
-                                <?php endif; ?>
-                                <?php if ($item['status'] === 'in_kitchen'): ?>
-                                    <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
-                                        <i class="fas fa-check"></i> <?= te('ready') ?>
-                                    </button>
-                                <?php endif; ?>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -240,6 +310,21 @@ const T = {
     markedReady: <?= json_encode(t('toast_marked_ready')) ?>,
     allReady: <?= json_encode(t('toast_all_ready')) ?>,
 };
+async function markCourseReady(itemIds, courseName) {
+    try {
+        const result = await apiCall('/api/kitchen.php', 'POST', {
+            action: 'mark_items_ready',
+            order_item_ids: itemIds,
+            course: courseName
+        });
+        if (result.success) {
+            showToast(T.markedReady, 'success');
+            location.reload();
+        }
+    } catch (error) {
+        showToast(T.updateFailed, 'error');
+    }
+}
 async function startItem(orderItemId) {
     try {
         const result = await updateKitchenStatus(orderItemId, 'in_kitchen');
