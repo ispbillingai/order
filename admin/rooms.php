@@ -60,22 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $rooms = getRooms();
 
-$pageTitle = 'Rooms & Tables';
+$pageTitle = t('rooms_tables');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-door-open"></i> Rooms & Tables</h1>
+    <h1><i class="fas fa-door-open"></i> <?= te('rooms_tables') ?></h1>
     <div class="d-flex gap-sm">
         <button class="btn btn-primary" onclick="openModal('addRoomModal')">
-            <i class="fas fa-plus"></i> Add Room
+            <i class="fas fa-plus"></i> <?= te('add_room') ?>
         </button>
         <button class="btn btn-success" onclick="openModal('addTableModal')">
-            <i class="fas fa-chair"></i> Add Table
+            <i class="fas fa-chair"></i> <?= te('add_table') ?>
         </button>
         <button class="btn btn-outline" onclick="openModal('bulkAddModal')">
-            <i class="fas fa-layer-group"></i> Bulk Add Tables
+            <i class="fas fa-layer-group"></i> <?= te('bulk_add_tables') ?>
         </button>
     </div>
 </div>
@@ -85,10 +85,10 @@ include __DIR__ . '/../includes/header.php';
         <i class="fas fa-check-circle"></i>
         <?php
         switch ($_GET['success']) {
-            case 'room_added': echo 'Room added successfully!'; break;
-            case 'table_added': echo 'Table added successfully!'; break;
-            case 'tables_added': echo 'Tables added successfully!'; break;
-            case 'table_deleted': echo 'Table removed!'; break;
+            case 'room_added': echo te('msg_room_added'); break;
+            case 'table_added': echo te('msg_table_added'); break;
+            case 'tables_added': echo te('msg_tables_added'); break;
+            case 'table_deleted': echo te('msg_table_deleted'); break;
         }
         ?>
     </div>
@@ -98,7 +98,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
         <i class="fas fa-exclamation-circle"></i>
         <?php if ($_GET['error'] === 'table_in_use'): ?>
-            Cannot delete table with active orders.
+            <?= te('err_table_in_use') ?>
         <?php endif; ?>
     </div>
 <?php endif; ?>
@@ -109,12 +109,12 @@ include __DIR__ . '/../includes/header.php';
 <div class="card mb-lg">
     <div class="card-header">
         <h2><i class="fas fa-door-open"></i> <?= htmlspecialchars($room['name']) ?></h2>
-        <span class="badge badge-primary"><?= count($tables) ?> tables</span>
+        <span class="badge badge-primary"><?= count($tables) ?> <?= te('tables_count') ?></span>
     </div>
     <div class="card-body">
         <?php if (empty($tables)): ?>
             <p class="text-muted text-center" style="padding: 40px;">
-                No tables in this room. Add tables using the buttons above.
+                <?= te('no_tables_buttons') ?>
             </p>
         <?php else: ?>
             <div class="tables-grid">
@@ -122,12 +122,12 @@ include __DIR__ . '/../includes/header.php';
                     <div class="table-card <?= $table['status'] ?>" style="cursor: default;">
                         <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
                         <div class="table-capacity">
-                            <i class="fas fa-users"></i> <?= $table['capacity'] ?> seats
+                            <i class="fas fa-users"></i> <?= $table['capacity'] ?> <?= te('seats') ?>
                         </div>
-                        <div class="table-status"><?= ucfirst($table['status']) ?></div>
-                        
+                        <div class="table-status"><?= htmlspecialchars($table['status'] === 'free' ? t('available') : ($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status'])))) ?></div>
+
                         <?php if ($table['status'] === 'free'): ?>
-                            <form method="POST" style="margin-top: 10px;" onsubmit="return confirm('Delete this table?');">
+                            <form method="POST" style="margin-top: 10px;" onsubmit="return confirm('<?= te('delete_table_confirm') ?>');">
                                 <input type="hidden" name="action" value="delete_table">
                                 <input type="hidden" name="table_id" value="<?= $table['id'] ?>">
                                 <button type="submit" class="btn btn-sm btn-danger">
@@ -146,10 +146,10 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($rooms)): ?>
     <div class="card" style="padding: 60px; text-align: center;">
         <i class="fas fa-door-open" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 16px;"></i>
-        <h3 class="text-muted">No Rooms Yet</h3>
-        <p class="text-muted">Create your first room to start adding tables.</p>
+        <h3 class="text-muted"><?= te('no_rooms') ?></h3>
+        <p class="text-muted"><?= te('create_first_room') ?></p>
         <button class="btn btn-primary mt-lg" onclick="openModal('addRoomModal')">
-            <i class="fas fa-plus"></i> Add First Room
+            <i class="fas fa-plus"></i> <?= te('add_first_room') ?>
         </button>
     </div>
 <?php endif; ?>
@@ -158,26 +158,26 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addRoomModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Add Room</h3>
+            <h3><?= te('add_room') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_room">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Room Name</label>
+                    <label class="form-label"><?= te('room_name') ?></label>
                     <input type="text" name="name" class="form-control" required placeholder="e.g., Main Hall, Terrace, VIP">
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">Sort Order</label>
+                    <label class="form-label"><?= te('sort_order') ?></label>
                     <input type="number" name="sort_order" class="form-control" value="0">
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('addRoomModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Room</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('addRoomModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('add_room') ?></button>
             </div>
         </form>
     </div>
@@ -187,15 +187,15 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addTableModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Add Table</h3>
+            <h3><?= te('add_table') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_table">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Room</label>
+                    <label class="form-label"><?= te('room') ?></label>
                     <select name="room_id" class="form-control" required>
                         <?php foreach ($rooms as $room): ?>
                             <option value="<?= $room['id'] ?>"><?= htmlspecialchars($room['name']) ?></option>
@@ -205,18 +205,18 @@ include __DIR__ . '/../includes/header.php';
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Table Number/Name</label>
+                        <label class="form-label"><?= te('table_number_name') ?></label>
                         <input type="text" name="table_number" class="form-control" required placeholder="e.g., T1, VIP1">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Capacity</label>
+                        <label class="form-label"><?= te('capacity') ?></label>
                         <input type="number" name="capacity" class="form-control" value="4" min="1">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('addTableModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">Add Table</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('addTableModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-success"><?= te('add_table') ?></button>
             </div>
         </form>
     </div>
@@ -226,15 +226,15 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="bulkAddModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Bulk Add Tables</h3>
+            <h3><?= te('bulk_add_tables') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="bulk_add_tables">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Room</label>
+                    <label class="form-label"><?= te('room') ?></label>
                     <select name="room_id" class="form-control" required>
                         <?php foreach ($rooms as $room): ?>
                             <option value="<?= $room['id'] ?>"><?= htmlspecialchars($room['name']) ?></option>
@@ -244,31 +244,31 @@ include __DIR__ . '/../includes/header.php';
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Table Prefix</label>
+                        <label class="form-label"><?= te('table_prefix') ?></label>
                         <input type="text" name="prefix" class="form-control" value="T" placeholder="e.g., T, VIP">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Number of Tables</label>
+                        <label class="form-label"><?= te('number_of_tables') ?></label>
                         <input type="number" name="count" class="form-control" value="10" min="1" max="50">
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Start From</label>
+                        <label class="form-label"><?= te('start_from') ?></label>
                         <input type="number" name="start_from" class="form-control" value="1" min="1">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Default Capacity</label>
+                        <label class="form-label"><?= te('default_capacity') ?></label>
                         <input type="number" name="capacity" class="form-control" value="4" min="1">
                     </div>
                 </div>
-                
-                <p class="text-muted">This will create tables: T1, T2, T3... (based on prefix and start number)</p>
+
+                <p class="text-muted"><?= te('bulk_hint') ?></p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('bulkAddModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">Add Tables</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('bulkAddModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-success"><?= te('add_tables_btn') ?></button>
             </div>
         </form>
     </div>

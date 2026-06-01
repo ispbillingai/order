@@ -48,15 +48,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->query("SELECT * FROM users ORDER BY role, full_name");
 $users = $stmt->fetchAll();
 
-$pageTitle = 'User Management';
+$pageTitle = t('user_management');
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1><i class="fas fa-users"></i> User Management</h1>
+    <h1><i class="fas fa-users"></i> <?= te('user_management') ?></h1>
     <button class="btn btn-primary" onclick="openModal('addUserModal')">
-        <i class="fas fa-user-plus"></i> Add User
+        <i class="fas fa-user-plus"></i> <?= te('add_user') ?>
     </button>
 </div>
 
@@ -65,9 +65,9 @@ include __DIR__ . '/../includes/header.php';
         <i class="fas fa-check-circle"></i>
         <?php
         switch ($_GET['success']) {
-            case 'user_added': echo 'User added successfully!'; break;
-            case 'status_updated': echo 'User status updated!'; break;
-            case 'password_reset': echo 'Password reset successfully!'; break;
+            case 'user_added': echo te('msg_user_added'); break;
+            case 'status_updated': echo te('msg_status_updated'); break;
+            case 'password_reset': echo te('msg_password_reset'); break;
         }
         ?>
     </div>
@@ -77,12 +77,12 @@ include __DIR__ . '/../includes/header.php';
     <table class="data-table">
         <thead>
             <tr>
-                <th>User</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th><?= te('user') ?></th>
+                <th><?= te('username') ?></th>
+                <th><?= te('role') ?></th>
+                <th><?= te('contact') ?></th>
+                <th><?= te('status') ?></th>
+                <th><?= te('actions') ?></th>
             </tr>
         </thead>
         <tbody>
@@ -103,7 +103,7 @@ include __DIR__ . '/../includes/header.php';
                             ($user['role'] === 'waiter' ? 'info' : 
                             ($user['role'] === 'cashier' ? 'success' : 'warning')) 
                         ?>">
-                            <?= ucfirst($user['role']) ?>
+                            <?= te('role_' . $user['role']) ?>
                         </span>
                     </td>
                     <td>
@@ -116,9 +116,9 @@ include __DIR__ . '/../includes/header.php';
                     </td>
                     <td>
                         <?php if ($user['active']): ?>
-                            <span class="badge badge-success">Active</span>
+                            <span class="badge badge-success"><?= te('active') ?></span>
                         <?php else: ?>
-                            <span class="badge badge-danger">Inactive</span>
+                            <span class="badge badge-danger"><?= te('inactive') ?></span>
                         <?php endif; ?>
                     </td>
                     <td>
@@ -148,53 +148,53 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addUserModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Add New User</h3>
+            <h3><?= te('add_new_user') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_user">
-                
+
                 <div class="form-group">
-                    <label class="form-label">Full Name</label>
+                    <label class="form-label"><?= te('full_name') ?></label>
                     <input type="text" name="full_name" class="form-control" required>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Username</label>
+                        <label class="form-label"><?= te('username') ?></label>
                         <input type="text" name="username" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Password</label>
+                        <label class="form-label"><?= te('password') ?></label>
                         <input type="password" name="password" class="form-control" required minlength="6">
                     </div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">Role</label>
+                    <label class="form-label"><?= te('role') ?></label>
                     <select name="role" class="form-control" required>
-                        <option value="waiter">Waiter</option>
-                        <option value="cashier">Cashier</option>
-                        <option value="kitchen">Kitchen</option>
-                        <option value="admin">Admin</option>
+                        <option value="waiter"><?= te('role_waiter') ?></option>
+                        <option value="cashier"><?= te('role_cashier') ?></option>
+                        <option value="kitchen"><?= te('role_kitchen') ?></option>
+                        <option value="admin"><?= te('role_admin') ?></option>
                     </select>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Email (optional)</label>
+                        <label class="form-label"><?= te('email_optional') ?></label>
                         <input type="email" name="email" class="form-control">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Phone (optional)</label>
+                        <label class="form-label"><?= te('phone_optional') ?></label>
                         <input type="text" name="phone" class="form-control">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add User</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('add_user') ?></button>
             </div>
         </form>
     </div>
@@ -204,24 +204,24 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="resetPasswordModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Reset Password</h3>
+            <h3><?= te('reset_password') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
         <form method="POST">
             <div class="modal-body">
                 <input type="hidden" name="action" value="reset_password">
                 <input type="hidden" name="user_id" id="resetUserId">
-                
-                <p class="mb-md">Reset password for: <strong id="resetUsername"></strong></p>
-                
+
+                <p class="mb-md"><?= te('reset_password_for') ?> <strong id="resetUsername"></strong></p>
+
                 <div class="form-group">
-                    <label class="form-label">New Password</label>
+                    <label class="form-label"><?= te('new_password') ?></label>
                     <input type="password" name="new_password" class="form-control" required minlength="6">
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('resetPasswordModal')">Cancel</button>
-                <button type="submit" class="btn btn-warning">Reset Password</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('resetPasswordModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-warning"><?= te('reset_password') ?></button>
             </div>
         </form>
     </div>
