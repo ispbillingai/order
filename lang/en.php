@@ -397,4 +397,14 @@ return [
     'ph_table_example'   => 'e.g., T1, VIP1',
     'ph_prefix_example'  => 'e.g., T, VIP',
     'course_ready'       => 'Course ready',
+
+    // ---- Menu item photos ----
+    'photo'              => 'Photo',
+    'item_photo'         => 'Item Photo',
+    'upload_photo'       => 'Upload Photo',
+    'choose_photo'       => 'Choose a photo',
+    'photo_optional'     => 'Photo (optional)',
+    'photo_hint'         => 'JPG, PNG or WebP, max 5MB',
+    'msg_photo_updated'  => 'Photo updated!',
+    'err_photo_failed'   => 'Photo upload failed (use JPG/PNG/WebP, max 5MB).',
 ];

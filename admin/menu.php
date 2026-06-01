@@ -9,10 +9,41 @@ requireRole(['admin']);
 
 $pdo = getDBConnection();
 
+/**
+ * Save an uploaded menu image to assets/uploads/menu and return its web path,
+ * or null if no valid image was uploaded. Accepts JPG/PNG/WebP/GIF up to 5MB.
+ */
+function saveMenuImage(string $field): ?string
+{
+    if (empty($_FILES[$field]) || ($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return null;
+    }
+    $f = $_FILES[$field];
+    if ($f['size'] > 5 * 1024 * 1024) {
+        return null;
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $f['tmp_name']);
+    finfo_close($finfo);
+    $extMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+    if (!isset($extMap[$mime])) {
+        return null;
+    }
+    $dir = __DIR__ . '/../assets/uploads/menu';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    $name = 'item_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extMap[$mime];
+    if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $name)) {
+        return null;
+    }
+    return '/assets/uploads/menu/' . $name;
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    
+
     if ($action === 'add_category') {
         $stmt = $pdo->prepare("INSERT INTO menu_categories (name, description, sort_order, allow_composition, icon, color) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
@@ -28,18 +59,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if ($action === 'add_item') {
-        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time) VALUES (?, ?, ?, ?, ?)");
+        $imageUrl = saveMenuImage('image');
+        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['category_id'],
             $_POST['name'],
             $_POST['description'],
             $_POST['base_price'],
-            $_POST['preparation_time'] ?? 15
+            $_POST['preparation_time'] ?? 15,
+            $imageUrl
         ]);
-        header('Location: /admin/menu.php?success=item_added');
+        header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . '&success=item_added');
         exit;
     }
-    
+
+    if ($action === 'upload_image') {
+        $itemId   = (int) ($_POST['item_id'] ?? 0);
+        $catId    = (int) ($_POST['category_id'] ?? 0);
+        $imageUrl = saveMenuImage('image');
+        if ($itemId && $imageUrl) {
+            $stmt = $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?");
+            $stmt->execute([$imageUrl, $itemId]);
+            header('Location: /admin/menu.php?category=' . $catId . '&success=photo_updated');
+        } else {
+            header('Location: /admin/menu.php?category=' . $catId . '&error=photo_failed');
+        }
+        exit;
+    }
+
     if ($action === 'delete_item') {
         $stmt = $pdo->prepare("UPDATE menu_items SET active = 0 WHERE id = ?");
         $stmt->execute([$_POST['item_id']]);
@@ -102,8 +149,15 @@ include __DIR__ . '/../includes/header.php';
             case 'item_added': echo te('msg_item_added'); break;
             case 'item_deleted': echo te('msg_item_deleted'); break;
             case 'component_added': echo te('msg_component_added'); break;
+            case 'photo_updated': echo te('msg_photo_updated'); break;
         }
         ?>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error']) && $_GET['error'] === 'photo_failed'): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te('err_photo_failed') ?>
     </div>
 <?php endif; ?>
 
@@ -155,12 +209,24 @@ include __DIR__ . '/../includes/header.php';
                 <tbody>
                     <?php foreach ($menuItems as $item): ?>
                         <tr>
-                            <td><strong><?= htmlspecialchars($item['name']) ?></strong></td>
+                            <td>
+                                <div class="d-flex align-center gap-sm">
+                                    <?php if (!empty($item['image_url'])): ?>
+                                        <img src="<?= htmlspecialchars($item['image_url']) ?>" alt="" style="width:42px;height:42px;object-fit:cover;border-radius:6px;">
+                                    <?php else: ?>
+                                        <span style="width:42px;height:42px;border-radius:6px;background:var(--bg-light,#f3f4f6);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);"><i class="fas fa-image"></i></span>
+                                    <?php endif; ?>
+                                    <strong><?= htmlspecialchars($item['name']) ?></strong>
+                                </div>
+                            </td>
                             <td class="text-muted"><?= htmlspecialchars(substr($item['description'] ?? '', 0, 50)) ?>...</td>
                             <td><strong class="text-primary"><?= formatCurrency($item['base_price']) ?></strong></td>
                             <td><?= $item['preparation_time'] ?> <?= te('minutes_short') ?></td>
                             <td>
                                 <div class="d-flex gap-sm">
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="openPhotoModal(<?= $item['id'] ?>, <?= htmlspecialchars(json_encode($item['name']), ENT_QUOTES) ?>)">
+                                        <i class="fas fa-image"></i> <?= te('photo') ?>
+                                    </button>
                                     <a href="?category=<?= $selectedCategoryId ?>&item=<?= $item['id'] ?>" class="btn btn-sm btn-outline">
                                         <i class="fas fa-list"></i> <?= te('components') ?>
                                     </a>
@@ -310,7 +376,7 @@ include __DIR__ . '/../includes/header.php';
             <h3><?= te('add_menu_item') ?></h3>
             <button class="modal-close">&times;</button>
         </div>
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="modal-body">
                 <input type="hidden" name="action" value="add_item">
 
@@ -345,6 +411,12 @@ include __DIR__ . '/../includes/header.php';
                         <input type="number" name="preparation_time" class="form-control" value="15">
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('photo_optional') ?></label>
+                    <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+                    <small class="text-muted d-block"><?= te('photo_hint') ?></small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addItemModal')"><?= te('cancel') ?></button>
@@ -353,5 +425,39 @@ include __DIR__ . '/../includes/header.php';
         </form>
     </div>
 </div>
+
+<!-- Upload Photo Modal -->
+<div class="modal-overlay" id="photoModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><?= te('item_photo') ?>: <span id="photoItemName"></span></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="upload_image">
+                <input type="hidden" name="item_id" id="photoItemId">
+                <input type="hidden" name="category_id" value="<?= (int) $selectedCategoryId ?>">
+                <div class="form-group">
+                    <label class="form-label"><?= te('choose_photo') ?></label>
+                    <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif" required>
+                    <small class="text-muted d-block"><?= te('photo_hint') ?></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('photoModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('upload_photo') ?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openPhotoModal(itemId, itemName) {
+    document.getElementById('photoItemId').value = itemId;
+    document.getElementById('photoItemName').textContent = itemName;
+    openModal('photoModal');
+}
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

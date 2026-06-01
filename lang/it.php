@@ -397,4 +397,14 @@ return [
     'ph_table_example'   => 'es. T1, VIP1',
     'ph_prefix_example'  => 'es. T, VIP',
     'course_ready'       => 'Portata pronta',
+
+    // ---- Menu item photos ----
+    'photo'              => 'Foto',
+    'item_photo'         => 'Foto Articolo',
+    'upload_photo'       => 'Carica Foto',
+    'choose_photo'       => 'Scegli una foto',
+    'photo_optional'     => 'Foto (opzionale)',
+    'photo_hint'         => 'JPG, PNG o WebP, max 5MB',
+    'msg_photo_updated'  => 'Foto aggiornata!',
+    'err_photo_failed'   => 'Caricamento foto non riuscito (usa JPG/PNG/WebP, max 5MB).',
 ];
