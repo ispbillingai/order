@@ -152,7 +152,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-icon success">
-            <i class="fas fa-dollar-sign"></i>
+            <i class="fas fa-euro-sign"></i>
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($summary['total_revenue']) ?></div>

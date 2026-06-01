@@ -167,7 +167,7 @@ include __DIR__ . '/../includes/header.php';
 
                 <div class="form-group">
                     <label class="form-label"><?= te('room_name') ?></label>
-                    <input type="text" name="name" class="form-control" required placeholder="e.g., Main Hall, Terrace, VIP">
+                    <input type="text" name="name" class="form-control" required placeholder="<?= te('ph_room_example') ?>">
                 </div>
 
                 <div class="form-group">
@@ -206,7 +206,7 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label"><?= te('table_number_name') ?></label>
-                        <input type="text" name="table_number" class="form-control" required placeholder="e.g., T1, VIP1">
+                        <input type="text" name="table_number" class="form-control" required placeholder="<?= te('ph_table_example') ?>">
                     </div>
                     <div class="form-group">
                         <label class="form-label"><?= te('capacity') ?></label>
@@ -245,7 +245,7 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label"><?= te('table_prefix') ?></label>
-                        <input type="text" name="prefix" class="form-control" value="T" placeholder="e.g., T, VIP">
+                        <input type="text" name="prefix" class="form-control" value="T" placeholder="<?= te('ph_prefix_example') ?>">
                     </div>
                     <div class="form-group">
                         <label class="form-label"><?= te('number_of_tables') ?></label>

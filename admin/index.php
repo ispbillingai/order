@@ -65,7 +65,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div class="stat-card">
         <div class="stat-icon success">
-            <i class="fas fa-dollar-sign"></i>
+            <i class="fas fa-euro-sign"></i>
         </div>
         <div>
             <div class="stat-value"><?= formatCurrency($stats['today']['total']) ?></div>
