@@ -364,6 +364,9 @@ return [
     'enable'             => 'Abilita',
     'disable_confirm'    => 'Disabilitare questo utente? Non potrà più accedere.',
     'enable_confirm'     => 'Abilitare questo utente?',
+    'delete_user_confirm'=> 'Eliminare definitivamente questo utente? Operazione irreversibile.',
+    'msg_user_deleted'   => 'Utente eliminato.',
+    'err_user_has_history' => 'Questo utente ha ordini o pagamenti e non può essere eliminato — disabilitalo invece.',
 
     // ---- Admin: Settings ----
     'msg_settings_saved' => 'Impostazioni salvate con successo!',
