@@ -381,4 +381,17 @@ return [
     'maintenance'        => 'Maintenance',
     'irreversible_warning'=> 'These actions are irreversible. Use with caution.',
     'view_all_orders'    => 'View All Orders',
+
+    // ---- Printed receipt ----
+    'thank_dining'       => 'Thank you for dining with us!',
+    'rcpt_order'         => 'Order',
+    'server'             => 'Server',
+    'qty'                => 'Qty',
+    'price'              => 'Price',
+    'payment_method'     => 'Payment Method',
+    'amount_paid'        => 'Amount Paid',
+    'reference'          => 'Reference',
+    'thank_visiting'     => 'Thank you for visiting!',
+    'come_again'         => 'Please come again',
+    'print_receipt'      => 'Print Receipt',
 ];

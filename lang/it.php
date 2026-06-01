@@ -381,4 +381,17 @@ return [
     'maintenance'        => 'Manutenzione',
     'irreversible_warning'=> 'Queste azioni sono irreversibili. Usare con cautela.',
     'view_all_orders'    => 'Vedi Tutti gli Ordini',
+
+    // ---- Printed receipt ----
+    'thank_dining'       => 'Grazie per aver cenato da noi!',
+    'rcpt_order'         => 'Ordine',
+    'server'             => 'Cameriere',
+    'qty'                => 'Qtà',
+    'price'              => 'Prezzo',
+    'payment_method'     => 'Metodo di Pagamento',
+    'amount_paid'        => 'Importo Pagato',
+    'reference'          => 'Riferimento',
+    'thank_visiting'     => 'Grazie per la visita!',
+    'come_again'         => 'Torna a trovarci',
+    'print_receipt'      => 'Stampa Scontrino',
 ];

@@ -146,37 +146,37 @@ $workspace = $stmt->fetch();
 <body>
     <div class="header">
         <h1><?= htmlspecialchars($workspace['name'] ?? 'Restaurant') ?></h1>
-        <p>Thank you for dining with us!</p>
+        <p><?= te('thank_dining') ?></p>
     </div>
-    
+
     <div class="info">
         <div class="info-row">
-            <span>Order:</span>
+            <span><?= te('rcpt_order') ?>:</span>
             <span><?= htmlspecialchars($order['order_number']) ?></span>
         </div>
         <div class="info-row">
-            <span>Table:</span>
+            <span><?= te('table') ?>:</span>
             <span><?= htmlspecialchars($order['table_number']) ?> (<?= htmlspecialchars($order['room_name']) ?>)</span>
         </div>
         <div class="info-row">
-            <span>Date:</span>
+            <span><?= te('date') ?>:</span>
             <span><?= date('d/m/Y H:i', strtotime($order['opened_at'])) ?></span>
         </div>
         <div class="info-row">
-            <span>Guests:</span>
+            <span><?= te('guests') ?>:</span>
             <span><?= $order['number_of_people'] ?></span>
         </div>
         <div class="info-row">
-            <span>Server:</span>
+            <span><?= te('server') ?>:</span>
             <span><?= htmlspecialchars($order['waiter_name']) ?></span>
         </div>
     </div>
     
     <div class="items">
         <div class="item" style="font-weight: bold; margin-bottom: 8px;">
-            <span class="item-name">Item</span>
-            <span class="item-qty">Qty</span>
-            <span class="item-price">Price</span>
+            <span class="item-name"><?= te('item') ?></span>
+            <span class="item-qty"><?= te('qty') ?></span>
+            <span class="item-price"><?= te('price') ?></span>
         </div>
         
         <?php foreach ($orderItems as $item): ?>
@@ -188,7 +188,7 @@ $workspace = $stmt->fetch();
         <?php endforeach; ?>
         
         <div class="item">
-            <span class="item-name">Cover Charge</span>
+            <span class="item-name"><?= te('cover_charge') ?></span>
             <span class="item-qty"><?= $order['number_of_people'] ?></span>
             <span class="item-price"><?= number_format($order['number_of_people'] * $order['cover_charge_per_person'], 2) ?></span>
         </div>
@@ -196,42 +196,43 @@ $workspace = $stmt->fetch();
     
     <div class="totals">
         <div class="total-row">
-            <span>Subtotal:</span>
+            <span><?= te('subtotal') ?>:</span>
             <span><?= number_format($order['subtotal'], 2) ?></span>
         </div>
-        
+
         <?php if ($order['discount_amount'] > 0): ?>
             <div class="total-row">
-                <span>Discount:</span>
+                <span><?= te('discount') ?>:</span>
                 <span>-<?= number_format($order['discount_amount'], 2) ?></span>
             </div>
         <?php endif; ?>
-        
+
         <div class="total-row grand">
-            <span>TOTAL:</span>
-            <span><?= CURRENCY_SYMBOL ?><?= number_format($order['total'], 2) ?></span>
+            <span><?= te('total') ?>:</span>
+            <span><?= currencySymbol() ?><?= number_format($order['total'], 2) ?></span>
         </div>
     </div>
     
     <?php if ($payment): ?>
         <div class="payment-info">
+            <?php $pmLabels = ['cash' => t('pm_cash'), 'card' => t('pm_card'), 'mpesa' => t('pm_mpesa'), 'cash_machine' => t('pm_cash_machine'), 'other' => t('other')]; ?>
             <div class="total-row">
-                <span>Payment Method:</span>
-                <span><?= ucfirst($payment['method']) ?></span>
+                <span><?= te('payment_method') ?>:</span>
+                <span><?= htmlspecialchars($pmLabels[$payment['method']] ?? ucfirst($payment['method'])) ?></span>
             </div>
             <div class="total-row">
-                <span>Amount Paid:</span>
-                <span><?= CURRENCY_SYMBOL ?><?= number_format($payment['amount'], 2) ?></span>
+                <span><?= te('amount_paid') ?>:</span>
+                <span><?= currencySymbol() ?><?= number_format($payment['amount'], 2) ?></span>
             </div>
             <?php if ($payment['amount'] > $order['total']): ?>
                 <div class="total-row">
-                    <span>Change:</span>
-                    <span><?= CURRENCY_SYMBOL ?><?= number_format($payment['amount'] - $order['total'], 2) ?></span>
+                    <span><?= te('change') ?>:</span>
+                    <span><?= currencySymbol() ?><?= number_format($payment['amount'] - $order['total'], 2) ?></span>
                 </div>
             <?php endif; ?>
             <?php if ($payment['reference']): ?>
                 <div class="total-row">
-                    <span>Reference:</span>
+                    <span><?= te('reference') ?>:</span>
                     <span><?= htmlspecialchars($payment['reference']) ?></span>
                 </div>
             <?php endif; ?>
@@ -239,8 +240,8 @@ $workspace = $stmt->fetch();
     <?php endif; ?>
     
     <div class="footer">
-        <p>Thank you for visiting!</p>
-        <p>Please come again</p>
+        <p><?= te('thank_visiting') ?></p>
+        <p><?= te('come_again') ?></p>
         <p style="margin-top: 10px;">
             <?= date('d/m/Y H:i:s') ?>
         </p>
@@ -248,10 +249,10 @@ $workspace = $stmt->fetch();
     
     <div class="no-print" style="margin-top: 20px; text-align: center;">
         <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer;">
-            Print Receipt
+            <?= te('print_receipt') ?>
         </button>
         <button onclick="window.close()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; margin-left: 10px;">
-            Close
+            <?= te('close') ?>
         </button>
     </div>
     
