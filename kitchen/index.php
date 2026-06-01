@@ -291,11 +291,6 @@ include __DIR__ . '/../includes/header.php';
                     <?php endforeach; ?>
                 </div>
 
-                <div class="ticket-actions">
-                    <button class="btn btn-success" onclick="markAllReady(<?= $group['order_id'] ?>)">
-                        <i class="fas fa-check-double"></i> <?= te('all_ready') ?>
-                    </button>
-                </div>
             </div>
         <?php endforeach; ?>
     </div>
