@@ -414,4 +414,16 @@ return [
     'photo_hint'         => 'JPG, PNG o WebP, max 5MB',
     'msg_photo_updated'  => 'Foto aggiornata!',
     'err_photo_failed'   => 'Caricamento foto non riuscito (usa JPG/PNG/WebP, max 5MB).',
+
+    // ---- Edit menu item / room / table ----
+    'edit_item'          => 'Modifica Articolo',
+    'replace_photo_optional' => 'Sostituisci foto (opzionale)',
+    'msg_item_updated'   => 'Articolo aggiornato!',
+    'edit_room'          => 'Modifica Sala',
+    'edit_table'         => 'Modifica Tavolo',
+    'msg_room_updated'   => 'Sala aggiornata!',
+    'msg_room_deleted'   => 'Sala eliminata!',
+    'msg_table_updated'  => 'Tavolo aggiornato!',
+    'delete_room_confirm'=> 'Eliminare questa sala?',
+    'err_room_has_tables'=> 'Questa sala ha ancora dei tavoli — eliminali o spostali prima.',
 ];

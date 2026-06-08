@@ -87,13 +87,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'edit_item') {
+        $itemId = (int) $_POST['item_id'];
+        $catId  = (int) $_POST['category_id'];
+        $stmt = $pdo->prepare("UPDATE menu_items SET category_id = ?, name = ?, description = ?, base_price = ?, preparation_time = ? WHERE id = ?");
+        $stmt->execute([
+            $catId,
+            $_POST['name'],
+            $_POST['description'],
+            $_POST['base_price'],
+            $_POST['preparation_time'] ?? 15,
+            $itemId
+        ]);
+        // Optional: replace the photo if a new one was uploaded.
+        $imageUrl = saveMenuImage('image');
+        if ($imageUrl) {
+            $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$imageUrl, $itemId]);
+        }
+        header('Location: /admin/menu.php?category=' . $catId . '&success=item_updated');
+        exit;
+    }
+
     if ($action === 'delete_item') {
         $stmt = $pdo->prepare("UPDATE menu_items SET active = 0 WHERE id = ?");
         $stmt->execute([$_POST['item_id']]);
         header('Location: /admin/menu.php?success=item_deleted');
         exit;
     }
-    
+
     if ($action === 'add_component') {
         $stmt = $pdo->prepare("INSERT INTO menu_item_components (menu_item_id, component_name, is_default, extra_price, removable) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([
@@ -150,6 +171,7 @@ include __DIR__ . '/../includes/header.php';
             case 'item_deleted': echo te('msg_item_deleted'); break;
             case 'component_added': echo te('msg_component_added'); break;
             case 'photo_updated': echo te('msg_photo_updated'); break;
+            case 'item_updated': echo te('msg_item_updated'); break;
         }
         ?>
     </div>
@@ -224,6 +246,17 @@ include __DIR__ . '/../includes/header.php';
                             <td><?= $item['preparation_time'] ?> <?= te('minutes_short') ?></td>
                             <td>
                                 <div class="d-flex gap-sm">
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                        onclick='openEditItem(<?= htmlspecialchars(json_encode([
+                                            "id" => $item["id"],
+                                            "category_id" => $item["category_id"],
+                                            "name" => $item["name"],
+                                            "description" => $item["description"],
+                                            "base_price" => $item["base_price"],
+                                            "preparation_time" => $item["preparation_time"],
+                                        ]), ENT_QUOTES) ?>)'>
+                                        <i class="fas fa-edit"></i> <?= te('edit') ?>
+                                    </button>
                                     <button type="button" class="btn btn-sm btn-outline" onclick="openPhotoModal(<?= $item['id'] ?>, <?= htmlspecialchars(json_encode($item['name']), ENT_QUOTES) ?>)">
                                         <i class="fas fa-image"></i> <?= te('photo') ?>
                                     </button>
@@ -426,6 +459,62 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Edit Item Modal -->
+<div class="modal-overlay" id="editItemModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><?= te('edit_item') ?></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="edit_item">
+                <input type="hidden" name="item_id" id="ei_id">
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('category') ?></label>
+                    <select name="category_id" id="ei_category" class="form-control" required>
+                        <?php foreach ($categories as $cat): ?>
+                            <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('item_name') ?></label>
+                    <input type="text" name="name" id="ei_name" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('description') ?></label>
+                    <textarea name="description" id="ei_description" class="form-control" rows="2"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label"><?= te('price') ?></label>
+                        <input type="number" name="base_price" id="ei_price" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('prep_time_min') ?></label>
+                        <input type="number" name="preparation_time" id="ei_prep" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('replace_photo_optional') ?></label>
+                    <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+                    <small class="text-muted d-block"><?= te('photo_hint') ?></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editItemModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('save') ?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Upload Photo Modal -->
 <div class="modal-overlay" id="photoModal">
     <div class="modal">
@@ -457,6 +546,15 @@ function openPhotoModal(itemId, itemName) {
     document.getElementById('photoItemId').value = itemId;
     document.getElementById('photoItemName').textContent = itemName;
     openModal('photoModal');
+}
+function openEditItem(item) {
+    document.getElementById('ei_id').value = item.id;
+    document.getElementById('ei_category').value = item.category_id;
+    document.getElementById('ei_name').value = item.name;
+    document.getElementById('ei_description').value = item.description || '';
+    document.getElementById('ei_price').value = item.base_price;
+    document.getElementById('ei_prep').value = item.preparation_time;
+    openModal('editItemModal');
 }
 </script>
 

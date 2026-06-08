@@ -414,4 +414,16 @@ return [
     'photo_hint'         => 'JPG, PNG or WebP, max 5MB',
     'msg_photo_updated'  => 'Photo updated!',
     'err_photo_failed'   => 'Photo upload failed (use JPG/PNG/WebP, max 5MB).',
+
+    // ---- Edit menu item / room / table ----
+    'edit_item'          => 'Edit Item',
+    'replace_photo_optional' => 'Replace photo (optional)',
+    'msg_item_updated'   => 'Item updated!',
+    'edit_room'          => 'Edit Room',
+    'edit_table'         => 'Edit Table',
+    'msg_room_updated'   => 'Room updated!',
+    'msg_room_deleted'   => 'Room deleted!',
+    'msg_table_updated'  => 'Table updated!',
+    'delete_room_confirm'=> 'Delete this room?',
+    'err_room_has_tables'=> 'This room still has tables — delete or move them first.',
 ];
