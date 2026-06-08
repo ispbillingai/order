@@ -147,7 +147,7 @@ function getAllTables() {
  */
 function getMenuCategories() {
     $pdo = getDBConnection();
-    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 ORDER BY sort_order");
+    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 ORDER BY sort_order ASC, name ASC");
     return $stmt->fetchAll();
 }
 

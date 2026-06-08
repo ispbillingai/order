@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([
             $_POST['name'],
             $_POST['description'],
-            $_POST['sort_order'] ?? 0,
+            (int) ($_POST['sort_order'] ?? 0),
             isset($_POST['allow_composition']) ? 1 : 0,
             $_POST['icon'] ?? 'utensils',
             (int) $_POST['category_id']
