@@ -14,8 +14,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'add_room') {
-        $stmt = $pdo->prepare("INSERT INTO rooms (workspace_id, name, sort_order) VALUES (1, ?, ?)");
-        $stmt->execute([$_POST['name'], $_POST['sort_order'] ?? 0]);
+        // Use the existing workspace; create a default one if the table is empty
+        // (don't hardcode id=1 — the FK fails if no such workspace exists).
+        $workspaceId = $pdo->query("SELECT id FROM workspaces ORDER BY id LIMIT 1")->fetchColumn();
+        if (!$workspaceId) {
+            $pdo->prepare("INSERT INTO workspaces (name, cover_charge) VALUES ('Main Restaurant', 2.50)")->execute();
+            $workspaceId = $pdo->lastInsertId();
+        }
+        $stmt = $pdo->prepare("INSERT INTO rooms (workspace_id, name, sort_order) VALUES (?, ?, ?)");
+        $stmt->execute([$workspaceId, $_POST['name'], $_POST['sort_order'] ?? 0]);
         header('Location: /admin/rooms.php?success=room_added');
         exit;
     }
