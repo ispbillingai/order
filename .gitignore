@@ -12,3 +12,7 @@ assets/uploads/menu/*
 .DS_Store
 Thumbs.db
 *.log
+*.stackdump
+
+# Unused early prototype (browser-direct device client; superseded by server-side)
+assets/js/devices.js
