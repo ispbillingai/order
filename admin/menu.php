@@ -57,7 +57,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /admin/menu.php?success=category_added');
         exit;
     }
-    
+
+    if ($action === 'edit_category') {
+        $stmt = $pdo->prepare("UPDATE menu_categories SET name = ?, description = ?, sort_order = ?, allow_composition = ?, icon = ? WHERE id = ?");
+        $stmt->execute([
+            $_POST['name'],
+            $_POST['description'],
+            $_POST['sort_order'] ?? 0,
+            isset($_POST['allow_composition']) ? 1 : 0,
+            $_POST['icon'] ?? 'utensils',
+            (int) $_POST['category_id']
+        ]);
+        header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . '&success=category_updated');
+        exit;
+    }
+
+    if ($action === 'delete_category') {
+        $catId = (int) $_POST['category_id'];
+        // Refuse if the category still has active items — remove/move them first.
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM menu_items WHERE category_id = ? AND active = 1");
+        $stmt->execute([$catId]);
+        if ((int) $stmt->fetch()['c'] === 0) {
+            $pdo->prepare("UPDATE menu_categories SET active = 0 WHERE id = ?")->execute([$catId]);
+            header('Location: /admin/menu.php?success=category_deleted');
+        } else {
+            header('Location: /admin/menu.php?category=' . $catId . '&error=category_has_items');
+        }
+        exit;
+    }
+
     if ($action === 'add_item') {
         $imageUrl = saveMenuImage('image');
         $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url) VALUES (?, ?, ?, ?, ?, ?)");
@@ -172,6 +200,8 @@ include __DIR__ . '/../includes/header.php';
             case 'component_added': echo te('msg_component_added'); break;
             case 'photo_updated': echo te('msg_photo_updated'); break;
             case 'item_updated': echo te('msg_item_updated'); break;
+            case 'category_updated': echo te('msg_category_updated'); break;
+            case 'category_deleted': echo te('msg_category_deleted'); break;
         }
         ?>
     </div>
@@ -183,6 +213,12 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
+<?php if (isset($_GET['error']) && $_GET['error'] === 'category_has_items'): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te('err_category_has_items') ?>
+    </div>
+<?php endif; ?>
+
 <div style="display: grid; grid-template-columns: 250px 1fr; gap: var(--space-lg);">
     <!-- Categories Sidebar -->
     <div class="card">
@@ -190,16 +226,31 @@ include __DIR__ . '/../includes/header.php';
             <h2><?= te('categories') ?></h2>
         </div>
         <div style="padding: var(--space-sm);">
-            <?php foreach ($categories as $cat): ?>
-                <a href="?category=<?= $cat['id'] ?>" 
-                   class="d-flex align-center gap-sm" 
-                   style="padding: 12px; border-radius: 8px; text-decoration: none; color: inherit; <?= $cat['id'] == $selectedCategoryId ? 'background: var(--primary); color: white;' : '' ?>">
-                    <i class="fas fa-<?= htmlspecialchars($cat['icon'] ?: 'utensils') ?>"></i>
-                    <span style="flex: 1;"><?= htmlspecialchars($cat['name']) ?></span>
-                    <span class="badge" style="<?= $cat['id'] == $selectedCategoryId ? 'background: rgba(255,255,255,0.2); color: white;' : '' ?>">
-                        <?= count(getMenuItemsByCategory($cat['id'])) ?>
-                    </span>
-                </a>
+            <?php foreach ($categories as $cat): $isSel = $cat['id'] == $selectedCategoryId; ?>
+                <div class="d-flex align-center gap-sm" style="padding: 8px 10px; border-radius: 8px; <?= $isSel ? 'background: var(--primary); color: white;' : '' ?>">
+                    <a href="?category=<?= $cat['id'] ?>" class="d-flex align-center gap-sm" style="flex: 1; min-width: 0; text-decoration: none; color: inherit;">
+                        <i class="fas fa-<?= htmlspecialchars($cat['icon'] ?: 'utensils') ?>"></i>
+                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($cat['name']) ?></span>
+                        <span class="badge" style="<?= $isSel ? 'background: rgba(255,255,255,0.2); color: white;' : '' ?>">
+                            <?= count(getMenuItemsByCategory($cat['id'])) ?>
+                        </span>
+                    </a>
+                    <button type="button" title="<?= te('edit') ?>"
+                        onclick='openEditCategory(<?= htmlspecialchars(json_encode([
+                            "id" => $cat["id"], "name" => $cat["name"], "description" => $cat["description"],
+                            "sort_order" => $cat["sort_order"], "icon" => $cat["icon"], "allow_composition" => $cat["allow_composition"],
+                        ]), ENT_QUOTES) ?>)'
+                        style="background:none;border:none;cursor:pointer;color:inherit;opacity:.8;padding:2px 4px;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <form method="POST" style="display:inline;margin:0;" onsubmit="return confirm('<?= te('delete_category_confirm') ?>');">
+                        <input type="hidden" name="action" value="delete_category">
+                        <input type="hidden" name="category_id" value="<?= $cat['id'] ?>">
+                        <button type="submit" title="<?= te('delete') ?>" style="background:none;border:none;cursor:pointer;color:inherit;opacity:.8;padding:2px 4px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
             <?php endforeach; ?>
         </div>
     </div>
@@ -402,6 +453,51 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Edit Category Modal -->
+<div class="modal-overlay" id="editCategoryModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><?= te('edit_category') ?></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <form method="POST">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="edit_category">
+                <input type="hidden" name="category_id" id="ec_id">
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('category_name') ?></label>
+                    <input type="text" name="name" id="ec_name" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('description') ?></label>
+                    <textarea name="description" id="ec_description" class="form-control" rows="2"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label"><?= te('icon_fa') ?></label>
+                        <input type="text" name="icon" id="ec_icon" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('sort_order') ?></label>
+                        <input type="number" name="sort_order" id="ec_sort" class="form-control" value="0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><input type="checkbox" name="allow_composition" id="ec_comp"> <?= te('allow_composition') ?></label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editCategoryModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><?= te('save') ?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Add Item Modal -->
 <div class="modal-overlay" id="addItemModal">
     <div class="modal">
@@ -546,6 +642,15 @@ function openPhotoModal(itemId, itemName) {
     document.getElementById('photoItemId').value = itemId;
     document.getElementById('photoItemName').textContent = itemName;
     openModal('photoModal');
+}
+function openEditCategory(cat) {
+    document.getElementById('ec_id').value = cat.id;
+    document.getElementById('ec_name').value = cat.name;
+    document.getElementById('ec_description').value = cat.description || '';
+    document.getElementById('ec_icon').value = cat.icon || '';
+    document.getElementById('ec_sort').value = cat.sort_order;
+    document.getElementById('ec_comp').checked = (cat.allow_composition == 1);
+    openModal('editCategoryModal');
 }
 function openEditItem(item) {
     document.getElementById('ei_id').value = item.id;

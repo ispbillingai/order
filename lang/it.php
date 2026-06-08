@@ -426,4 +426,11 @@ return [
     'msg_table_updated'  => 'Tavolo aggiornato!',
     'delete_room_confirm'=> 'Eliminare questa sala?',
     'err_room_has_tables'=> 'Questa sala ha ancora dei tavoli — eliminali o spostali prima.',
+
+    // ---- Edit/Delete menu category ----
+    'edit_category'      => 'Modifica Categoria',
+    'msg_category_updated' => 'Categoria aggiornata!',
+    'msg_category_deleted' => 'Categoria eliminata!',
+    'delete_category_confirm' => 'Eliminare questa categoria?',
+    'err_category_has_items'  => 'Questa categoria ha ancora degli articoli — eliminali o spostali prima.',
 ];

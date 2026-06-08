@@ -426,4 +426,11 @@ return [
     'msg_table_updated'  => 'Table updated!',
     'delete_room_confirm'=> 'Delete this room?',
     'err_room_has_tables'=> 'This room still has tables — delete or move them first.',
+
+    // ---- Edit/Delete menu category ----
+    'edit_category'      => 'Edit Category',
+    'msg_category_updated' => 'Category updated!',
+    'msg_category_deleted' => 'Category deleted!',
+    'delete_category_confirm' => 'Delete this category?',
+    'err_category_has_items'  => 'This category still has items — delete or move them first.',
 ];
