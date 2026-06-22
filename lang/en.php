@@ -196,6 +196,24 @@ return [
     'test_ok'            => 'Test sent to printer.',
     'test_failed'        => 'Test failed',
 
+    // ---- Admin: Work points (preparation stations) ----
+    'work_points'         => 'Work Points',
+    'work_points_help'    => 'Define where orders are prepared — kitchen, bar, pizza oven, grill — and the non-fiscal printer for each. Assign a menu category to a work point (in Menu Management); when an order is sent, each part prints at its own area. Anything left unassigned prints at the default kitchen printer.',
+    'add_work_point'      => 'Add Work Point',
+    'edit_work_point'     => 'Edit Work Point',
+    'work_point_name'     => 'Name (e.g. Bar, Pizza oven, Grill)',
+    'no_work_points'      => 'No work points yet. Add one to route orders to a printer.',
+    'first_work_point'    => 'Add First Work Point',
+    'wp_printer_hint'     => 'Non-fiscal thermal printer (ESC/POS, port 9100), reached over Tailscale.',
+    'delete_wp_confirm'   => 'Delete this work point? Categories using it revert to the default kitchen printer.',
+    'msg_wp_added'        => 'Work point added!',
+    'msg_wp_updated'      => 'Work point updated!',
+    'msg_wp_deleted'      => 'Work point deleted!',
+    'printer'             => 'Printer',
+    'category_station'    => 'Work point (printer)',
+    'category_station_hint' => 'Where dishes in this category are prepared and printed.',
+    'wp_default_kitchen'  => '— Default (kitchen printer) —',
+
     // ---- Kitchen display ----
     'all_caught_up'      => 'All Caught Up!',
     'no_pending_kitchen' => 'No pending orders in the kitchen.',

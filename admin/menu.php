@@ -45,27 +45,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add_category') {
-        $stmt = $pdo->prepare("INSERT INTO menu_categories (name, description, sort_order, allow_composition, icon, color) VALUES (?, ?, ?, ?, ?, ?)");
+        $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
+        $stmt = $pdo->prepare("INSERT INTO menu_categories (name, description, sort_order, allow_composition, icon, color, station_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['name'],
             $_POST['description'],
             $_POST['sort_order'] ?? 0,
             isset($_POST['allow_composition']) ? 1 : 0,
             $_POST['icon'] ?? 'utensils',
-            $_POST['color'] ?? '#e74c3c'
+            $_POST['color'] ?? '#e74c3c',
+            $stationId
         ]);
         header('Location: /admin/menu.php?success=category_added');
         exit;
     }
 
     if ($action === 'edit_category') {
-        $stmt = $pdo->prepare("UPDATE menu_categories SET name = ?, description = ?, sort_order = ?, allow_composition = ?, icon = ? WHERE id = ?");
+        $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
+        $stmt = $pdo->prepare("UPDATE menu_categories SET name = ?, description = ?, sort_order = ?, allow_composition = ?, icon = ?, station_id = ? WHERE id = ?");
         $stmt->execute([
             $_POST['name'],
             $_POST['description'],
             (int) ($_POST['sort_order'] ?? 0),
             isset($_POST['allow_composition']) ? 1 : 0,
             $_POST['icon'] ?? 'utensils',
+            $stationId,
             (int) $_POST['category_id']
         ]);
         header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . '&success=category_updated');
@@ -158,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $categories = getMenuCategories();
+$stations   = getStations();
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
 
@@ -239,6 +244,7 @@ include __DIR__ . '/../includes/header.php';
                         onclick='openEditCategory(<?= htmlspecialchars(json_encode([
                             "id" => $cat["id"], "name" => $cat["name"], "description" => $cat["description"],
                             "sort_order" => $cat["sort_order"], "icon" => $cat["icon"], "allow_composition" => $cat["allow_composition"],
+                            "station_id" => $cat["station_id"] ?? null,
                         ]), ENT_QUOTES) ?>)'
                         style="background:none;border:none;cursor:pointer;color:inherit;opacity:.8;padding:2px 4px;">
                         <i class="fas fa-edit"></i>
@@ -438,6 +444,17 @@ include __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label"><?= te('category_station') ?></label>
+                    <select name="station_id" class="form-control">
+                        <option value=""><?= te('wp_default_kitchen') ?></option>
+                        <?php foreach ($stations as $st): ?>
+                            <option value="<?= (int) $st['id'] ?>"><?= htmlspecialchars($st['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted d-block"><?= te('category_station_hint') ?></small>
+                </div>
+
+                <div class="form-group">
                     <label>
                         <input type="checkbox" name="allow_composition" checked>
                         <?= te('allow_composition') ?>
@@ -484,6 +501,17 @@ include __DIR__ . '/../includes/header.php';
                         <label class="form-label"><?= te('sort_order') ?></label>
                         <input type="number" name="sort_order" id="ec_sort" class="form-control" value="0">
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('category_station') ?></label>
+                    <select name="station_id" id="ec_station" class="form-control">
+                        <option value=""><?= te('wp_default_kitchen') ?></option>
+                        <?php foreach ($stations as $st): ?>
+                            <option value="<?= (int) $st['id'] ?>"><?= htmlspecialchars($st['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted d-block"><?= te('category_station_hint') ?></small>
                 </div>
 
                 <div class="form-group">
@@ -649,6 +677,7 @@ function openEditCategory(cat) {
     document.getElementById('ec_description').value = cat.description || '';
     document.getElementById('ec_icon').value = cat.icon || '';
     document.getElementById('ec_sort').value = cat.sort_order;
+    document.getElementById('ec_station').value = cat.station_id ? String(cat.station_id) : '';
     document.getElementById('ec_comp').checked = (cat.allow_composition == 1);
     openModal('editCategoryModal');
 }

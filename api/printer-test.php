@@ -45,6 +45,40 @@ if ($target === 'kitchen' || $target === 'cashier') {
     exit;
 }
 
+if ($target === 'station') {
+    $sid = (int) ($input['station_id'] ?? 0);
+    if ($sid <= 0) {
+        echo json_encode(['ok' => false, 'error' => 'bad_target']);
+        exit;
+    }
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT * FROM stations WHERE id = ? AND active = 1");
+    $stmt->execute([$sid]);
+    $s = $stmt->fetch();
+    if (!$s) {
+        echo json_encode(['ok' => false, 'error' => 'not_found']);
+        exit;
+    }
+    $printer = new ThermalPrinter([
+        'enabled'  => (int) $s['printer_enabled'] === 1,
+        'host'     => $s['printer_host'],
+        'port'     => (int) $s['printer_port'],
+        'width'    => (int) $s['printer_width'],
+        'codepage' => (int) $s['printer_codepage'],
+    ]);
+    if (!$printer->isEnabled() || (int) $s['printer_enabled'] !== 1) {
+        echo json_encode(['ok' => false, 'error' => 'printer_not_configured']);
+        exit;
+    }
+    $res = $printer->printKitchenTicket([
+        'title' => mb_strtoupper((string) $s['name'], 'UTF-8'),
+        'table' => '--',
+        'items' => [['qty' => 1, 'name' => 'Test print', 'mods' => [], 'note' => $stamp]],
+    ]);
+    echo json_encode(['ok' => !empty($res['ok']), 'error' => $res['error'] ?? null]);
+    exit;
+}
+
 if ($target === 'fiscal') {
     // Reachability check only — do NOT emit a fiscal receipt as a test.
     $cfg  = deviceConfig('fiscal_printer');

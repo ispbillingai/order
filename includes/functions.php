@@ -177,6 +177,20 @@ function getAllMenuItems() {
 }
 
 /**
+ * Get all active work points (preparation stations), ordered for display.
+ * Returns [] if the stations table doesn't exist yet (pre-migration).
+ */
+function getStations() {
+    $pdo = getDBConnection();
+    try {
+        $stmt = $pdo->query("SELECT * FROM stations WHERE active = 1 ORDER BY sort_order ASC, name ASC");
+        return $stmt->fetchAll();
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
  * Get menu item components
  */
 function getMenuItemComponents($menuItemId) {

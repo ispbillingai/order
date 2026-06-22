@@ -196,6 +196,24 @@ return [
     'test_ok'            => 'Prova inviata alla stampante.',
     'test_failed'        => 'Prova non riuscita',
 
+    // ---- Admin: Work points (preparation stations) ----
+    'work_points'         => 'Postazioni',
+    'work_points_help'    => 'Definisci dove vengono preparati gli ordini — cucina, bar, forno pizza, griglia — e la stampante non fiscale di ciascuna. Assegna una categoria del menu a una postazione (in Gestione Menu); quando un ordine viene inviato, ogni parte viene stampata nella propria area. Ciò che resta senza postazione viene stampato sulla stampante cucina predefinita.',
+    'add_work_point'      => 'Aggiungi Postazione',
+    'edit_work_point'     => 'Modifica Postazione',
+    'work_point_name'     => 'Nome (es. Bar, Forno pizza, Griglia)',
+    'no_work_points'      => 'Nessuna postazione. Aggiungine una per instradare gli ordini a una stampante.',
+    'first_work_point'    => 'Aggiungi Prima Postazione',
+    'wp_printer_hint'     => 'Stampante termica non fiscale (ESC/POS, porta 9100), raggiunta via Tailscale.',
+    'delete_wp_confirm'   => 'Eliminare questa postazione? Le categorie che la usano torneranno alla stampante cucina predefinita.',
+    'msg_wp_added'        => 'Postazione aggiunta!',
+    'msg_wp_updated'      => 'Postazione aggiornata!',
+    'msg_wp_deleted'      => 'Postazione eliminata!',
+    'printer'             => 'Stampante',
+    'category_station'    => 'Postazione (stampante)',
+    'category_station_hint' => 'Dove vengono preparati e stampati i piatti di questa categoria.',
+    'wp_default_kitchen'  => '— Predefinita (stampante cucina) —',
+
     // ---- Kitchen display ----
     'all_caught_up'      => 'Tutto Fatto!',
     'no_pending_kitchen' => 'Nessun ordine in attesa in cucina.',
