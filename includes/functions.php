@@ -177,13 +177,28 @@ function getAllMenuItems() {
 }
 
 /**
- * Get all active work points (preparation stations), ordered for display.
- * Returns [] if the stations table doesn't exist yet (pre-migration).
+ * Get all active work points — preparation stations (kitchen, bar, pizza oven,
+ * grill). Returns [] if the stations table doesn't exist yet (pre-migration).
  */
 function getStations() {
     $pdo = getDBConnection();
     try {
-        $stmt = $pdo->query("SELECT * FROM stations WHERE active = 1 ORDER BY sort_order ASC, name ASC");
+        $stmt = $pdo->query("SELECT * FROM stations WHERE active = 1 AND type = 'prep' ORDER BY sort_order ASC, name ASC");
+        return $stmt->fetchAll();
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Get all active tills ("Cassa 1", "Cassa 2") — stations of type 'till', each
+ * with its own bill printer + fiscal/POS/Cashmatic bundle. Returns [] if the
+ * stations table doesn't exist yet (pre-migration).
+ */
+function getTills() {
+    $pdo = getDBConnection();
+    try {
+        $stmt = $pdo->query("SELECT * FROM stations WHERE active = 1 AND type = 'till' ORDER BY sort_order ASC, name ASC");
         return $stmt->fetchAll();
     } catch (Throwable $e) {
         return [];

@@ -9,6 +9,9 @@ requireRole(['admin', 'cashier']);
 
 $pdo = getDBConnection();
 
+// Tills configured? (controls whether the "Till" column is shown)
+$tills = getTills();
+
 // Get all tables with their current status - FIXED QUERY
 try {
     $stmt = $pdo->query("
@@ -47,11 +50,13 @@ try {
             o.updated_at,
             t.table_number,
             r.name as room_name,
-            u.full_name as waiter_name
+            u.full_name as waiter_name,
+            st.name as till_name
         FROM orders o
         JOIN tables_restaurant t ON o.table_id = t.id
         JOIN rooms r ON o.room_id = r.id
         JOIN users u ON o.waiter_id = u.id
+        LEFT JOIN stations st ON o.till_id = st.id
         WHERE o.status = 'bill_requested'
         ORDER BY o.updated_at ASC
     ");
@@ -128,6 +133,7 @@ include __DIR__ . '/../includes/header.php';
                 <th><?= te('order_no') ?></th>
                 <th><?= te('guests') ?></th>
                 <th><?= te('waiter') ?></th>
+                <?php if (!empty($tills)): ?><th><?= te('till') ?></th><?php endif; ?>
                 <th><?= te('total') ?></th>
                 <th><?= te('actions') ?></th>
             </tr>
@@ -142,6 +148,15 @@ include __DIR__ . '/../includes/header.php';
                     <td><?= htmlspecialchars($bill['order_number'] ?? '') ?></td>
                     <td><?= $bill['number_of_people'] ?? 0 ?></td>
                     <td><?= htmlspecialchars($bill['waiter_name'] ?? 'Unknown') ?></td>
+                    <?php if (!empty($tills)): ?>
+                    <td>
+                        <?php if (!empty($bill['till_name'])): ?>
+                            <span class="badge badge-info"><i class="fas fa-cash-register"></i> <?= htmlspecialchars($bill['till_name']) ?></span>
+                        <?php else: ?>
+                            <span class="text-muted">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <?php endif; ?>
                     <td><strong class="text-primary" style="font-size: 1.1rem;"><?= formatCurrency($bill['total'] ?? 0) ?></strong></td>
                     <td>
                         <a href="/cashier/payment.php?order=<?= $bill['id'] ?>" class="btn btn-sm btn-success">

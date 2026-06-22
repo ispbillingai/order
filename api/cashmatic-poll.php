@@ -16,7 +16,7 @@ if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
     exit;
 }
 
-$client = new CashmaticClient(deviceConfig('cashmatic'));
+$client = new CashmaticClient($_SESSION['till_cashmatic_cfg'] ?? deviceConfig('cashmatic'));
 $r = $client->activeTransaction();
 if (($r['code'] ?? -1) !== 0) {
     echo json_encode(['ok' => false, 'error' => $r['message'] ?? 'poll_failed']);

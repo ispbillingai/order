@@ -284,11 +284,10 @@ async function sendToKitchen(orderId) {
     });
 }
 
-async function requestBill(orderId) {
-    return await apiCall('/api/orders.php', 'POST', {
-        action: 'request_bill',
-        order_id: orderId
-    });
+async function requestBill(orderId, tillId = null) {
+    const body = { action: 'request_bill', order_id: orderId };
+    if (tillId) body.till_id = tillId;
+    return await apiCall('/api/orders.php', 'POST', body);
 }
 
 // ============================================

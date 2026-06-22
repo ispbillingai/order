@@ -79,6 +79,47 @@ if ($target === 'station') {
     exit;
 }
 
+if ($target === 'till_device') {
+    // Reachability check for a till's fiscal / POS / cashmatic device (no real
+    // transaction is performed — we only open a socket to host:port).
+    $sid    = (int) ($input['station_id'] ?? 0);
+    $device = (string) ($input['device'] ?? '');
+    if ($sid <= 0 || !in_array($device, ['fiscal', 'pos', 'cashmatic'], true)) {
+        echo json_encode(['ok' => false, 'error' => 'bad_target']);
+        exit;
+    }
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT device_config FROM stations WHERE id = ? AND type = 'till' AND active = 1");
+    $stmt->execute([$sid]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        echo json_encode(['ok' => false, 'error' => 'not_found']);
+        exit;
+    }
+    $dc  = json_decode((string) ($row['device_config'] ?? ''), true);
+    $base = is_array($dc) ? ($dc[$device]['base_url'] ?? '') : '';
+    if ($base === '') {
+        echo json_encode(['ok' => false, 'error' => 'not_configured']);
+        exit;
+    }
+    $p    = parse_url($base);
+    $host = $p['host'] ?? '';
+    $port = $p['port'] ?? (($p['scheme'] ?? 'http') === 'https' ? 443 : 80);
+    if ($host === '') {
+        echo json_encode(['ok' => false, 'error' => 'bad_url']);
+        exit;
+    }
+    $errno = 0; $errstr = '';
+    $fp = @fsockopen($host, (int) $port, $errno, $errstr, 5);
+    if ($fp) {
+        fclose($fp);
+        echo json_encode(['ok' => true]);
+    } else {
+        echo json_encode(['ok' => false, 'error' => trim("$errno $errstr") ?: 'unreachable']);
+    }
+    exit;
+}
+
 if ($target === 'fiscal') {
     // Reachability check only — do NOT emit a fiscal receipt as a test.
     $cfg  = deviceConfig('fiscal_printer');

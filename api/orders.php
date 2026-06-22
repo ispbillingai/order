@@ -256,14 +256,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         case 'request_bill':
             $orderId = $input['order_id'] ?? null;
-            
+            // Till the waiter routed the bill to (NULL = no specific till).
+            $tillId  = (isset($input['till_id']) && (int) $input['till_id'] > 0) ? (int) $input['till_id'] : null;
+
             if (!$orderId) {
                 jsonResponse(['success' => false, 'message' => 'Order ID required']);
             }
-            
-            // Update order status
-            $stmt = $pdo->prepare("UPDATE orders SET status = 'bill_requested' WHERE id = ?");
-            $stmt->execute([$orderId]);
+
+            // Update order status and stamp the chosen till.
+            $stmt = $pdo->prepare("UPDATE orders SET status = 'bill_requested', till_id = ? WHERE id = ?");
+            $stmt->execute([$tillId, $orderId]);
             
             // Update table status
             $stmt = $pdo->prepare("

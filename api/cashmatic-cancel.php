@@ -15,6 +15,6 @@ if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
     exit;
 }
 
-$client = new CashmaticClient(deviceConfig('cashmatic'));
+$client = new CashmaticClient($_SESSION['till_cashmatic_cfg'] ?? deviceConfig('cashmatic'));
 try { $client->cancelPayment(); } catch (Throwable $e) {}
 echo json_encode(['ok' => true]);

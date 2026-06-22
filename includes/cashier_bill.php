@@ -15,17 +15,18 @@ require_once __DIR__ . '/ThermalPrinter.php';
  */
 function printCashierBillForOrder(int $orderId, ?array $order = null): array
 {
-    $cfg     = deviceConfig('cashier_printer');
-    $printer = new ThermalPrinter($cfg);
-    if (!$printer->isEnabled() || empty($cfg['enabled'])) {
-        return ['ok' => false, 'error' => 'printer_not_configured'];
-    }
-
-    // Make sure totals are current, then re-read the order.
+    // Make sure totals are current, then read the order — we need its till to
+    // pick the right (per-till) bill printer.
     calculateOrderTotals($orderId);
     $order = getOrderById($orderId);
     if (!$order) {
         return ['ok' => false, 'error' => 'order_not_found'];
+    }
+
+    $cfg     = tillConfigForOrder($order, 'cashier_printer');
+    $printer = new ThermalPrinter($cfg);
+    if (!$printer->isEnabled() || empty($cfg['enabled'])) {
+        return ['ok' => false, 'error' => 'printer_not_configured'];
     }
 
     $items = getOrderItems($orderId);

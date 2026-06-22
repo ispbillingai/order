@@ -19,8 +19,10 @@ calculateOrderTotals($orderId);
 $order = getOrderById($orderId); // refresh after recalc
 $orderItems = getOrderItems($orderId);
 
-$cm     = deviceConfig('cashmatic');
-$pos    = deviceConfig('pos');
+// Route the kiosk to this order's till devices (falls back to global).
+$cm     = tillConfigForOrder($order, 'cashmatic');
+$pos    = tillConfigForOrder($order, 'pos');
+$till   = getTillById(isset($order['till_id']) ? (int) $order['till_id'] : 0);
 $sym    = currencySymbol();
 $jsCfg  = [
     'order_id'        => (int) $order['id'],
@@ -77,7 +79,12 @@ include __DIR__ . '/../includes/header.php';
         <div class="card mb-lg">
             <div class="card-header">
                 <h2><?= te('order_no') ?><?= htmlspecialchars($order['order_number']) ?></h2>
-                <span class="badge badge-info"><?= te('table') ?> <?= htmlspecialchars($order['table_number']) ?> • <?= htmlspecialchars($order['room_name']) ?></span>
+                <div class="d-flex gap-sm align-center">
+                    <span class="badge badge-info"><?= te('table') ?> <?= htmlspecialchars($order['table_number']) ?> • <?= htmlspecialchars($order['room_name']) ?></span>
+                    <?php if ($till): ?>
+                        <span class="badge badge-warning"><i class="fas fa-cash-register"></i> <?= htmlspecialchars($till['name']) ?></span>
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="card-body">
                 <?php foreach ($orderItems as $item): ?>

@@ -37,7 +37,7 @@ function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $o
             FROM order_items oi
             JOIN menu_items mi      ON oi.menu_item_id = mi.id
             JOIN menu_categories mc ON mi.category_id = mc.id
-            LEFT JOIN stations s    ON mc.station_id = s.id AND s.active = 1
+            LEFT JOIN stations s    ON mc.station_id = s.id AND s.active = 1 AND s.type = 'prep'
             WHERE oi.id IN ($in)
             ORDER BY oi.id";
     try {

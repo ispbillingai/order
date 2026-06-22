@@ -25,7 +25,11 @@ if ($order['status'] === 'paid') { echo json_encode(['ok' => false, 'error' => '
 $amount = toCents($order['total']);
 if ($amount <= 0) { echo json_encode(['ok' => false, 'error' => 'bad_amount']); exit; }
 
-$client = new CashmaticClient(deviceConfig('cashmatic'));
+// Use this order's till cashmatic, and remember it for poll/cancel (which carry
+// no order_id of their own).
+$cmCfg = tillConfigForOrder($order, 'cashmatic');
+$_SESSION['till_cashmatic_cfg'] = $cmCfg;
+$client = new CashmaticClient($cmCfg);
 if (!$client->enabled()) { echo json_encode(['ok' => false, 'error' => 'cashmatic_not_configured']); exit; }
 
 $r = $client->startPayment($amount, 'order-' . $orderId, 'restaurant');

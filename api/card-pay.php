@@ -27,7 +27,7 @@ if ($order['status'] === 'paid') { echo json_encode(['ok' => false, 'error' => '
 $amount = toCents($order['total']);
 if ($amount <= 0) { echo json_encode(['ok' => false, 'error' => 'bad_amount']); exit; }
 
-$pos = new PosClient(deviceConfig('pos'));
+$pos = new PosClient(tillConfigForOrder($order, 'pos'));
 if (!$pos->enabled()) { echo json_encode(['ok' => false, 'error' => 'pos_not_configured']); exit; }
 
 // 1) Charge the card. If this fails, nothing was charged — safe to retry.
@@ -55,8 +55,8 @@ if (!$conf['ok']) {
     exit;
 }
 
-// 3) Emit the fiscal receipt (paymentType card).
-$fiscal = emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'card');
+// 3) Emit the fiscal receipt (paymentType card) on this till's fiscal printer.
+$fiscal = emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'card', $order);
 
 echo json_encode([
     'ok'           => true,

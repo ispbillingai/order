@@ -94,9 +94,12 @@ function confirmOrderPayment(int $orderId, string $method, int $amountCents, arr
  *
  * @return array fiscal emit result (['ok'=>bool, ...])
  */
-function emitFiscalForOrder(int $orderId, int $paymentId, int $amountCents, string $method): array
+function emitFiscalForOrder(int $orderId, int $paymentId, int $amountCents, string $method, ?array $order = null): array
 {
-    $fiscal = new FiscalClient(deviceConfig('fiscal_printer'));
+    // Use the fiscal printer of the till this order was routed to (falls back
+    // to the global fiscal printer when no till / blank).
+    $order  = $order ?? getOrderById($orderId);
+    $fiscal = new FiscalClient(tillConfigForOrder($order, 'fiscal_printer'));
     if (!$fiscal->enabled()) {
         return ['ok' => false, 'error' => 'fiscal_printer_disabled'];
     }

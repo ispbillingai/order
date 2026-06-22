@@ -21,6 +21,7 @@ if (!$order) {
 
 $orderItems = getOrderItems($orderId);
 $categories = getMenuCategories();
+$tills      = getTills();
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
 
@@ -190,12 +191,43 @@ include __DIR__ . '/../includes/header.php';
                     <i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?>
                 </button>
             <?php endif; ?>
-            <button class="btn btn-warning" onclick="requestBillAction()">
-                <i class="fas fa-receipt"></i> <?= te('bill') ?>
-            </button>
+            <?php if (!empty($tills)): ?>
+                <button class="btn btn-warning" onclick="openModal('tillPickModal')">
+                    <i class="fas fa-receipt"></i> <?= te('bill') ?>
+                </button>
+            <?php else: ?>
+                <button class="btn btn-warning" onclick="requestBillAction()">
+                    <i class="fas fa-receipt"></i> <?= te('bill') ?>
+                </button>
+            <?php endif; ?>
         </div>
     </div>
 </div>
+
+<?php if (!empty($tills)): ?>
+<!-- Choose till to send the bill to -->
+<div class="modal-overlay" id="tillPickModal">
+    <div class="modal" style="max-width: 460px;">
+        <div class="modal-header">
+            <h3><?= te('send_bill_to_till') ?></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted"><?= te('send_bill_to_till_hint') ?></p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+                <?php foreach ($tills as $till): ?>
+                    <button class="btn btn-success btn-lg" onclick="closeModal('tillPickModal'); requestBillAction(<?= (int) $till['id'] ?>)">
+                        <i class="fas fa-cash-register"></i> <?= htmlspecialchars($till['name']) ?>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('tillPickModal')"><?= te('cancel') ?></button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Add Item Modal -->
 <div class="modal-overlay" id="addItemModal">
@@ -410,9 +442,9 @@ async function sendOrderToKitchen() {
     }
 }
 
-async function requestBillAction() {
+async function requestBillAction(tillId = null) {
     try {
-        const result = await requestBill(orderId);
+        const result = await requestBill(orderId, tillId);
         if (result.success) {
             showToast(T.billRequested, 'success');
             location.reload();

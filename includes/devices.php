@@ -40,6 +40,85 @@ function deviceConfig(?string $section = null)
     return $cfg[$section] ?? [];
 }
 
+/**
+ * Load a till (station of type 'till') by id. Cached per request. Returns null
+ * if missing/inactive or the stations table doesn't exist yet.
+ */
+function getTillById(?int $id): ?array
+{
+    if (!$id) {
+        return null;
+    }
+    static $cache = [];
+    if (array_key_exists($id, $cache)) {
+        return $cache[$id];
+    }
+    try {
+        $pdo  = getDBConnection();
+        $stmt = $pdo->prepare("SELECT * FROM stations WHERE id = ? AND type = 'till' AND active = 1");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $cache[$id] = ($row ?: null);
+    } catch (Throwable $e) {
+        return $cache[$id] = null;
+    }
+}
+
+/**
+ * Device config for the till an order was routed to (orders.till_id), falling
+ * back to the global deviceConfig($section) when there's no till or the till
+ * leaves that section blank. This is how each "Cassa" uses its own hardware.
+ *
+ * @param array|null $order an order row (must contain 'till_id' to route)
+ * @param string     $section 'fiscal_printer' | 'pos' | 'cashmatic' | 'cashier_printer'
+ */
+function tillConfigForOrder(?array $order, string $section): array
+{
+    $global = (array) deviceConfig($section);
+    $till   = getTillById(isset($order['till_id']) ? (int) $order['till_id'] : 0);
+    if (!$till) {
+        return $global;
+    }
+
+    // The till's bill printer lives in the printer_* columns.
+    if ($section === 'cashier_printer') {
+        if (empty($till['printer_host'])) {
+            return $global;
+        }
+        return array_merge($global, [
+            'enabled'  => (int) $till['printer_enabled'] === 1,
+            'host'     => (string) $till['printer_host'],
+            'port'     => (int) $till['printer_port'],
+            'width'    => (int) $till['printer_width'],
+            'codepage' => (int) $till['printer_codepage'],
+        ]);
+    }
+
+    // Fiscal / POS / Cashmatic live in the device_config JSON bundle.
+    $dc = $till['device_config'] ?? null;
+    if (is_string($dc)) {
+        $dc = json_decode($dc, true);
+    }
+    if (!is_array($dc)) {
+        return $global;
+    }
+    $key = $section === 'fiscal_printer' ? 'fiscal' : $section; // 'pos' | 'cashmatic'
+    $sub = $dc[$key] ?? null;
+    if (!is_array($sub) || empty($sub['base_url'])) {
+        return $global;
+    }
+
+    // Overlay only the values the till actually provides.
+    $over = [];
+    foreach ($sub as $k => $v) {
+        if ($v !== '' && $v !== null) {
+            $over[$k] = $v;
+        }
+    }
+    $over['enabled'] = true;
+    return array_merge($global, $over);
+}
+
 /** ISO 4217 numeric currency code (default 978 = EUR). */
 function currencyCode(): int
 {

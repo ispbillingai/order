@@ -26,7 +26,7 @@ if ($order['status'] === 'paid') { echo json_encode(['ok' => false, 'error' => '
 
 $amount = toCents($order['total']);
 
-$client = new CashmaticClient(deviceConfig('cashmatic'));
+$client = new CashmaticClient(tillConfigForOrder($order, 'cashmatic'));
 $r = $client->lastTransaction();
 if (($r['code'] ?? -1) !== 0) {
     echo json_encode(['ok' => false, 'error' => $r['message'] ?? 'last_tx_failed']);
@@ -51,7 +51,9 @@ if (!$conf['ok']) {
     exit;
 }
 
-$fiscal = emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'cash');
+$fiscal = emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'cash', $order);
+
+unset($_SESSION['till_cashmatic_cfg']); // payment done — drop the cached till config
 
 echo json_encode([
     'ok'           => true,
