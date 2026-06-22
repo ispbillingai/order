@@ -128,7 +128,13 @@ foreach ($files as $path) {
         $pdo->exec($sql);
         $stmt = $pdo->prepare("INSERT INTO migrations (filename) VALUES (?)");
         $stmt->execute([$name]);
-        $pdo->commit();
+        // DDL (CREATE/ALTER/DROP TABLE) implicitly commits in MySQL, which ends
+        // the transaction. Only commit if one is still open — otherwise PDO
+        // throws "There is no active transaction". DML-only migrations stay
+        // fully transactional.
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
         out($name . ' applied', 'ok');
         $ran++;
     } catch (Throwable $e) {
