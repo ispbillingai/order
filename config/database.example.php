@@ -34,11 +34,13 @@ function getDBConnection() {
     return $pdo;
 }
 
-// Application settings
-define('COVER_CHARGE_DEFAULT', 2.50);
-define('CURRENCY_SYMBOL', '$');
-define('APP_NAME', 'RestoPOS');
-define('APP_VERSION', '1.0.0');
+// Application settings. Guarded with defined() so re-including this file (e.g.
+// from a CLI poller that loads config through more than one path) doesn't emit
+// "Constant already defined" warnings.
+defined('COVER_CHARGE_DEFAULT') || define('COVER_CHARGE_DEFAULT', 2.50);
+defined('CURRENCY_SYMBOL')      || define('CURRENCY_SYMBOL', '$');
+defined('APP_NAME')             || define('APP_NAME', 'RestoPOS');
+defined('APP_VERSION')          || define('APP_VERSION', '1.0.0');
 
 // Timezone
 date_default_timezone_set('Africa/Nairobi');
