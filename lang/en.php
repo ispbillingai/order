@@ -477,4 +477,22 @@ return [
     'msg_category_deleted' => 'Category deleted!',
     'delete_category_confirm' => 'Delete this category?',
     'err_category_has_items'  => 'This category still has items — delete or move them first.',
+
+    // ---- Network devices (admin) ----
+    'devices_title'      => 'Devices',
+    'devices_subtitle'   => 'Live up/down status of the shop devices, checked through the router.',
+    'dev_device'         => 'Device',
+    'dev_ip'             => 'IP address',
+    'dev_status'         => 'Status',
+    'dev_latency'        => 'Latency',
+    'dev_last_seen'      => 'Last seen',
+    'dev_last_check'     => 'Last check',
+    'dev_up'             => 'Online',
+    'dev_down'           => 'Offline',
+    'dev_unknown'        => 'Unknown',
+    'dev_never'          => 'never',
+    'dev_none'           => 'No devices configured yet.',
+    'dev_check_now'      => 'Check now',
+    'dev_checking'       => 'Checking…',
+    'dev_router_unreachable' => 'Could not reach the router to check devices.',
 ];

@@ -477,4 +477,22 @@ return [
     'msg_category_deleted' => 'Categoria eliminata!',
     'delete_category_confirm' => 'Eliminare questa categoria?',
     'err_category_has_items'  => 'Questa categoria ha ancora degli articoli — eliminali o spostali prima.',
+
+    // ---- Dispositivi di rete (admin) ----
+    'devices_title'      => 'Dispositivi',
+    'devices_subtitle'   => 'Stato online/offline in tempo reale dei dispositivi del negozio, verificato tramite il router.',
+    'dev_device'         => 'Dispositivo',
+    'dev_ip'             => 'Indirizzo IP',
+    'dev_status'         => 'Stato',
+    'dev_latency'        => 'Latenza',
+    'dev_last_seen'      => 'Visto',
+    'dev_last_check'     => 'Controllo',
+    'dev_up'             => 'Online',
+    'dev_down'           => 'Offline',
+    'dev_unknown'        => 'Sconosciuto',
+    'dev_never'          => 'mai',
+    'dev_none'           => 'Nessun dispositivo configurato.',
+    'dev_check_now'      => 'Controlla ora',
+    'dev_checking'       => 'Controllo…',
+    'dev_router_unreachable' => 'Impossibile raggiungere il router per controllare i dispositivi.',
 ];

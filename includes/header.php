@@ -131,6 +131,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'active' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
             <a href="/admin/reports.php" class="<?= $currentPage === 'reports' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i> <?= te('reports') ?></a>
             <a href="/admin/printers.php" class="<?= $currentPage === 'printers' ? 'active' : '' ?>"><i class="fas fa-print"></i> <?= te('printers') ?></a>
+            <a href="/admin/devices.php" class="<?= $currentPage === 'devices' ? 'active' : '' ?>"><i class="fas fa-network-wired"></i> <?= te('devices_title') ?></a>
             <a href="/admin/stations.php" class="<?= $currentPage === 'stations' ? 'active' : '' ?>"><i class="fas fa-route"></i> <?= te('work_points') ?></a>
             <a href="/admin/tills.php" class="<?= $currentPage === 'tills' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('tills') ?></a>
             <a href="/admin/activity.php" class="<?= $currentPage === 'activity' ? 'active' : '' ?>"><i class="fas fa-history"></i> <?= te('activity') ?></a>
