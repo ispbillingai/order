@@ -232,43 +232,110 @@ final class RouterOsApi
 }
 
 /**
- * Poll every active device once and write results to the `devices` table.
- * Returns a summary array: ['ok'=>bool, 'checked'=>int, 'up'=>int, 'down'=>int,
- * 'error'=>?string, 'results'=>[['ip','name','up','latency_ms'], ...]].
+ * Load the network areas (routers) to poll. Prefers the DB `network_areas`
+ * table (managed from Admin -> Network areas); if that table doesn't exist yet
+ * (pre-migration) or is empty, falls back to the single router in
+ * config/devices.php so nothing breaks during the upgrade.
  *
- * If the router is unreachable, no rows are touched (so a WireGuard blip doesn't
- * mark every device "down") and 'ok' is false with an 'error'.
+ * @return array<int,array{id:?int,name:string,host:string,port:int,user:string,pass:string,count:int}>
+ */
+function networkAreas(): array
+{
+    $pdo = getDBConnection();
+    try {
+        $rows = $pdo->query(
+            "SELECT id, name, host, api_port, api_user, api_pass, ping_count
+               FROM network_areas WHERE active = 1 ORDER BY sort_order, id"
+        )->fetchAll();
+        if ($rows) {
+            return array_map(static fn($r) => [
+                'id'    => (int) $r['id'],
+                'name'  => (string) $r['name'],
+                'host'  => (string) $r['host'],
+                'port'  => (int) $r['api_port'],
+                'user'  => (string) $r['api_user'],
+                'pass'  => (string) $r['api_pass'],
+                'count' => max(1, (int) $r['ping_count']),
+            ], $rows);
+        }
+    } catch (Throwable $e) {
+        // table missing (pre-migration) — fall through to config
+    }
+
+    // Fallback: single router from config/devices.php.
+    $cfg = deviceConfig('router');
+    if (empty($cfg['host'])) {
+        return [];
+    }
+    return [[
+        'id'    => null,
+        'name'  => 'Router',
+        'host'  => (string) $cfg['host'],
+        'port'  => (int) ($cfg['port'] ?? 8728),
+        'user'  => (string) ($cfg['user'] ?? 'admin'),
+        'pass'  => (string) ($cfg['pass'] ?? ''),
+        'count' => max(1, (int) ($cfg['ping_count'] ?? 2)),
+    ]];
+}
+
+/**
+ * Try to log into a router (area) and return a connected RouterOsApi, or throw.
+ * Split out so the admin "Test connection" button can reuse it.
+ */
+function connectToArea(array $area): RouterOsApi
+{
+    $api = new RouterOsApi($area['host'], $area['port']);
+    $api->login($area['user'], $area['pass']);
+    return $api;
+}
+
+/**
+ * Poll every active device once and write results to the `devices` table. Each
+ * device is pinged through the router of its area_id; devices with no area (or
+ * an inactive one) are polled via the first active area as a fallback.
+ *
+ * Returns ['ok'=>bool, 'checked'=>int, 'up'=>int, 'down'=>int, 'error'=>?string,
+ * 'results'=>[['ip','name','up','latency_ms'], ...]]. If a router is unreachable
+ * its devices are left untouched (a WireGuard blip must not mark them all down);
+ * 'ok' is false if ANY area failed, with the first error reported.
  */
 function pollDevices(): array
 {
-    $cfg = deviceConfig('router');
-    $host = (string) ($cfg['host'] ?? '192.168.200.15');
-    $port = (int)    ($cfg['port'] ?? 8728);
-    $user = (string) ($cfg['user'] ?? 'admin');
-    $pass = (string) ($cfg['pass'] ?? '');
-    $count = max(1, (int) ($cfg['ping_count'] ?? 2));
-
     $pdo = getDBConnection();
-    $devices = $pdo->query(
-        "SELECT id, name, ip FROM devices WHERE active = 1 ORDER BY sort_order, id"
-    )->fetchAll();
 
+    $areas = networkAreas();
+    if (!$areas) {
+        return ['ok' => false, 'checked' => 0, 'up' => 0, 'down' => 0,
+                'error' => 'no_network_areas', 'results' => []];
+    }
+    // Index by id; remember the fallback (first active) area.
+    $areaById = [];
+    foreach ($areas as $a) {
+        if ($a['id'] !== null) {
+            $areaById[$a['id']] = $a;
+        }
+    }
+    $fallback = $areas[0];
+
+    $devices = $pdo->query(
+        "SELECT id, name, ip, area_id FROM devices WHERE active = 1 ORDER BY sort_order, id"
+    )->fetchAll();
     if (!$devices) {
         return ['ok' => true, 'checked' => 0, 'up' => 0, 'down' => 0, 'error' => null, 'results' => []];
     }
 
-    try {
-        $api = new RouterOsApi($host, $port);
-        $api->login($user, $pass);
-    } catch (Throwable $e) {
-        return ['ok' => false, 'checked' => 0, 'up' => 0, 'down' => 0,
-                'error' => $e->getMessage(), 'results' => []];
+    // Group devices by the area that will poll them.
+    $byArea = [];
+    foreach ($devices as $d) {
+        $aid = $d['area_id'] !== null ? (int) $d['area_id'] : null;
+        $area = ($aid !== null && isset($areaById[$aid])) ? $areaById[$aid] : $fallback;
+        $key = $area['id'] ?? '_cfg';
+        $byArea[$key]['area'] = $area;
+        $byArea[$key]['devices'][] = $d;
     }
 
-    $now = date('Y-m-d H:i:s');
-    $up = 0;
-    $down = 0;
-    $results = [];
+    $now  = date('Y-m-d H:i:s');
+    $up = 0; $down = 0; $results = []; $firstError = null;
 
     $updUp = $pdo->prepare(
         "UPDATE devices SET status='up', latency_ms=?, last_seen_at=?, last_checked_at=? WHERE id=?"
@@ -277,26 +344,35 @@ function pollDevices(): array
         "UPDATE devices SET status='down', latency_ms=NULL, last_checked_at=? WHERE id=?"
     );
 
-    foreach ($devices as $d) {
+    foreach ($byArea as $group) {
+        $area = $group['area'];
         try {
-            [$isUp, $ms] = $api->ping($d['ip'], $count);
+            $api = connectToArea($area);
         } catch (Throwable $e) {
-            // Mid-run router failure: stop, report what we have, leave rest as-is.
-            $api->close();
-            return ['ok' => false, 'checked' => count($results), 'up' => $up, 'down' => $down,
-                    'error' => $e->getMessage(), 'results' => $results];
+            // This router is unreachable: leave its devices untouched, note error.
+            $firstError = $firstError ?? ($area['name'] . ': ' . $e->getMessage());
+            continue;
         }
-        if ($isUp) {
-            $updUp->execute([$ms, $now, $now, $d['id']]);
-            $up++;
-        } else {
-            $updDown->execute([$now, $d['id']]);
-            $down++;
+
+        foreach ($group['devices'] as $d) {
+            try {
+                [$isUp, $ms] = $api->ping($d['ip'], $area['count']);
+            } catch (Throwable $e) {
+                $firstError = $firstError ?? ($area['name'] . ': ' . $e->getMessage());
+                break; // router died mid-run; stop this group, keep others
+            }
+            if ($isUp) {
+                $updUp->execute([$ms, $now, $now, $d['id']]);
+                $up++;
+            } else {
+                $updDown->execute([$now, $d['id']]);
+                $down++;
+            }
+            $results[] = ['ip' => $d['ip'], 'name' => $d['name'], 'up' => $isUp, 'latency_ms' => $ms];
         }
-        $results[] = ['ip' => $d['ip'], 'name' => $d['name'], 'up' => $isUp, 'latency_ms' => $ms];
+        $api->close();
     }
 
-    $api->close();
-    return ['ok' => true, 'checked' => count($results), 'up' => $up, 'down' => $down,
-            'error' => null, 'results' => $results];
+    return ['ok' => $firstError === null, 'checked' => count($results),
+            'up' => $up, 'down' => $down, 'error' => $firstError, 'results' => $results];
 }
