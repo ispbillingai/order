@@ -92,14 +92,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add_item') {
         $imageUrl = saveMenuImage('image');
-        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url) VALUES (?, ?, ?, ?, ?, ?)");
+        // Blank = inherit the category's work point.
+        $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
+        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url, station_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['category_id'],
             $_POST['name'],
             $_POST['description'],
             $_POST['base_price'],
             $_POST['preparation_time'] ?? 15,
-            $imageUrl
+            $imageUrl,
+            $stationId
         ]);
         header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . '&success=item_added');
         exit;
@@ -122,13 +125,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'edit_item') {
         $itemId = (int) $_POST['item_id'];
         $catId  = (int) $_POST['category_id'];
-        $stmt = $pdo->prepare("UPDATE menu_items SET category_id = ?, name = ?, description = ?, base_price = ?, preparation_time = ? WHERE id = ?");
+        // Blank = inherit the category's work point.
+        $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
+        $stmt = $pdo->prepare("UPDATE menu_items SET category_id = ?, name = ?, description = ?, base_price = ?, preparation_time = ?, station_id = ? WHERE id = ?");
         $stmt->execute([
             $catId,
             $_POST['name'],
             $_POST['description'],
             $_POST['base_price'],
             $_POST['preparation_time'] ?? 15,
+            $stationId,
             $itemId
         ]);
         // Optional: replace the photo if a new one was uploaded.
@@ -165,6 +171,22 @@ $categories = getMenuCategories();
 $stations   = getStations();
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
+
+// Where each dish prints. A dish may name its own work point; otherwise it
+// inherits its category's, and a category with none falls back to the default
+// kitchen printer. Mirrors resolveItemStations() in includes/kitchen_ticket.php.
+$stationNames = [];
+foreach ($stations as $st) {
+    $stationNames[(int) $st['id']] = $st['name'];
+}
+$selectedCategory   = null;
+foreach ($categories as $cat) {
+    if ($cat['id'] == $selectedCategoryId) {
+        $selectedCategory = $cat;
+        break;
+    }
+}
+$categoryStationId = $selectedCategory['station_id'] ?? null;
 
 // For component editing
 $editItemId = $_GET['item'] ?? null;
@@ -282,6 +304,7 @@ include __DIR__ . '/../includes/header.php';
                         <th><?= te('description') ?></th>
                         <th><?= te('price') ?></th>
                         <th><?= te('prep_time') ?></th>
+                        <th><?= te('item_station') ?></th>
                         <th><?= te('actions') ?></th>
                     </tr>
                 </thead>
@@ -302,6 +325,21 @@ include __DIR__ . '/../includes/header.php';
                             <td><strong class="text-primary"><?= formatCurrency($item['base_price']) ?></strong></td>
                             <td><?= $item['preparation_time'] ?> <?= te('minutes_short') ?></td>
                             <td>
+                                <?php
+                                $ownStationId = $item['station_id'] ?? null;
+                                $effStationId = $ownStationId ?: $categoryStationId;
+                                ?>
+                                <?php if ($ownStationId && isset($stationNames[(int) $ownStationId])): ?>
+                                    <span class="badge badge-info"><i class="fas fa-print"></i> <?= htmlspecialchars($stationNames[(int) $ownStationId]) ?></span>
+                                <?php elseif ($effStationId && isset($stationNames[(int) $effStationId])): ?>
+                                    <span class="badge badge-light text-muted" title="<?= te('item_station_inherited') ?>">
+                                        <?= htmlspecialchars($stationNames[(int) $effStationId]) ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <div class="d-flex gap-sm">
                                     <button type="button" class="btn btn-sm btn-primary"
                                         onclick='openEditItem(<?= htmlspecialchars(json_encode([
@@ -311,6 +349,7 @@ include __DIR__ . '/../includes/header.php';
                                             "description" => $item["description"],
                                             "base_price" => $item["base_price"],
                                             "preparation_time" => $item["preparation_time"],
+                                            "station_id" => $item["station_id"] ?? null,
                                         ]), ENT_QUOTES) ?>)'>
                                         <i class="fas fa-edit"></i> <?= te('edit') ?>
                                     </button>
@@ -570,6 +609,17 @@ include __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label"><?= te('item_station') ?></label>
+                    <select name="station_id" class="form-control">
+                        <option value=""><?= te('item_station_inherit') ?></option>
+                        <?php foreach ($stations as $st): ?>
+                            <option value="<?= (int) $st['id'] ?>"><?= htmlspecialchars($st['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted d-block"><?= te('item_station_hint') ?></small>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label"><?= te('photo_optional') ?></label>
                     <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
                     <small class="text-muted d-block"><?= te('photo_hint') ?></small>
@@ -623,6 +673,17 @@ include __DIR__ . '/../includes/header.php';
                         <label class="form-label"><?= te('prep_time_min') ?></label>
                         <input type="number" name="preparation_time" id="ei_prep" class="form-control">
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><?= te('item_station') ?></label>
+                    <select name="station_id" id="ei_station" class="form-control">
+                        <option value=""><?= te('item_station_inherit') ?></option>
+                        <?php foreach ($stations as $st): ?>
+                            <option value="<?= (int) $st['id'] ?>"><?= htmlspecialchars($st['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted d-block"><?= te('item_station_hint') ?></small>
                 </div>
 
                 <div class="form-group">
@@ -688,6 +749,7 @@ function openEditItem(item) {
     document.getElementById('ei_description').value = item.description || '';
     document.getElementById('ei_price').value = item.base_price;
     document.getElementById('ei_prep').value = item.preparation_time;
+    document.getElementById('ei_station').value = item.station_id ? String(item.station_id) : '';
     openModal('editItemModal');
 }
 </script>

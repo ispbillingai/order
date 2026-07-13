@@ -212,6 +212,10 @@ return [
     'printer'             => 'Stampante',
     'category_station'    => 'Postazione (stampante)',
     'category_station_hint' => 'Dove vengono preparati e stampati i piatti di questa categoria.',
+    'item_station'         => 'Postazione',
+    'item_station_inherit' => 'Come la categoria',
+    'item_station_inherited' => 'Ereditata dalla categoria',
+    'item_station_hint'    => 'Dove viene stampato questo piatto. Lascia "Come la categoria" se non viene preparato altrove.',
     'wp_default_kitchen'  => '— Predefinita (stampante cucina) —',
 
     // ---- Admin: Casse (tills) ----
@@ -301,6 +305,14 @@ return [
     'toast_item_removed' => 'Articolo rimosso',
     'toast_qty_updated'  => 'Quantità aggiornata',
     'toast_sent_kitchen' => 'Ordine inviato in cucina!',
+    // Richiamo di un ordine già inviato alle postazioni.
+    'send_additions'     => 'Invia aggiunte',
+    'recall_hint'        => 'Ordine già inviato. I nuovi piatti vengono stampati come aggiunta; se modifichi o annulli un piatto già in preparazione, alla sua postazione arriva una variazione.',
+    'toast_sent_additions' => 'Aggiunte inviate alle postazioni!',
+    'confirm_change_sent'  => 'Questo piatto è già in preparazione. Modificarlo e stampare la nuova quantità alla sua postazione?',
+    'confirm_void_sent'    => 'Questo piatto è già in preparazione. Annullarlo e stampare l\'annullamento alla sua postazione?',
+    'toast_work_point_notified'   => 'Postazione avvisata',
+    'toast_work_point_print_failed' => 'Salvato, ma la stampante della postazione non risponde — avvisa il personale',
     'toast_send_kitchen_failed' => 'Invio in cucina non riuscito',
     'toast_bill_requested' => 'Conto richiesto - Cassa avvisata!',
     'toast_bill_failed'  => 'Richiesta conto non riuscita',

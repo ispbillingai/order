@@ -80,6 +80,16 @@ class ThermalPrinter
         $out .= self::ESC . '!' . "\x00";
         $out .= $line . self::LF;
 
+        // Banner: this slip is an addition / change / cancellation, not a new
+        // order. Loud and centred so nobody re-cooks the whole table.
+        if (!empty($t['banner'])) {
+            $out .= self::ESC . 'a' . "\x01";
+            $out .= self::ESC . '!' . "\x18";    // double height + bold
+            $out .= $this->enc((string) $t['banner']) . self::LF;
+            $out .= self::ESC . '!' . "\x00";
+            $out .= $line . self::LF;
+        }
+
         // Header (left). Table number is the most important — print it big.
         $out .= self::ESC . 'a' . "\x00";
         $out .= self::ESC . '!' . "\x30";
@@ -103,6 +113,12 @@ class ThermalPrinter
             $out .= self::ESC . '!' . "\x08";    // emphasized (bold)
             $out .= $this->enc($qty . 'x ' . $name) . self::LF;
             $out .= self::ESC . '!' . "\x00";
+            // What changed about this dish ("da 2x a 3x", "ANNULLATO").
+            if (!empty($it['change'])) {
+                $out .= self::ESC . '!' . "\x18";    // double height + bold
+                $out .= $this->enc('  ' . (string) $it['change']) . self::LF;
+                $out .= self::ESC . '!' . "\x00";
+            }
             foreach (($it['mods'] ?? []) as $m) {
                 $out .= $this->enc('   ' . (string) $m) . self::LF;
             }

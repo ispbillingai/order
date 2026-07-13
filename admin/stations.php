@@ -61,9 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'delete_station') {
         $id = (int) ($_POST['station_id'] ?? 0);
-        // Soft-delete and detach any categories so they fall back to the kitchen printer.
+        // Soft-delete and detach any categories AND dishes pinned to it, so they
+        // fall back to their category / the default kitchen printer.
         $pdo->prepare("UPDATE stations SET active = 0 WHERE id = ?")->execute([$id]);
         $pdo->prepare("UPDATE menu_categories SET station_id = NULL WHERE station_id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE menu_items SET station_id = NULL WHERE station_id = ?")->execute([$id]);
         logActivity('station_deleted', 'stations', $id);
         header('Location: /admin/stations.php?success=wp_deleted');
         exit;

@@ -212,6 +212,10 @@ return [
     'printer'             => 'Printer',
     'category_station'    => 'Work point (printer)',
     'category_station_hint' => 'Where dishes in this category are prepared and printed.',
+    'item_station'         => 'Work point',
+    'item_station_inherit' => 'Same as category',
+    'item_station_inherited' => 'Inherited from the category',
+    'item_station_hint'    => 'Where this dish prints. Leave on "Same as category" unless this dish is prepared somewhere else.',
     'wp_default_kitchen'  => '— Default (kitchen printer) —',
 
     // ---- Admin: Tills (Casse) ----
@@ -301,6 +305,14 @@ return [
     'toast_item_removed' => 'Item removed',
     'toast_qty_updated'  => 'Quantity updated',
     'toast_sent_kitchen' => 'Order sent to kitchen!',
+    // Recalling an order that is already at the work points.
+    'send_additions'     => 'Send additions',
+    'recall_hint'        => 'Order already sent. New dishes print as an addition; changing or removing a dish already in preparation prints a change slip at its work point.',
+    'toast_sent_additions' => 'Additions sent to the work points!',
+    'confirm_change_sent'  => 'This dish is already being prepared. Change it and print the new quantity at its work point?',
+    'confirm_void_sent'    => 'This dish is already being prepared. Cancel it and print the cancellation at its work point?',
+    'toast_work_point_notified'   => 'Work point notified',
+    'toast_work_point_print_failed' => 'Saved, but the work-point printer did not respond — tell the staff',
     'toast_send_kitchen_failed' => 'Failed to send to kitchen',
     'toast_bill_requested' => 'Bill requested - Cashier notified!',
     'toast_bill_failed'  => 'Failed to request bill',

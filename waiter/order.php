@@ -22,6 +22,16 @@ if (!$order) {
 $orderItems = getOrderItems($orderId);
 $categories = getMenuCategories();
 $tills      = getTills();
+
+// A sent order can be recalled: the waiter keeps adding dishes and changing
+// sent ones until the order is paid. Dishes added now print as an ADDITION at
+// their work point; changing or cancelling a dish already in preparation
+// prints a change slip there.
+$isEditable  = !in_array($order['status'], ['paid', 'cancelled'], true);
+$liveItems   = array_filter($orderItems, fn($i) => $i['status'] !== 'cancelled');
+$pendingCount = count(array_filter($liveItems, fn($i) => $i['status'] === 'pending'));
+$sentCount    = count($liveItems) - $pendingCount;
+$wasSent      = $order['status'] !== 'open';
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
 
@@ -49,6 +59,28 @@ include __DIR__ . '/../includes/header.php';
     .order-page {
         grid-template-columns: 1fr;
     }
+}
+
+/* A cancelled dish stays visible (it may already have been cooked) but is
+   clearly struck out and no longer billed. */
+.order-item.item-cancelled {
+    opacity: .55;
+}
+.order-item.item-cancelled .item-name,
+.order-item.item-cancelled .item-total {
+    text-decoration: line-through;
+}
+
+.recall-note {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-bottom: var(--space-md);
+    border-radius: 8px;
+    background: rgba(59, 130, 246, .1);
+    border-left: 3px solid var(--info, #3b82f6);
+    font-size: .9rem;
 }
 </style>
 
@@ -117,6 +149,13 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
+        <?php if ($isEditable && $wasSent && $sentCount > 0): ?>
+            <div class="recall-note">
+                <i class="fas fa-rotate-left"></i>
+                <span><?= te('recall_hint') ?></span>
+            </div>
+        <?php endif; ?>
+
         <div class="order-items" id="orderItemsList">
             <?php if (empty($orderItems)): ?>
                 <div class="text-center text-muted" style="padding: 40px;">
@@ -124,10 +163,14 @@ include __DIR__ . '/../includes/header.php';
                     <p><?= te('no_items_yet') ?></p>
                 </div>
             <?php else: ?>
-                <?php foreach ($orderItems as $item): 
+                <?php foreach ($orderItems as $item):
                     $mods = getItemModifications($item['id']);
+                    $isCancelled = $item['status'] === 'cancelled';
+                    // A dish already at a work point: editing it reprints there.
+                    $isSentItem  = !$isCancelled && $item['status'] !== 'pending';
+                    $canEditItem = $isEditable && !$isCancelled;
                 ?>
-                    <div class="order-item" data-item-id="<?= $item['id'] ?>">
+                    <div class="order-item<?= $isCancelled ? ' item-cancelled' : '' ?>" data-item-id="<?= $item['id'] ?>">
                         <div class="item-details">
                             <div class="item-name"><?= htmlspecialchars($item['item_name']) ?></div>
                             <?php if ($item['notes'] || !empty($mods)): ?>
@@ -144,16 +187,16 @@ include __DIR__ . '/../includes/header.php';
                                 </div>
                             <?php endif; ?>
                             <div class="mt-sm">
-                                <span class="badge badge-<?= $item['status'] === 'pending' ? 'warning' : ($item['status'] === 'ready' ? 'success' : 'info') ?>">
+                                <span class="badge badge-<?= $isCancelled ? 'danger' : ($item['status'] === 'pending' ? 'warning' : ($item['status'] === 'ready' ? 'success' : 'info')) ?>">
                                     <?= htmlspecialchars(statusLabel($item['status'])) ?>
                                 </span>
                             </div>
                         </div>
                         <div class="item-qty">
-                            <?php if ($item['status'] === 'pending'): ?>
-                                <button onclick="changeQuantity(<?= $item['id'] ?>, -1)">−</button>
+                            <?php if ($canEditItem): ?>
+                                <button onclick="changeQuantity(<?= $item['id'] ?>, -1, <?= $isSentItem ? 'true' : 'false' ?>)">−</button>
                                 <span><?= $item['quantity'] ?></span>
-                                <button onclick="changeQuantity(<?= $item['id'] ?>, 1)">+</button>
+                                <button onclick="changeQuantity(<?= $item['id'] ?>, 1, <?= $isSentItem ? 'true' : 'false' ?>)">+</button>
                             <?php else: ?>
                                 <span><?= $item['quantity'] ?>x</span>
                             <?php endif; ?>
@@ -186,9 +229,11 @@ include __DIR__ . '/../includes/header.php';
         </div>
 
         <div class="order-actions">
-            <?php if ($order['status'] === 'open'): ?>
+            <?php if ($isEditable && $pendingCount > 0): ?>
                 <button class="btn btn-primary" onclick="sendOrderToKitchen()">
-                    <i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?>
+                    <i class="fas fa-fire"></i>
+                    <?= $wasSent ? te('send_additions') : te('send_to_kitchen') ?>
+                    <span class="badge badge-light"><?= $pendingCount ?></span>
                 </button>
             <?php endif; ?>
             <?php if (!empty($tills)): ?>
@@ -279,6 +324,11 @@ const T = {
     updateFailed: <?= json_encode(t('toast_update_failed')) ?>,
     sentKitchen: <?= json_encode(t('toast_sent_kitchen')) ?>,
     sendKitchenFailed: <?= json_encode(t('toast_send_kitchen_failed')) ?>,
+    sentAdditions: <?= json_encode(t('toast_sent_additions')) ?>,
+    confirmChangeSent: <?= json_encode(t('confirm_change_sent')) ?>,
+    confirmVoidSent: <?= json_encode(t('confirm_void_sent')) ?>,
+    workPointNotified: <?= json_encode(t('toast_work_point_notified')) ?>,
+    workPointPrintFailed: <?= json_encode(t('toast_work_point_print_failed')) ?>,
     billRequested: <?= json_encode(t('toast_bill_requested')) ?>,
     billFailed: <?= json_encode(t('toast_bill_failed')) ?>,
 };
@@ -402,29 +452,41 @@ async function confirmAddItem() {
     }
 }
 
-async function changeQuantity(orderItemId, delta) {
+/**
+ * isSent = the dish is already at a work point. Changing it there is a real
+ * action in the kitchen, not just a line on a screen: confirm it, then say
+ * whether the work point's printer actually heard about it.
+ */
+async function changeQuantity(orderItemId, delta, isSent = false) {
     const itemEl = document.querySelector(`[data-item-id="${orderItemId}"]`);
     const qtySpan = itemEl.querySelector('.item-qty span');
-    let currentQty = parseInt(qtySpan.textContent);
+    const currentQty = parseInt(qtySpan.textContent);
     let newQty = currentQty + delta;
-    
+
     if (newQty < 1) {
-        if (await confirmAction(T.confirmRemove)) {
-            newQty = 0;
-        } else {
-            return;
-        }
+        if (!await confirmAction(isSent ? T.confirmVoidSent : T.confirmRemove)) return;
+        newQty = 0;
+    } else if (isSent && !await confirmAction(T.confirmChangeSent)) {
+        return;
     }
 
     try {
-        if (newQty === 0) {
-            await removeItem(orderItemId);
-            showToast(T.removed, 'info');
-        } else {
-            await updateItemQuantity(orderItemId, newQty);
-            showToast(T.qtyUpdated, 'success');
+        const result = newQty === 0
+            ? await removeItem(orderItemId)
+            : await updateItemQuantity(orderItemId, newQty);
+
+        if (!result.success) {
+            showToast(result.message || T.updateFailed, 'error');
+            return;
         }
-        location.reload();
+
+        if (result.reprinted) {
+            showToast(result.printed ? T.workPointNotified : T.workPointPrintFailed,
+                      result.printed ? 'success' : 'error');
+        } else {
+            showToast(newQty === 0 ? T.removed : T.qtyUpdated, newQty === 0 ? 'info' : 'success');
+        }
+        setTimeout(() => location.reload(), result.reprinted ? 1400 : 300);
     } catch (error) {
         showToast(T.updateFailed, 'error');
     }
@@ -433,10 +495,20 @@ async function changeQuantity(orderItemId, delta) {
 async function sendOrderToKitchen() {
     try {
         const result = await sendToKitchen(orderId);
-        if (result.success) {
-            showToast(T.sentKitchen, 'success');
-            location.reload();
+
+        if (!result.success) {
+            showToast(result.message || T.sendKitchenFailed, 'error');
+            return;
         }
+
+        // One slip per work point the dishes belong to; a dead printer must not
+        // read as a clean send.
+        if (!result.printed) {
+            showToast(T.workPointPrintFailed, 'error');
+        } else {
+            showToast(result.addition ? T.sentAdditions : T.sentKitchen, 'success');
+        }
+        setTimeout(() => location.reload(), result.printed ? 300 : 1400);
     } catch (error) {
         showToast(T.sendKitchenFailed, 'error');
     }

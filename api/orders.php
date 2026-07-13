@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/kitchen_ticket.php';
 
 header('Content-Type: application/json');
 
@@ -14,6 +15,19 @@ if (!isLoggedIn()) {
 
 $pdo = getDBConnection();
 $user = getCurrentUser();
+
+/**
+ * A waiter may recall an order and keep working on it (add a dish, change a
+ * quantity, cancel a dish) right up until it is paid or cancelled.
+ */
+function orderIsEditable(PDO $pdo, int $orderId): bool
+{
+    $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $status = $stmt->fetchColumn();
+
+    return $status !== false && !in_array($status, ['paid', 'cancelled'], true);
+}
 
 // Handle GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -102,7 +116,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$orderId || !$menuItemId) {
                 jsonResponse(['success' => false, 'message' => 'Order ID and Menu Item ID required']);
             }
-            
+
+            // A recalled order can take new dishes; a closed one cannot.
+            if (!orderIsEditable($pdo, (int) $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
             // Get menu item
             $stmt = $pdo->prepare("SELECT * FROM menu_items WHERE id = ?");
             $stmt->execute([$menuItemId]);
@@ -165,46 +184,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT * FROM order_items WHERE id = ?");
             $stmt->execute([$orderItemId]);
             $item = $stmt->fetch();
-            
+
             if (!$item) {
                 jsonResponse(['success' => false, 'message' => 'Item not found']);
             }
-            
+            if ($item['status'] === 'cancelled') {
+                jsonResponse(['success' => false, 'message' => 'Item is cancelled']);
+            }
+            if (!orderIsEditable($pdo, (int) $item['order_id'])) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
+            $oldQty  = (int) $item['quantity'];
+            $wasSent = $item['status'] !== 'pending';
+
             // Update quantity
             $totalPrice = $item['unit_price'] * $quantity;
             $stmt = $pdo->prepare("UPDATE order_items SET quantity = ?, total_price = ? WHERE id = ?");
             $stmt->execute([$quantity, $totalPrice, $orderItemId]);
-            
+
             // Recalculate totals
             calculateOrderTotals($item['order_id']);
-            
-            jsonResponse(['success' => true]);
+
+            // The dish is already being prepared: the work point has to be told
+            // it changed, otherwise it cooks the old quantity.
+            $print = null;
+            if ($wasSent && (int) $quantity !== $oldQty) {
+                $print = printOrderChangeTicket(
+                    (int) $item['order_id'],
+                    (int) $orderItemId,
+                    TICKET_CHANGE,
+                    $oldQty
+                );
+                logActivity('order_item_changed', 'order_items', (int) $orderItemId);
+            }
+
+            jsonResponse([
+                'success'     => true,
+                'reprinted'   => $print !== null,
+                'printed'     => $print['ok'] ?? null,
+                'print_error' => $print['error'] ?? null,
+            ]);
             break;
-            
+
         case 'remove_item':
             $orderItemId = $input['order_item_id'] ?? null;
-            
+
             if (!$orderItemId) {
                 jsonResponse(['success' => false, 'message' => 'Order Item ID required']);
             }
-            
-            // Get order ID first
-            $stmt = $pdo->prepare("SELECT order_id FROM order_items WHERE id = ?");
+
+            // Get the item first — its status decides whether a work point is
+            // already cooking it.
+            $stmt = $pdo->prepare("SELECT id, order_id, status FROM order_items WHERE id = ?");
             $stmt->execute([$orderItemId]);
             $item = $stmt->fetch();
-            
+
             if (!$item) {
                 jsonResponse(['success' => false, 'message' => 'Item not found']);
             }
-            
+            if ($item['status'] === 'cancelled') {
+                jsonResponse(['success' => true]); // already gone — nothing to undo
+            }
+            if (!orderIsEditable($pdo, (int) $item['order_id'])) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
+            $wasSent = $item['status'] !== 'pending';
+
+            // Cancel the dish at its work point BEFORE the row is marked
+            // cancelled, so the slip can still name the dish.
+            $print = null;
+            if ($wasSent) {
+                $print = printOrderChangeTicket(
+                    (int) $item['order_id'],
+                    (int) $orderItemId,
+                    TICKET_VOID
+                );
+                logActivity('order_item_voided', 'order_items', (int) $orderItemId);
+            }
+
             // Update status to cancelled
             $stmt = $pdo->prepare("UPDATE order_items SET status = 'cancelled' WHERE id = ?");
             $stmt->execute([$orderItemId]);
-            
+
+            // Drop it from the kitchen display too.
+            $stmt = $pdo->prepare("DELETE FROM kitchen_tickets WHERE order_item_id = ?");
+            $stmt->execute([$orderItemId]);
+
             // Recalculate totals
             calculateOrderTotals($item['order_id']);
-            
-            jsonResponse(['success' => true]);
+
+            jsonResponse([
+                'success'     => true,
+                'reprinted'   => $print !== null,
+                'printed'     => $print['ok'] ?? null,
+                'print_error' => $print['error'] ?? null,
+            ]);
             break;
             
         case 'send_to_kitchen':
@@ -214,11 +290,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order ID required']);
             }
 
+            $order = getOrderById($orderId);
+            if (!$order) {
+                jsonResponse(['success' => false, 'message' => 'Order not found']);
+            }
+            if (!orderIsEditable($pdo, (int) $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
+            // Dishes added after the order was first sent print as an ADDITION,
+            // so the work point tops up the table instead of re-cooking it.
+            $kind = ($order['status'] === 'open') ? TICKET_NEW : TICKET_ADDITION;
+
             // Capture the items being sent NOW (still 'pending') so the kitchen
             // ticket prints exactly these dishes — not ones already in the kitchen.
             $stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND status = 'pending'");
             $stmt->execute([$orderId]);
             $sentItemIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+
+            if (empty($sentItemIds)) {
+                jsonResponse(['success' => false, 'message' => 'No new items to send']);
+            }
 
             // Update pending items to in_kitchen
             $stmt = $pdo->prepare("
@@ -243,15 +335,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             logActivity('sent_to_kitchen', 'orders', $orderId);
 
-            // Print the kitchen ticket (table number + dishes only, no prices).
-            // Non-fatal: if the printer is offline the order is still sent.
-            $print = ['ok' => false, 'error' => 'no_items'];
-            if (!empty($sentItemIds)) {
-                require_once __DIR__ . '/../includes/kitchen_ticket.php';
-                $print = printKitchenTicketForOrder((int) $orderId, $sentItemIds);
-            }
+            // Print the work-point tickets (table number + dishes only, no
+            // prices): one slip per area the dishes belong to. Non-fatal — if a
+            // printer is offline the order is still sent.
+            $print = printKitchenTicketForOrder((int) $orderId, $sentItemIds, $order, $kind);
 
-            jsonResponse(['success' => true, 'printed' => $print['ok'], 'print_error' => $print['error'] ?? null]);
+            jsonResponse([
+                'success'     => true,
+                'addition'    => $kind === TICKET_ADDITION,
+                'items'       => count($sentItemIds),
+                'tickets'     => $print['tickets'] ?? 0,
+                'printed'     => $print['ok'],
+                'print_error' => $print['error'] ?? null,
+            ]);
             break;
             
         case 'request_bill':

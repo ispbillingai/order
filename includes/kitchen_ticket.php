@@ -2,33 +2,63 @@
 /**
  * Order ticket printing — when an order is sent, the dishes are split by their
  * WORK POINT (kitchen, bar, pizza oven, grill...) and one thermal slip is
- * printed at each area's printer. A dish's work point comes from its menu
- * category (menu_categories.station_id). Categories with no work point — or a
- * work point without a printer IP — fall back to the default kitchen printer
- * (deviceConfig('kitchen_printer')). Never throws.
+ * printed at each area's printer.
+ *
+ * A dish's work point is resolved in this order:
+ *   1. the dish itself   (menu_items.station_id)
+ *   2. its menu category (menu_categories.station_id)
+ *   3. the default kitchen printer (deviceConfig('kitchen_printer'))
+ * so a single category can hold dishes that cook in different places.
+ *
+ * A sent order can be recalled by the waiter. Later changes reach the work
+ * points as their own slips, each with a banner so nobody re-cooks the whole
+ * table:
+ *   TICKET_NEW      first send            (no banner)
+ *   TICKET_ADDITION dishes added later    "*** AGGIUNTA ***"
+ *   TICKET_CHANGE   quantity changed      "*** VARIAZIONE ***"
+ *   TICKET_VOID     dish cancelled        "*** ANNULLAMENTO ***"
+ *
+ * Nothing here ever throws: a dead printer must not block an order.
  */
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/devices.php';
 require_once __DIR__ . '/ThermalPrinter.php';
 
+const TICKET_NEW      = 'new';
+const TICKET_ADDITION = 'addition';
+const TICKET_CHANGE   = 'change';
+const TICKET_VOID     = 'void';
+
 /**
- * Split $orderItemIds by work point and print one ticket per area. Returns an
- * aggregate result ('ok' is true if at least one ticket printed).
- *
- * @param int[] $orderItemIds order_items.id values just sent
- * @return array{ok:bool, error?:string, tickets?:int}
+ * Banner printed across the top of a ticket. The work-point slips are read by
+ * kitchen staff, so they stay in Italian like the rest of the ticket.
  */
-function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $order = null): array
+function ticketBanner(string $kind): string
+{
+    switch ($kind) {
+        case TICKET_ADDITION: return '*** AGGIUNTA ***';
+        case TICKET_CHANGE:   return '*** VARIAZIONE ***';
+        case TICKET_VOID:     return '*** ANNULLAMENTO ***';
+        default:              return '';
+    }
+}
+
+/**
+ * Resolve the work point of each order item: dish first, then its category.
+ * Returns order_item_id => ['title' => string, 'cfg' => array] for items that
+ * land on a real station printer; items with no usable station are absent and
+ * belong to the default kitchen printer.
+ *
+ * @param int[] $orderItemIds
+ * @return array<int, array{title:string, cfg:array}>
+ */
+function resolveItemStations(PDO $pdo, array $orderItemIds): array
 {
     if (empty($orderItemIds)) {
-        return ['ok' => false, 'error' => 'no_items'];
+        return [];
     }
 
-    $pdo   = getDBConnection();
-    $order = $order ?? getOrderById($orderId);
-
-    // Resolve each sent item's work point (and its printer) via its category.
     $in  = implode(',', array_fill(0, count($orderItemIds), '?'));
     $sql = "SELECT oi.id AS order_item_id,
                    s.id AS station_id, s.name AS station_name,
@@ -37,7 +67,8 @@ function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $o
             FROM order_items oi
             JOIN menu_items mi      ON oi.menu_item_id = mi.id
             JOIN menu_categories mc ON mi.category_id = mc.id
-            LEFT JOIN stations s    ON mc.station_id = s.id AND s.active = 1 AND s.type = 'prep'
+            LEFT JOIN stations s    ON s.id = COALESCE(mi.station_id, mc.station_id)
+                                    AND s.active = 1 AND s.type = 'prep'
             WHERE oi.id IN ($in)
             ORDER BY oi.id";
     try {
@@ -45,35 +76,66 @@ function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $o
         $stmt->execute($orderItemIds);
         $rows = $stmt->fetchAll();
     } catch (Throwable $e) {
-        // stations table / station_id column not migrated yet: route everything
+        // stations table / station_id columns not migrated yet: everything goes
         // to the single default kitchen printer (legacy behaviour).
-        $rows = array_map(
-            static fn($id) => ['order_item_id' => (int) $id, 'station_id' => null],
-            $orderItemIds
-        );
+        return [];
     }
 
-    // Bucket order-item ids per destination. The 'kitchen' key is the default
-    // printer used for any dish whose category has no (active) work point.
-    $groups = [];
+    $map = [];
     foreach ($rows as $r) {
-        $hasStation = !empty($r['station_id']) && !empty($r['printer_host']);
-        if ($hasStation) {
-            $key = 'station_' . $r['station_id'];
+        if (empty($r['station_id']) || empty($r['printer_host'])) {
+            continue; // -> default kitchen printer
+        }
+        $map[(int) $r['order_item_id']] = [
+            'station_id' => (int) $r['station_id'],
+            'title'      => mb_strtoupper((string) $r['station_name'], 'UTF-8'),
+            'cfg'        => [
+                'enabled'  => (int) $r['printer_enabled'] === 1,
+                'host'     => (string) $r['printer_host'],
+                'port'     => (int) ($r['printer_port'] ?? 9100),
+                'width'    => (int) ($r['printer_width'] ?? 32),
+                'codepage' => (int) ($r['printer_codepage'] ?? 2),
+            ],
+        ];
+    }
+    return $map;
+}
+
+/**
+ * Split $orderItemIds by work point and print one ticket per area. Returns an
+ * aggregate result ('ok' is true if at least one ticket printed).
+ *
+ * @param int[]  $orderItemIds order_items.id values just sent
+ * @param string $kind         TICKET_NEW (first send) or TICKET_ADDITION (recall)
+ * @return array{ok:bool, error?:string, tickets?:int}
+ */
+function printKitchenTicketForOrder(
+    int $orderId,
+    array $orderItemIds,
+    ?array $order = null,
+    string $kind = TICKET_NEW
+): array {
+    if (empty($orderItemIds)) {
+        return ['ok' => false, 'error' => 'no_items'];
+    }
+
+    $pdo   = getDBConnection();
+    $order = $order ?? getOrderById($orderId);
+
+    $stations = resolveItemStations($pdo, $orderItemIds);
+
+    // Bucket order-item ids per destination. The 'kitchen' key is the default
+    // printer used for any dish that resolves to no (active) work point.
+    $groups = [];
+    foreach ($orderItemIds as $id) {
+        $id = (int) $id;
+        $st = $stations[$id] ?? null;
+        if ($st !== null) {
+            $key = 'station_' . $st['station_id'];
             if (!isset($groups[$key])) {
-                $groups[$key] = [
-                    'title' => mb_strtoupper((string) $r['station_name'], 'UTF-8'),
-                    'cfg'   => [
-                        'enabled'  => (int) $r['printer_enabled'] === 1,
-                        'host'     => (string) $r['printer_host'],
-                        'port'     => (int) ($r['printer_port'] ?? 9100),
-                        'width'    => (int) ($r['printer_width'] ?? 32),
-                        'codepage' => (int) ($r['printer_codepage'] ?? 2),
-                    ],
-                    'ids'   => [],
-                ];
+                $groups[$key] = ['title' => $st['title'], 'cfg' => $st['cfg'], 'ids' => []];
             }
-            $groups[$key]['ids'][] = (int) $r['order_item_id'];
+            $groups[$key]['ids'][] = $id;
         } else {
             if (!isset($groups['kitchen'])) {
                 $groups['kitchen'] = [
@@ -82,14 +144,14 @@ function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $o
                     'ids'   => [],
                 ];
             }
-            $groups['kitchen']['ids'][] = (int) $r['order_item_id'];
+            $groups['kitchen']['ids'][] = $id;
         }
     }
 
     $anyOk      = false;
     $firstError = null;
     foreach ($groups as $g) {
-        $res = printStationTicket($pdo, $g['cfg'], (string) $g['title'], $orderId, $g['ids'], $order);
+        $res = printStationTicket($pdo, $g['cfg'], (string) $g['title'], $orderId, $g['ids'], $order, $kind);
         if (!empty($res['ok'])) {
             $anyOk = true;
         } elseif ($firstError === null) {
@@ -101,10 +163,38 @@ function printKitchenTicketForOrder(int $orderId, array $orderItemIds, ?array $o
 }
 
 /**
+ * A dish already at a work point was changed or cancelled by the waiter: tell
+ * that one work point about it. Only the affected station prints.
+ *
+ * @param string   $kind   TICKET_CHANGE or TICKET_VOID
+ * @param int|null $oldQty quantity before the change (TICKET_CHANGE only)
+ * @return array{ok:bool, error?:string}
+ */
+function printOrderChangeTicket(
+    int $orderId,
+    int $orderItemId,
+    string $kind,
+    ?int $oldQty = null,
+    ?array $order = null
+): array {
+    $pdo   = getDBConnection();
+    $order = $order ?? getOrderById($orderId);
+
+    $stations = resolveItemStations($pdo, [$orderItemId]);
+    $st       = $stations[$orderItemId] ?? null;
+
+    $cfg   = $st['cfg']   ?? deviceConfig('kitchen_printer');
+    $title = $st['title'] ?? 'CUCINA';
+
+    return printStationTicket($pdo, $cfg, $title, $orderId, [$orderItemId], $order, $kind, $oldQty);
+}
+
+/**
  * Build the dish list for $orderItemIds (with modifications + notes) and print
  * one ticket to the printer described by $cfg. Never throws.
  *
- * @param int[] $orderItemIds
+ * @param int[]    $orderItemIds
+ * @param int|null $oldQty       previous quantity, for a single-item TICKET_CHANGE
  * @return array{ok:bool, error?:string, bytes?:int}
  */
 function printStationTicket(
@@ -113,7 +203,9 @@ function printStationTicket(
     string $title,
     int $orderId,
     array $orderItemIds,
-    ?array $order
+    ?array $order,
+    string $kind = TICKET_NEW,
+    ?int $oldQty = null
 ): array {
     $printer = new ThermalPrinter($cfg);
     if (!$printer->isEnabled() || empty($cfg['enabled'])) {
@@ -146,16 +238,27 @@ function printStationTicket(
             $sign   = ($m['action'] === 'removed') ? '- ' : '+ ';
             $mods[] = $sign . $m['component_name'];
         }
+
+        // What the work point must actually do with this line.
+        $change = '';
+        if ($kind === TICKET_VOID) {
+            $change = 'ANNULLATO';
+        } elseif ($kind === TICKET_CHANGE && $oldQty !== null) {
+            $change = 'da ' . $oldQty . 'x a ' . (int) $r['quantity'] . 'x';
+        }
+
         $items[] = [
-            'qty'  => (int) $r['quantity'],
-            'name' => (string) $r['item_name'],
-            'mods' => $mods,
-            'note' => (string) ($r['notes'] ?? ''),
+            'qty'    => (int) $r['quantity'],
+            'name'   => (string) $r['item_name'],
+            'mods'   => $mods,
+            'note'   => (string) ($r['notes'] ?? ''),
+            'change' => $change,
         ];
     }
 
     $ticket = [
         'title'        => $title !== '' ? $title : 'CUCINA',
+        'banner'       => ticketBanner($kind),
         'table_label'  => 'Tavolo',
         'table'        => (string) ($order['table_number'] ?? ''),
         'order_label'  => 'Ordine',
@@ -169,12 +272,13 @@ function printStationTicket(
     $res = $printer->printKitchenTicket($ticket);
     logDeviceEvent('system', 'kitchen_ticket', $orderId, [
         'station' => $title,
+        'kind'    => $kind,
         'ok'      => $res['ok'],
         'error'   => $res['error'] ?? null,
         'items'   => count($items),
     ]);
     if (empty($res['ok'])) {
-        error_log('[kitchen-print] order ' . $orderId . ' [' . $title . '] NOT printed: ' . ($res['error'] ?? '?'));
+        error_log('[kitchen-print] order ' . $orderId . ' [' . $title . '/' . $kind . '] NOT printed: ' . ($res['error'] ?? '?'));
     }
     return $res;
 }
