@@ -73,6 +73,7 @@ return [
     'total_to_pay'        => 'Total to pay',
     'start_payment_cash'  => 'Start payment (cash)',
     'pay_by_card'         => 'Pay by card',
+    'pay_by_dojo'         => 'Pay by Dojo',
     'mpesa_manual'        => 'M-Pesa / manual',
     'apply_discount'      => 'Apply Discount',
     'discount_type'       => 'Type',

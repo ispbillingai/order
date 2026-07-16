@@ -47,6 +47,29 @@ return [
         'read_timeout'    => 90,        // covers card tap + acquirer auth
     ],
 
+    // ---- Dojo card terminal (Dojo Cloud API "Pay at Counter") --------
+    // "Pay by Dojo" button. Unlike the Ingenico/RTS terminal above, this talks
+    // to Dojo's CLOUD API (api.dojo.tech) — no local device, no Tailscale hop.
+    // Get secret_key + terminal_id from the Dojo Developer Portal (NOT the
+    // dashboard login). Use an sk_sandbox_ key to test, sk_prod_ to go live.
+    // reseller_id / software_house_id are only needed if Dojo issued them for
+    // your EPOS integration. Leave secret_key or terminal_id empty to hide the
+    // "Pay by Dojo" button.
+    'dojo' => [
+        'enabled'           => false,
+        'base_url'          => 'https://api.dojo.tech',
+        'secret_key'        => '',                 // sk_sandbox_… / sk_prod_…
+        'terminal_id'       => '',                 // Dojo terminalId for this till
+        'version'           => '2026-02-27',       // Dojo API version header
+        'capture_mode'      => 'Auto',             // Auto = capture immediately
+        'reseller_id'       => '',                 // optional (EPOS partner)
+        'software_house_id' => '',                 // optional (EPOS partner)
+        'connect_timeout'   => 5,
+        'read_timeout'      => 90,                 // max wait for the card tap (match POS)
+        'poll_interval_ms'  => 1500,
+        'verify_ssl'        => true,
+    ],
+
     // ---- Epson fiscal printer (Registratore Telematico) ---------------
     // Drives the EFT-POS over Protocol 17 and prints the fiscal receipt via
     // its fpmate.cgi web service. Leave base_url empty to disable.

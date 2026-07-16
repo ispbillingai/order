@@ -66,7 +66,9 @@ function confirmOrderPayment(int $orderId, string $method, int $amountCents, arr
     )->execute([$orderId]);
 
     logDeviceEvent(
-        $method === 'cash_machine' ? 'cashmatic' : ($method === 'card' ? 'card' : 'system'),
+        $method === 'cash_machine' ? 'cashmatic'
+            : ($method === 'card' ? 'card'
+            : ($method === 'dojo' ? 'dojo' : 'system')),
         'payment_ok',
         $orderId,
         ['amount' => fromCents($amountCents), 'method' => $method] + $device,
@@ -112,7 +114,7 @@ function emitFiscalForOrder(int $orderId, int $paymentId, int $amountCents, stri
             'department'  => 1,
         ]],
         $amountCents,
-        $method === 'card' ? 'card' : 'cash'
+        in_array($method, ['card', 'dojo'], true) ? 'card' : 'cash'
     );
 
     $pdo = getDBConnection();

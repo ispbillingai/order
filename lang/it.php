@@ -73,6 +73,7 @@ return [
     'total_to_pay'        => 'Totale da pagare',
     'start_payment_cash'  => 'Avvia pagamento (contanti)',
     'pay_by_card'         => 'Paga con carta',
+    'pay_by_dojo'         => 'Paga con Dojo',
     'mpesa_manual'        => 'M-Pesa / manuale',
     'apply_discount'      => 'Applica Sconto',
     'discount_type'       => 'Tipo',

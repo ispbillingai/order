@@ -22,6 +22,7 @@ $orderItems = getOrderItems($orderId);
 // Route the kiosk to this order's till devices (falls back to global).
 $cm     = tillConfigForOrder($order, 'cashmatic');
 $pos    = tillConfigForOrder($order, 'pos');
+$dojo   = tillConfigForOrder($order, 'dojo');
 $till   = getTillById(isset($order['till_id']) ? (int) $order['till_id'] : 0);
 $sym    = currencySymbol();
 $jsCfg  = [
@@ -30,6 +31,7 @@ $jsCfg  = [
     'currency_symbol' => $sym,
     'cashmatic'       => !empty($cm['enabled']) && !empty($cm['base_url']),
     'pos'             => !empty($pos['enabled']) && !empty($pos['base_url']),
+    'dojo'            => !empty($dojo['enabled']) && !empty($dojo['secret_key']) && !empty($dojo['terminal_id']),
     'i18n'            => [
         'follow_terminal' => t('follow_terminal'),
         'starting'        => t('starting'),
@@ -46,6 +48,7 @@ $jsCfg  = [
         'recorded'        => t('js_recorded'),
         'failed'          => t('js_failed'),
         'pay_by_card'     => t('pay_by_card'),
+        'pay_by_dojo'     => t('pay_by_dojo'),
         'start_cash'      => t('start_payment_cash'),
         'bill_printed'    => t('js_bill_printed'),
     ],
@@ -133,6 +136,7 @@ include __DIR__ . '/../includes/header.php';
                     <button class="btn-cancel" onclick="printBill(this)"><i class="fas fa-print"></i> <?= te('print_bill') ?></button>
                     <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> <?= te('start_payment_cash') ?></button><?php endif; ?>
                     <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> <?= te('pay_by_card') ?></button><?php endif; ?>
+                    <?php if ($jsCfg['dojo']): ?><button class="btn-card" onclick="payDojo()"><i class="fas fa-credit-card"></i> <?= te('pay_by_dojo') ?></button><?php endif; ?>
                     <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> <?= te('mpesa_manual') ?></button>
                     <button class="btn-cancel" onclick="location.href='/cashier/index.php'"><?= te('cancel') ?></button>
                 </div>
@@ -234,6 +238,16 @@ async function payCard() {
     try {
         const r = await post('/api/card-pay.php', { order_id: CFG.order_id });
         if (!r.ok) { $('k-choose-err').textContent = CFG.i18n.pay_by_card + ': ' + (r.error || CFG.i18n.card_declined); showPanel('k-choose'); return; }
+        done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number) : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
+    } catch (e) { $('k-choose-err').textContent = e.message; showPanel('k-choose'); }
+}
+
+/* ---- Card (Dojo terminal via Dojo Cloud API) ---- */
+async function payDojo() {
+    showPanel('k-busy'); $('busy-status').textContent = CFG.i18n.follow_terminal;
+    try {
+        const r = await post('/api/dojo-pay.php', { order_id: CFG.order_id });
+        if (!r.ok) { $('k-choose-err').textContent = CFG.i18n.pay_by_dojo + ': ' + (r.error || CFG.i18n.card_declined); showPanel('k-choose'); return; }
         done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number) : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
     } catch (e) { $('k-choose-err').textContent = e.message; showPanel('k-choose'); }
 }
