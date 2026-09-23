@@ -109,7 +109,9 @@ class GlovoClient
         $body = json_decode((string) $raw, true);
         $body = is_array($body) ? $body : [];
         if ($status < 200 || $status >= 300) {
-            $msg = (string) ($body['title'] ?? $body['message'] ?? $body['error'] ?? '');
+            // Glovo errors come as {"error":{"message":…}} or {"title":…,"invalid-params":[…]}.
+            $e   = $body['error'] ?? null;
+            $msg = (string) ($body['title'] ?? $body['message'] ?? (is_array($e) ? ($e['message'] ?? '') : ($e ?? '')));
             if (!empty($body['invalid-params'])) {
                 $msg .= ' ' . json_encode($body['invalid-params'], JSON_UNESCAPED_UNICODE);
             }
