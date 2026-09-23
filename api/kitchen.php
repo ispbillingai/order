@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/glovo.php';
 
 header('Content-Type: application/json');
 
@@ -78,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             logActivity('kitchen_status_update', 'order_items', $orderItemId, ['status' => $status]);
+
+            // Glovo order with nothing left cooking -> tell Glovo it can be collected.
+            if ($status === 'ready') {
+                glovoAfterItemsReady([(int) $orderItemId]);
+            }
             
             jsonResponse(['success' => true]);
             break;
@@ -123,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             logActivity('all_items_ready', 'orders', $orderId);
+            glovoAfterKitchenReady((int) $orderId);
 
             jsonResponse(['success' => true]);
             break;
@@ -170,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 logActivity('course_ready', 'orders', (int) $info['order_id'], ['course' => $course, 'items' => count($ids)]);
             }
+            glovoAfterItemsReady($ids);
 
             jsonResponse(['success' => true]);
             break;

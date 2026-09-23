@@ -256,9 +256,18 @@ function printStationTicket(
         ];
     }
 
+    // Delivery orders (Glovo): no waiter to ask, so the order's own notes —
+    // allergies, customer requests, pickup code — print on every slip.
+    $isDelivery = ($order['channel'] ?? 'dine_in') !== 'dine_in';
+    $banner     = ticketBanner($kind);
+    if ($isDelivery) {
+        $banner = trim('*** ' . mb_strtoupper((string) $order['channel'], 'UTF-8') . ' *** ' . $banner);
+    }
+
     $ticket = [
         'title'        => $title !== '' ? $title : 'CUCINA',
-        'banner'       => ticketBanner($kind),
+        'banner'       => $banner,
+        'order_note'   => $isDelivery ? (string) ($order['notes'] ?? '') : '',
         'table_label'  => 'Tavolo',
         'table'        => (string) ($order['table_number'] ?? ''),
         'order_label'  => 'Ordine',

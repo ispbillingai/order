@@ -127,6 +127,16 @@ class ThermalPrinter
             }
         }
 
+        // Order-level notes (e.g. a delivery customer's allergies), bold after the dishes.
+        if (!empty($t['order_note'])) {
+            $out .= $line . self::LF;
+            $out .= self::ESC . '!' . "\x08";
+            foreach (preg_split('/\R/', (string) $t['order_note']) as $nl) {
+                $out .= $this->enc($nl) . self::LF;
+            }
+            $out .= self::ESC . '!' . "\x00";
+        }
+
         $out .= $line . self::LF;
         $out .= str_repeat(self::LF, 4);
         $out .= self::GS . 'V' . "\x01";         // partial cut
