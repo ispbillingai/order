@@ -24,14 +24,19 @@ $cm     = tillConfigForOrder($order, 'cashmatic');
 $pos    = tillConfigForOrder($order, 'pos');
 $dojo   = tillConfigForOrder($order, 'dojo');
 $till   = getTillById(isset($order['till_id']) ? (int) $order['till_id'] : 0);
+$gw     = activeCardGateway(); // which card gateway(s) the admin enabled
 $sym    = currencySymbol();
 $jsCfg  = [
     'order_id'        => (int) $order['id'],
     'total'           => (float) $order['total'],
     'currency_symbol' => $sym,
     'cashmatic'       => !empty($cm['enabled']) && !empty($cm['base_url']),
-    'pos'             => !empty($pos['enabled']) && !empty($pos['base_url']),
-    'dojo'            => !empty($dojo['enabled']) && !empty($dojo['secret_key']) && !empty($dojo['terminal_id']),
+    // Card gateways follow the admin's active-gateway choice, not just whether
+    // the hardware/credentials are present.
+    'pos'             => in_array($gw, ['pos', 'both'], true) && !empty($pos['base_url']),
+    'dojo'            => in_array($gw, ['dojo', 'both'], true) && !empty($dojo['secret_key']) && !empty($dojo['terminal_id']),
+    'dojo_poll_ms'    => max(500, (int) ($dojo['poll_interval_ms'] ?? 1500)),
+    'dojo_inflight'   => !empty($_SESSION['dojo'][(int) $order['id']]),
     'i18n'            => [
         'follow_terminal' => t('follow_terminal'),
         'starting'        => t('starting'),
@@ -51,6 +56,19 @@ $jsCfg  = [
         'pay_by_dojo'     => t('pay_by_dojo'),
         'start_cash'      => t('start_payment_cash'),
         'bill_printed'    => t('js_bill_printed'),
+        'dojo_cancelling'     => t('dojo_cancelling'),
+        'dojo_cancel_refused' => t('dojo_cancel_refused'),
+        // Terminal prompts from Dojo notificationEvents; unknown ones are shown as-is.
+        'dojo_prompts'    => [
+            'PresentCard'                   => t('dojo_p_present_card'),
+            'EnterPin'                      => t('dojo_p_enter_pin'),
+            'RemoveCard'                    => t('dojo_p_remove_card'),
+            'PleaseWait'                    => t('dojo_p_please_wait'),
+            'Authorizing'                   => t('dojo_p_please_wait'),
+            'SignatureVerificationRequired' => t('dojo_sig_question'),
+            'InitiateRequested'             => t('follow_terminal'),
+            'Initiated'                     => t('follow_terminal'),
+        ],
     ],
 ];
 
@@ -181,6 +199,24 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
+        <!-- Dojo terminal in progress -->
+        <div id="k-dojo" class="card hidden">
+            <div class="card-body" style="text-align:center;">
+                <div style="font-size:2.6rem;color:var(--primary);"><i class="fas fa-credit-card"></i></div>
+                <h2><?= te('pay_by_dojo') ?></h2>
+                <div class="kiosk-amount" style="font-size:2.2rem;"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
+                <div class="dev-status" id="d-prompt"><?= te('follow_terminal') ?></div>
+                <div id="d-sig" class="hidden">
+                    <p class="dev-err" style="font-weight:700;"><?= te('dojo_sig_question') ?></p>
+                    <div class="kiosk-actions">
+                        <button class="btn-cash" onclick="dojoSignature(true)"><i class="fas fa-check"></i> <?= te('dojo_sig_accept') ?></button>
+                        <button class="btn-cancel" onclick="dojoSignature(false)"><i class="fas fa-times"></i> <?= te('dojo_sig_reject') ?></button>
+                    </div>
+                </div>
+                <button id="d-cancel" class="btn btn-danger btn-block" style="margin-top:12px;" onclick="dojoCancel()"><?= te('cancel') ?></button>
+            </div>
+        </div>
+
         <!-- Working / result -->
         <div id="k-busy" class="card hidden"><div class="card-body"><div class="dev-status" id="busy-status"><?= te('working') ?></div></div></div>
         <div id="k-done" class="card hidden">
@@ -203,7 +239,7 @@ const fmtc = c => (c / 100).toFixed(2);
 let pollTimer = null, finishing = false;
 
 function showPanel(id) {
-    ['k-choose','k-manual','k-cash','k-busy','k-done'].forEach(p => $(p).classList.toggle('hidden', p !== id));
+    ['k-choose','k-manual','k-cash','k-dojo','k-busy','k-done'].forEach(p => $(p).classList.toggle('hidden', p !== id));
 }
 function toggleManual() {
     $('k-manual').classList.toggle('hidden');
@@ -242,15 +278,74 @@ async function payCard() {
     } catch (e) { $('k-choose-err').textContent = e.message; showPanel('k-choose'); }
 }
 
-/* ---- Card (Dojo terminal via Dojo Cloud API) ---- */
-async function payDojo() {
-    showPanel('k-busy'); $('busy-status').textContent = CFG.i18n.follow_terminal;
-    try {
-        const r = await post('/api/dojo-pay.php', { order_id: CFG.order_id });
-        if (!r.ok) { $('k-choose-err').textContent = CFG.i18n.pay_by_dojo + ': ' + (r.error || CFG.i18n.card_declined); showPanel('k-choose'); return; }
-        done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number) : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
-    } catch (e) { $('k-choose-err').textContent = e.message; showPanel('k-choose'); }
+/* ---- Card (Dojo terminal via Dojo Cloud API) ----
+ * start → poll every ~1.5s showing the terminal's own prompt → done / failed.
+ * Signature fallback asks the cashier; Cancel works until a card is presented. */
+let dojoTimer = null, dojoActive = false;
+const dojoPost = (action, extra) => post('/api/dojo-pay.php', Object.assign({ order_id: CFG.order_id, action }, extra || {}));
+function dojoPrompt(code) {
+    return (code && CFG.i18n.dojo_prompts[code]) || (code ? code.replace(/([a-z])([A-Z])/g, '$1 $2') : CFG.i18n.follow_terminal);
 }
+function dojoFail(msg) {
+    dojoActive = false; if (dojoTimer) { clearTimeout(dojoTimer); dojoTimer = null; }
+    $('k-choose-err').textContent = CFG.i18n.pay_by_dojo + ': ' + (msg || CFG.i18n.card_declined);
+    showPanel('k-choose');
+}
+function dojoDone(r) {
+    dojoActive = false;
+    done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number)
+        : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
+}
+async function payDojo() {
+    $('k-choose-err').textContent = '';
+    $('d-prompt').textContent = CFG.i18n.starting;
+    $('d-sig').classList.add('hidden'); $('d-cancel').disabled = false;
+    showPanel('k-dojo');
+    try {
+        const r = await dojoPost('start');
+        if (!r.ok) return dojoFail(r.error);
+        dojoActive = true;
+        $('d-prompt').textContent = CFG.i18n.follow_terminal;
+        dojoTimer = setTimeout(dojoPoll, CFG.dojo_poll_ms);
+    } catch (e) { dojoFail(e.message); }
+}
+async function dojoPoll() {
+    if (!dojoActive) return;
+    try {
+        const r = await dojoPost('poll');
+        if (r.state === 'done') return dojoDone(r);
+        if (r.state === 'failed' || !r.ok) return dojoFail(r.error);
+        if (r.state === 'signature') {
+            $('d-prompt').textContent = CFG.i18n.dojo_prompts.SignatureVerificationRequired;
+            $('d-sig').classList.remove('hidden'); $('d-cancel').disabled = true;
+            return; // wait for the cashier's answer
+        }
+        $('d-prompt').textContent = dojoPrompt(r.prompt);
+    } catch (e) { $('d-prompt').textContent = e.message; }
+    if (dojoActive) dojoTimer = setTimeout(dojoPoll, CFG.dojo_poll_ms);
+}
+async function dojoSignature(accepted) {
+    $('d-sig').classList.add('hidden');
+    $('d-prompt').textContent = CFG.i18n.working;
+    try {
+        const r = await dojoPost('signature', { accepted });
+        if (!r.ok) $('d-prompt').textContent = r.error || CFG.i18n.failed;
+    } catch (e) { $('d-prompt').textContent = e.message; }
+    // Keep polling: accepted → Captured, rejected → Declined.
+    dojoTimer = setTimeout(dojoPoll, CFG.dojo_poll_ms);
+}
+async function dojoCancel() {
+    $('d-cancel').disabled = true;
+    $('d-prompt').textContent = CFG.i18n.dojo_cancelling;
+    try {
+        const r = await dojoPost('cancel');
+        // Refused = card already presented: the sale may still complete, so keep polling.
+        if (!r.ok) $('d-prompt').textContent = CFG.i18n.dojo_cancel_refused;
+    } catch (e) { $('d-prompt').textContent = e.message; }
+    $('d-cancel').disabled = false;
+}
+// Reload during a Dojo sale: pick the running session back up.
+if (CFG.dojo_inflight) payDojo();
 
 /* ---- Cash machine (Cashmatic) ---- */
 async function payCash() {

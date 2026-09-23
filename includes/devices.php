@@ -33,6 +33,20 @@ function deviceConfig(?string $section = null)
                 }
             }
         }
+        // Overlay card-gateway settings from the admin Payment Gateways page on
+        // top of the file defaults, so the Ingenico (pos) and Dojo terminals are
+        // managed from the UI. Only non-empty fields override (a blank field in
+        // the form keeps the existing/file value — this is how the masked Dojo
+        // secret key survives a save where the field was left blank).
+        $pg = getSetting('payment_gateways', []);
+        if (is_array($pg)) {
+            foreach (['pos', 'dojo'] as $gw) {
+                if (!empty($pg[$gw]) && is_array($pg[$gw])) {
+                    $over = array_filter($pg[$gw], static fn($v) => $v !== '' && $v !== null);
+                    $cfg[$gw] = array_merge($cfg[$gw] ?? [], $over);
+                }
+            }
+        }
     }
     if ($section === null) {
         return $cfg;
@@ -117,6 +131,19 @@ function tillConfigForOrder(?array $order, string $section): array
     }
     $over['enabled'] = true;
     return array_merge($global, $over);
+}
+
+/**
+ * Which card gateway(s) the cashier offers, chosen on the admin Payment
+ * Gateways page: 'pos' (Ingenico), 'dojo', 'both', or 'none'. Defaults to
+ * 'both' when unset so existing installs keep showing whatever is configured.
+ */
+function activeCardGateway(): string
+{
+    require_once __DIR__ . '/settings.php';
+    $pg = getSetting('payment_gateways', []);
+    $a  = is_array($pg) ? ($pg['active'] ?? null) : null;
+    return in_array($a, ['pos', 'dojo', 'both', 'none'], true) ? $a : 'both';
 }
 
 /** ISO 4217 numeric currency code (default 978 = EUR). */

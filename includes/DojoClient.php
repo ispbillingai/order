@@ -3,45 +3,43 @@
  * DojoClient — card-present payment via the Dojo Cloud API ("Pay at Counter").
  *
  * Unlike the Ingenico/RTS terminal (PosClient), the Dojo terminal is driven
- * through Dojo's CLOUD REST API — we never talk to the terminal directly. The
- * flow is Stripe-style and asynchronous:
+ * through Dojo's CLOUD REST API — we never talk to the terminal directly.
+ * Flow (docs.dojo.tech → Pay at Counter → Terminals → step-by-step guide):
  *
- *   1) POST /payment-intents               -> { id: "pi_...", status: "Created" }
- *   2) POST /terminal-sessions             -> { id: "ts_...", status: "InitiateRequested" }
- *      (references the payment-intent id + the terminalId; Dojo pushes the
- *       prompt to the physical terminal over its own cloud link)
- *   3) GET  /terminal-sessions/{id}  (poll) until a terminal state:
- *        success: "Captured" (Auto capture) / "Authorized" (Manual capture)
- *        failure: "Declined" / "Expired" / "Canceled"
- *        signature: "SignatureVerificationRequired" (see note below)
+ *   1) POST /payment-intents                  -> { id: "pi_...", status: "Created" }
+ *   2) POST /terminal-sessions                -> { id: "ts_...", status: "InitiateRequested" }
+ *        body { terminalId, details: { sessionType: "Sale",
+ *                                      sale: { paymentIntentId } } }
+ *   3) GET  /terminal-sessions/{id}  (poll)   in flight: InitiateRequested /
+ *        Initiated / CancelRequested; final: Captured (Auto) / Authorized
+ *        (Manual) / Declined / Canceled / Expired / SignatureVerificationRequired
+ *   4) PUT  /terminal-sessions/{id}/signature { accepted: bool }  (only when asked)
+ *   5) PUT  /terminal-sessions/{id}/cancel    (only before a card is presented)
+ *   6) GET  /payment-intents/{id}             -> paymentDetails { authCode,
+ *        transactionId, card { cardNumber, cardType, ... } } for the receipt
  *
- * pay() blocks through all three steps (like PosClient::pay) so the cashier UI
- * stays a single "follow the terminal" action, identical to the Ingenico button.
+ * The steps are exposed separately so api/dojo-pay.php can drive them from the
+ * cashier's poll loop (live terminal prompts, Cancel button, signature check)
+ * instead of blocking one PHP request for the whole tap.
  *
- * AUTH: Dojo mirrors Stripe — the secret key is the Basic-auth USERNAME with an
- * empty password, i.e. `Authorization: Basic base64("<secret_key>:")`. Keys are
- * `sk_sandbox_…` (test) or `sk_prod_…` (live). A dated `version` header is
- * required on every call. Terminal endpoints additionally want `reseller-id`
- * and `software-house-id` headers (EPOS partner onboarding) — sent when config
- * provides them.
+ * AUTH: `Authorization: Basic <secret_key>` — the key is sent AS-IS after the
+ * word Basic (Dojo docs: not base64-encoded). Keys are `sk_sandbox_…` (test) or
+ * `sk_prod_…` (live). A dated `version` header is required on every call.
+ * Terminal endpoints also need `software-house-id` and `reseller-id` headers
+ * (sandbox: softwareHouse1 / reseller1; production values come from Dojo).
  *
  * Config (deviceConfig('dojo') / till device_config 'dojo'):
  *   base_url          https://api.dojo.tech   (sandbox uses the same host)
  *   secret_key        sk_prod_… / sk_sandbox_…
  *   terminal_id       Dojo terminalId for this till's card machine
  *   version           API version date, e.g. 2026-02-27
- *   reseller_id       (optional) partner reseller id
- *   software_house_id (optional) EPOS software-house id
+ *   reseller_id       reseller-id header
+ *   software_house_id software-house-id header
  *   capture_mode      Auto | Manual        (default Auto)
  *   connect_timeout   seconds (default 5)
- *   read_timeout      total seconds to wait for the tap (default 90, matches POS)
- *   poll_interval_ms  poll cadence (default 1500)
+ *   read_timeout      seconds per HTTP call (default 20)
+ *   poll_interval_ms  cashier poll cadence (default 1500)
  *   verify_ssl        (default true)
- *
- * SIGNATURE: if the terminal falls back to signature verification, this first
- * version does NOT auto-accept (that would bypass the check). pay() returns
- * ok=false / error='signature_required' and leaves the session for the cashier
- * to resolve on the terminal. Chip+PIN / contactless do not hit this path.
  */
 class DojoClient
 {
@@ -59,38 +57,48 @@ class DojoClient
         $this->cfg = $cfg;
     }
 
+    /** Ready to take a payment: key + terminal configured. */
     public function enabled(): bool
     {
-        return !empty($this->cfg['base_url'])
-            && !empty($this->cfg['secret_key'])
-            && !empty($this->cfg['terminal_id']);
+        return $this->hasKey() && !empty($this->cfg['terminal_id']);
+    }
+
+    private function hasKey(): bool
+    {
+        return !empty($this->cfg['base_url']) && !empty($this->cfg['secret_key']);
     }
 
     /**
-     * Charge the card on the Dojo terminal. Blocks up to read_timeout seconds
-     * while the customer taps and the acquirer authorises.
-     *
-     * @param int    $amountCents   amount in minor units (e.g. 1050 = €10.50)
-     * @param int    $currencyNum   ISO 4217 numeric code (978 = EUR)
-     * @param string $reference     short merchant reference (e.g. "order-42")
-     * @param string $description   human description on the payment intent
-     * @return array{ok:bool, error?:string, status?:string, auth_code?:string,
-     *               operation_number?:string, pan?:string,
-     *               payment_intent_id?:string, session_id?:string, raw?:array}
+     * Map a terminal-session status to what the cashier loop should do.
+     * @return string pending | success | failure | signature
      */
-    public function pay(int $amountCents, int $currencyNum, string $reference, string $description = ''): array
+    public static function classify(string $status): string
+    {
+        if (in_array($status, self::SUCCESS_STATES, true)) return 'success';
+        if (in_array($status, self::FAILURE_STATES, true)) return 'failure';
+        if ($status === self::SIGNATURE_STATE) return 'signature';
+        return 'pending';
+    }
+
+    /**
+     * Steps 1+2: create the payment intent and push it to the terminal.
+     *
+     * @param int $amountCents minor units (1050 = €10.50)
+     * @param int $currencyNum ISO 4217 numeric (978 = EUR)
+     * @return array{ok:bool, error?:string, payment_intent_id?:string, session_id?:string, status?:string}
+     */
+    public function startSale(int $amountCents, int $currencyNum, string $reference, string $description = ''): array
     {
         if (!$this->enabled()) {
-            return ['ok' => false, 'error' => 'dojo_disabled'];
+            return ['ok' => false, 'error' => 'dojo_not_configured'];
         }
         $currency = $this->cfg['currency_code'] ?? (self::CURRENCY_ALPHA[$currencyNum] ?? 'EUR');
 
-        // 1) Payment intent.
         $intent = $this->request('POST', '/payment-intents', [
             'amount'      => ['value' => max(0, $amountCents), 'currencyCode' => $currency],
             'reference'   => $reference,
             'description' => $description !== '' ? $description : $reference,
-            'captureMode' => (string) ($this->cfg['capture_mode'] ?? 'Auto'),
+            'captureMode' => ($this->cfg['capture_mode'] ?? 'Auto') === 'Manual' ? 'Manual' : 'Auto',
         ]);
         if (!$intent['ok']) {
             error_log('[dojo] intent error: ' . ($intent['error'] ?? '?'));
@@ -101,11 +109,12 @@ class DojoClient
             return ['ok' => false, 'error' => 'intent_no_id'];
         }
 
-        // 2) Terminal session — pushes the prompt to the physical terminal.
         $session = $this->request('POST', '/terminal-sessions', [
-            'paymentIntentId' => $intentId,
-            'terminalId'      => (string) $this->cfg['terminal_id'],
-            'captureMode'     => (string) ($this->cfg['capture_mode'] ?? 'Auto'),
+            'terminalId' => (string) $this->cfg['terminal_id'],
+            'details'    => [
+                'sessionType' => 'Sale',
+                'sale'        => ['paymentIntentId' => $intentId],
+            ],
         ]);
         if (!$session['ok']) {
             error_log('[dojo] session error: ' . ($session['error'] ?? '?'));
@@ -115,121 +124,145 @@ class DojoClient
         if ($sessionId === '') {
             return ['ok' => false, 'error' => 'session_no_id', 'payment_intent_id' => $intentId];
         }
-
-        // 3) Poll until a terminal state or timeout.
-        $deadline = $this->now() + (int) ($this->cfg['read_timeout'] ?? 90);
-        $intervalUs = max(300, (int) ($this->cfg['poll_interval_ms'] ?? 1500)) * 1000;
-        $last = $session['body'];
-
-        while (true) {
-            $status = (string) ($last['status'] ?? '');
-
-            if (in_array($status, self::SUCCESS_STATES, true)) {
-                $card = $this->extractCardInfo($last);
-                return [
-                    'ok'                => true,
-                    'status'            => 'approved',
-                    'auth_code'         => $card['auth_code'],
-                    'operation_number'  => $card['operation_number'] ?: $sessionId,
-                    'pan'               => $card['pan'],
-                    'payment_intent_id' => $intentId,
-                    'session_id'        => $sessionId,
-                    'raw'               => $last,
-                ];
-            }
-            if (in_array($status, self::FAILURE_STATES, true)) {
-                return [
-                    'ok'                => false,
-                    'status'            => 'declined',
-                    'error'             => $this->declineReason($last, $status),
-                    'payment_intent_id' => $intentId,
-                    'session_id'        => $sessionId,
-                    'raw'               => $last,
-                ];
-            }
-            if ($status === self::SIGNATURE_STATE) {
-                // Do not auto-accept — leave the session for the cashier/terminal.
-                error_log('[dojo] signature verification required, session ' . $sessionId);
-                return [
-                    'ok'                => false,
-                    'status'            => 'signature',
-                    'error'             => 'signature_required',
-                    'payment_intent_id' => $intentId,
-                    'session_id'        => $sessionId,
-                    'raw'               => $last,
-                ];
-            }
-
-            if ($this->now() >= $deadline) {
-                $this->cancel($sessionId); // best-effort; don't leave it dangling
-                return [
-                    'ok'                => false,
-                    'status'            => 'timeout',
-                    'error'             => 'timeout',
-                    'payment_intent_id' => $intentId,
-                    'session_id'        => $sessionId,
-                ];
-            }
-
-            usleep($intervalUs);
-            $poll = $this->request('GET', '/terminal-sessions/' . rawurlencode($sessionId));
-            if (!$poll['ok']) {
-                // Transient poll error — keep trying until the deadline.
-                error_log('[dojo] poll error: ' . ($poll['error'] ?? '?'));
-                continue;
-            }
-            $last = $poll['body'];
-        }
-    }
-
-    /** Best-effort cancel of a terminal session. Never throws. */
-    public function cancel(string $sessionId): void
-    {
-        if ($sessionId === '' || !$this->enabled()) {
-            return;
-        }
-        try {
-            $this->request('PUT', '/terminal-sessions/' . rawurlencode($sessionId) . '/cancel');
-        } catch (Throwable $e) {
-            error_log('[dojo] cancel failed: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Pull card metadata out of a completed session. Field names follow Dojo's
-     * card-present result (authCode / last4PAN / acquirerPaymentId); looked up
-     * defensively across a few nesting shapes since the exact envelope is the
-     * one thing to confirm against a sandbox capture. The full session is stored
-     * in device_meta regardless, so nothing is lost for reconciliation.
-     *
-     * @return array{auth_code:string, pan:string, operation_number:string}
-     */
-    private function extractCardInfo(array $session): array
-    {
-        $info = $session['cardPresentPaymentInfo']
-            ?? $session['cardDetails']
-            ?? $session['payment']['cardPresentPaymentInfo']
-            ?? [];
-        if (!is_array($info)) {
-            $info = [];
-        }
-        $last4 = (string) ($info['last4PAN'] ?? $info['last4'] ?? $info['maskedPan'] ?? '');
         return [
-            'auth_code'        => (string) ($info['authCode'] ?? $info['authorizationCode'] ?? ''),
-            'pan'              => $last4 !== '' ? ('************' . $last4) : '',
-            'operation_number' => (string) ($info['acquirerPaymentId'] ?? $info['acquirerTransactionId'] ?? ''),
+            'ok'                => true,
+            'payment_intent_id' => $intentId,
+            'session_id'        => $sessionId,
+            'status'            => (string) ($session['body']['status'] ?? 'InitiateRequested'),
         ];
     }
 
-    private function declineReason(array $session, string $status): string
+    /**
+     * Step 3: one poll of the terminal session.
+     * @return array{ok:bool, error?:string, status?:string, prompt?:string, raw?:array}
+     */
+    public function getSession(string $sessionId): array
     {
-        $reason = trim((string) (
-            $session['declineReason']
-            ?? $session['errorMessage']
-            ?? $session['statusReason']
-            ?? ''
-        ));
+        $r = $this->request('GET', '/terminal-sessions/' . rawurlencode($sessionId));
+        if (!$r['ok']) {
+            return ['ok' => false, 'error' => $r['error'] ?? 'poll_failed'];
+        }
+        $body = $r['body'];
+        return [
+            'ok'     => true,
+            'status' => (string) ($body['status'] ?? ''),
+            'prompt' => $this->lastNotification($body),
+            'raw'    => $body,
+        ];
+    }
+
+    /** Step 4: the cashier checked the signature on the terminal receipt. */
+    public function answerSignature(string $sessionId, bool $accepted): array
+    {
+        $r = $this->request('PUT', '/terminal-sessions/' . rawurlencode($sessionId) . '/signature',
+            ['accepted' => $accepted]);
+        return $r['ok'] ? ['ok' => true] : ['ok' => false, 'error' => $r['error'] ?? 'signature_failed'];
+    }
+
+    /** Step 5: cancel. Dojo refuses once a card has been presented. */
+    public function cancel(string $sessionId): array
+    {
+        if ($sessionId === '' || !$this->hasKey()) {
+            return ['ok' => false, 'error' => 'no_session'];
+        }
+        $r = $this->request('PUT', '/terminal-sessions/' . rawurlencode($sessionId) . '/cancel');
+        if (!$r['ok']) {
+            error_log('[dojo] cancel failed: ' . ($r['error'] ?? '?'));
+        }
+        return $r['ok'] ? ['ok' => true] : ['ok' => false, 'error' => $r['error'] ?? 'cancel_failed'];
+    }
+
+    /**
+     * Step 6: card details for the payment record, from the payment intent.
+     * @return array{auth_code:string, pan:string, transaction_id:string, card_type:string, raw:array}
+     */
+    public function paymentDetails(string $intentId): array
+    {
+        $r = $this->request('GET', '/payment-intents/' . rawurlencode($intentId));
+        $body = $r['ok'] ? $r['body'] : [];
+        $pd   = is_array($body['paymentDetails'] ?? null) ? $body['paymentDetails'] : [];
+        $card = is_array($pd['card'] ?? null) ? $pd['card'] : [];
+
+        // Never store more than the last 4 digits, whatever shape Dojo sends.
+        $digits = preg_replace('/\D/', '', (string) ($card['cardNumber'] ?? ''));
+        $last4  = $digits !== '' ? substr($digits, -4) : '';
+
+        return [
+            'auth_code'      => (string) ($pd['authCode'] ?? ''),
+            'pan'            => $last4 !== '' ? ('************' . $last4) : '',
+            'transaction_id' => (string) ($pd['transactionId'] ?? ''),
+            'card_type'      => (string) ($card['cardType'] ?? ''),
+            'raw'            => $body,
+        ];
+    }
+
+    /** GET /terminals?statuses=Available — for the admin "find my terminal" helper. */
+    public function listTerminals(): array
+    {
+        if (!$this->hasKey()) {
+            return ['ok' => false, 'error' => 'dojo_no_key'];
+        }
+        $r = $this->request('GET', '/terminals');
+        if (!$r['ok']) {
+            return ['ok' => false, 'error' => $r['error'] ?? 'unreachable'];
+        }
+        $list = $r['body']['terminals'] ?? $r['body']['items'] ?? $r['body'];
+        $out  = [];
+        foreach ((array) $list as $t) {
+            if (is_array($t) && !empty($t['id'])) {
+                $out[] = ['id' => (string) $t['id'], 'status' => (string) ($t['status'] ?? '')];
+            }
+        }
+        return ['ok' => true, 'terminals' => $out];
+    }
+
+    /**
+     * Admin "Test connection": with a terminal id, fetch that terminal (proves
+     * key + headers + terminal); without one, list the account's terminals so
+     * the admin can copy the id.
+     *
+     * @return array{ok:bool, error?:string, state?:string, terminals?:array}
+     */
+    public function testConnection(): array
+    {
+        if (!$this->hasKey()) {
+            return ['ok' => false, 'error' => 'dojo_no_key'];
+        }
+        if (empty($this->cfg['terminal_id'])) {
+            return $this->listTerminals();
+        }
+        $res = $this->request('GET', '/terminals/' . rawurlencode((string) $this->cfg['terminal_id']));
+        if ($res['ok']) {
+            return ['ok' => true, 'state' => (string) ($res['body']['status'] ?? 'reachable')];
+        }
+        return ['ok' => false, 'error' => $res['error'] ?? 'unreachable'];
+    }
+
+    /** Human reason for a failed session (Declined / Expired / Canceled). */
+    public static function failureReason(array $session, string $status): string
+    {
+        $reason = trim((string) ($session['declineReason'] ?? $session['errorMessage'] ?? $session['statusReason'] ?? ''));
         return $reason !== '' ? $reason : ('dojo_' . strtolower($status));
+    }
+
+    /**
+     * The latest prompt the terminal is showing (PresentCard, EnterPin,
+     * RemoveCard, …) from notificationEvents, so the cashier sees it live.
+     */
+    private function lastNotification(array $session): string
+    {
+        $events = $session['notificationEvents'] ?? [];
+        if (!is_array($events) || !$events) {
+            return '';
+        }
+        $last = end($events);
+        if (is_string($last)) {
+            return $last;
+        }
+        if (is_array($last)) {
+            return (string) ($last['notificationType'] ?? $last['type'] ?? $last['event'] ?? $last['name'] ?? '');
+        }
+        return '';
     }
 
     /**
@@ -241,13 +274,11 @@ class DojoClient
     {
         $url = rtrim((string) $this->cfg['base_url'], '/') . $path;
 
-        // Stripe-style: secret key as Basic username, empty password.
-        $authValue = 'Basic ' . base64_encode(((string) $this->cfg['secret_key']) . ':');
-
         $headers = [
-            'Authorization: ' . $authValue,
+            'Authorization: Basic ' . trim((string) $this->cfg['secret_key']),
             'version: ' . (string) ($this->cfg['version'] ?? '2026-02-27'),
             'Accept: application/json',
+            'Content-Type: application/json',
         ];
         if (!empty($this->cfg['reseller_id'])) {
             $headers[] = 'reseller-id: ' . (string) $this->cfg['reseller_id'];
@@ -261,15 +292,16 @@ class DojoClient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_CONNECTTIMEOUT => (int) ($this->cfg['connect_timeout'] ?? 5),
-            CURLOPT_TIMEOUT        => (int) ($this->cfg['read_timeout'] ?? 90) + 10,
+            CURLOPT_TIMEOUT        => max(5, min(30, (int) ($this->cfg['read_timeout'] ?? 20))),
             CURLOPT_SSL_VERIFYPEER => ($this->cfg['verify_ssl'] ?? true) ? 1 : 0,
             CURLOPT_SSL_VERIFYHOST => ($this->cfg['verify_ssl'] ?? true) ? 2 : 0,
+            CURLOPT_HTTPHEADER     => $headers,
         ];
         if ($json !== null) {
-            $headers[] = 'Content-Type: application/json';
             $opts[CURLOPT_POSTFIELDS] = json_encode($json, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } elseif ($method === 'PUT') {
+            $opts[CURLOPT_POSTFIELDS] = ''; // PUT with no body still needs Content-Length: 0
         }
-        $opts[CURLOPT_HTTPHEADER] = $headers;
         curl_setopt_array($ch, $opts);
 
         $raw = curl_exec($ch);
@@ -287,16 +319,14 @@ class DojoClient
             $body = [];
         }
         if ($status < 200 || $status >= 300) {
-            $msg = (string) ($body['message'] ?? $body['error'] ?? '');
+            $msg = (string) ($body['message'] ?? $body['title'] ?? $body['detail'] ?? $body['error'] ?? '');
+            if (!empty($body['errors']) && is_array($body['errors'])) {
+                $msg .= ' ' . json_encode($body['errors'], JSON_UNESCAPED_UNICODE);
+            }
+            error_log("[dojo] {$method} {$path} -> HTTP {$status} " . substr((string) $raw, 0, 500));
             return ['ok' => false, 'status' => $status, 'body' => $body,
-                    'error' => $msg !== '' ? $msg : "http_{$status}"];
+                    'error' => trim($msg) !== '' ? "HTTP {$status}: " . trim($msg) : "http_{$status}"];
         }
         return ['ok' => true, 'status' => $status, 'body' => $body];
-    }
-
-    /** Wall-clock seconds; isolated so the poll loop is easy to reason about. */
-    private function now(): int
-    {
-        return time();
     }
 }
