@@ -381,3 +381,85 @@ function confirmAction(message) {
         }
     });
 }
+
+// ============================================
+// Guests' QR requests (bill / call waiter / change a dish)
+// Shown as a bar in every staff area, fed by the same /api/status.php poll.
+// ============================================
+// Known request ids survive the page reloads some screens do (kitchen), so a
+// reload doesn't swallow the beep for a request that arrived meanwhile.
+const TableRequests = { known: new Set(), loaded: false };
+try {
+    const saved = sessionStorage.getItem('trKnown');
+    if (saved !== null) { JSON.parse(saved).forEach(id => TableRequests.known.add(id)); TableRequests.loaded = true; }
+} catch (e) {}
+
+function trText(r) {
+    const L = window.REQ_I18N || {};
+    if (r.type === 'bill') return L.bill || 'Asks for the bill';
+    if (r.type === 'waiter') return L.waiter || 'Calls the waiter';
+    let t = (L.change || 'Change to') + ' ' + (r.item_name || '');
+    if (r.seat) t += ' (' + (L.seat || 'Seat') + ' ' + r.seat + ')';
+    return t;
+}
+
+function trBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.25].forEach(delay => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+            g.gain.setValueAtTime(0.25, ctx.currentTime + delay);
+            o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + 0.18);
+        });
+    } catch (e) { /* no sound allowed yet — the bar still shows */ }
+}
+
+function renderTableRequests(list) {
+    if (!Array.isArray(list)) return;
+    const L = window.REQ_I18N || {};
+    let bar = document.getElementById('tableRequestsBar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'tableRequestsBar';
+        bar.className = 'table-requests-bar';
+        document.body.appendChild(bar);
+    }
+
+    let fresh = false;
+    list.forEach(r => { if (!TableRequests.known.has(r.id)) { TableRequests.known.add(r.id); if (TableRequests.loaded) fresh = true; } });
+    if (fresh) { trBeep(); showToast(L.new_request || 'New table request', 'warning', 5000); }
+    TableRequests.loaded = true;
+    try { sessionStorage.setItem('trKnown', JSON.stringify(list.map(r => r.id))); } catch (e) {}
+
+    const icons = { bill: 'fa-receipt', waiter: 'fa-hand', change: 'fa-pen' };
+    bar.innerHTML = list.map(r => {
+        const mins = Math.max(0, Math.floor((r.age_seconds || 0) / 60));
+        return `
+        <div class="tr-card tr-${r.type} ${r.status === 'seen' ? 'tr-seen' : ''}">
+            <div class="tr-head">
+                <i class="fas ${icons[r.type] || 'fa-bell'}"></i>
+                <strong>${escapeHtml((L.table || 'Table') + ' ' + r.table_number)}</strong>
+                <span class="tr-age">${mins < 1 ? (L.now || 'now') : mins + ' min'}</span>
+            </div>
+            <div class="tr-text">${escapeHtml(trText(r))}</div>
+            ${r.message ? `<div class="tr-msg">“${escapeHtml(r.message)}”</div>` : ''}
+            ${r.status === 'seen' ? `<div class="tr-by"><i class="fas fa-check"></i> ${escapeHtml((L.taken_by || 'Taken by') + ' ' + (r.seen_by_name || ''))}</div>` : ''}
+            <div class="tr-actions">
+                ${r.status === 'open' ? `<button class="btn btn-sm btn-primary" onclick="tableRequestAction(${r.id}, 'seen')">${escapeHtml(L.take || 'On my way')}</button>` : ''}
+                <button class="btn btn-sm btn-success" onclick="tableRequestAction(${r.id}, 'done')"><i class="fas fa-check"></i> ${escapeHtml(L.done || 'Done')}</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function tableRequestAction(id, action) {
+    try {
+        const r = await apiCall('/api/table-requests.php', 'POST', { id, action });
+        renderTableRequests(r.requests);
+    } catch (e) { /* apiCall already showed the reason */ }
+}
+
+document.addEventListener('app:update', e => renderTableRequests(e.detail && e.detail.table_requests));
+// Show waiting requests straight away instead of after the first 10 s poll.
+document.addEventListener('DOMContentLoaded', () => { if (window.REQ_I18N) checkForUpdates(); });

@@ -1,0 +1,80 @@
+<?php
+/**
+ * Guest API — used by the customer page a table's QR code opens (t.php).
+ * No login: the table's secret QR token is the only credential, and it only
+ * ever gives access to that table's current meal.
+ *
+ * GET  ?k=<token>                                  → the table's order + open requests
+ * POST {k, type: bill|waiter|change, order_item_id?, message?} → new request
+ */
+
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/table_requests.php';
+
+header('Content-Type: application/json');
+header('Cache-Control: no-store');
+
+$input = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? (json_decode(file_get_contents('php://input'), true) ?: [])
+    : $_GET;
+$table = tableByQrToken((string) ($input['k'] ?? ''));
+if (!$table) {
+    jsonResponse(['success' => false, 'message' => t('guest_bad_qr')], 404);
+}
+
+/** What the guest may see: dishes, their progress, the total — no staff data. */
+function guestState(array $table): array
+{
+    $order = tableCurrentOrder($table);
+    $items = [];
+    $total = 0.0;
+    if ($order) {
+        [$rows, $total] = tableMealItems((int) $order['id']);
+        foreach ($rows as $r) {
+            $items[] = [
+                'id'        => (int) $r['id'],
+                'name'      => $r['item_name'],
+                'quantity'  => (int) $r['quantity'],
+                'seat'      => $r['seat'] !== null ? (int) $r['seat'] : null,
+                'status'    => $r['status'],
+                'label'     => t('guest_st_' . $r['status']),
+                'paid'      => $r['order_status'] === 'paid',
+                'changeable'=> !in_array($r['status'], ['served'], true) && $r['order_status'] !== 'paid',
+            ];
+        }
+    }
+    $stmt = getDBConnection()->prepare("
+        SELECT tr.id, tr.type, tr.status, mi.name AS item_name
+        FROM table_requests tr
+        LEFT JOIN order_items oi ON oi.id = tr.order_item_id
+        LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+        WHERE tr.table_id = ? AND tr.status <> 'done'
+        ORDER BY tr.id
+    ");
+    $stmt->execute([$table['id']]);
+
+    return [
+        'success'  => true,
+        'table'    => $order ? $order['table_number'] : $table['table_number'],
+        'has_order'=> (bool) $order,
+        'items'    => $items,
+        'total'    => $total,
+        'total_fmt'=> formatCurrency($total),
+        'requests' => $stmt->fetchAll(),
+    ];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $res = createTableRequest(
+        $table,
+        (string) ($input['type'] ?? ''),
+        isset($input['order_item_id']) ? (int) $input['order_item_id'] : null,
+        (string) ($input['message'] ?? '')
+    );
+    if (!$res['ok']) {
+        jsonResponse(['success' => false, 'message' => t('guest_err_' . $res['error'])]);
+    }
+    jsonResponse(guestState($table) + ['request_id' => $res['id']]);
+}
+
+jsonResponse(guestState($table));

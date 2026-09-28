@@ -37,6 +37,18 @@ if ($selectedRoomId) {
     }
 }
 
+// Tables with a guest request (QR) still waiting: bell on the table.
+$tableAsks = [];
+if (!empty($tableIds)) {
+    try {
+        $stmt = $pdo->prepare("SELECT table_id, COUNT(*) FROM table_requests WHERE status <> 'done' AND table_id IN ($placeholders) GROUP BY table_id");
+        $stmt->execute($tableIds);
+        $tableAsks = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    } catch (PDOException $e) {
+        // migration 012 not applied yet
+    }
+}
+
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -69,7 +81,11 @@ include __DIR__ . '/../includes/header.php';
         <div class="table-card <?= $status ?>" 
              onclick="selectTable(<?= $table['id'] ?>, '<?= $status ?>', <?= $order ? $order['id'] : 'null' ?>)"
              data-table-id="<?= $table['id'] ?>">
-            <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
+            <div class="table-number"><?= htmlspecialchars($table['table_number']) ?>
+                <?php if (!empty($tableAsks[$table['id']])): ?>
+                    <span class="badge badge-danger" title="<?= te('req_waiting_table') ?>"><i class="fas fa-bell"></i> <?= (int) $tableAsks[$table['id']] ?></span>
+                <?php endif; ?>
+            </div>
             <div class="table-capacity">
                 <i class="fas fa-users"></i>
                 <?= $table['capacity'] ?> <?= te('seats') ?>

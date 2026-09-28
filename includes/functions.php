@@ -285,6 +285,12 @@ function releaseOrderTables($orderId) {
             ->execute([$rootId]);
     }
 
+    // The guests' open QR requests (bill, waiter…) end with the meal.
+    $stmt = $pdo->prepare("SELECT id FROM tables_restaurant WHERE current_order_id = ? OR id = ?");
+    $stmt->execute([$rootId, (int) $root['table_id']]);
+    require_once __DIR__ . '/table_requests.php';
+    closeTableRequestsForTables($stmt->fetchAll(PDO::FETCH_COLUMN));
+
     $pdo->prepare("UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE current_order_id = ?")
         ->execute([$rootId]);
 }

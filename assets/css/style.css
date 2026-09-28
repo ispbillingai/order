@@ -1416,3 +1416,19 @@ textarea.form-control {
         margin: var(--space-md);
     }
 }
+
+/* Guests' QR requests bar (all staff areas) */
+.table-requests-bar { position: fixed; top: 78px; right: 16px; z-index: 900; display: flex; flex-direction: column; gap: 10px; width: min(360px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow-y: auto; }
+.table-requests-bar:empty { display: none; }
+.tr-card { background: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18); border-left: 6px solid #f59e0b; animation: trPulse 1.6s ease-in-out 3; }
+.tr-card.tr-bill { border-left-color: #16a34a; }
+.tr-card.tr-waiter { border-left-color: #2563eb; }
+.tr-card.tr-change { border-left-color: #dc2626; }
+.tr-card.tr-seen { opacity: .8; animation: none; }
+.tr-head { display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+.tr-age { margin-left: auto; font-size: .8rem; color: #6b7280; }
+.tr-text { margin-top: 4px; font-weight: 600; }
+.tr-msg { margin-top: 4px; font-style: italic; color: #374151; }
+.tr-by { margin-top: 4px; font-size: .8rem; color: #16a34a; }
+.tr-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+@keyframes trPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }

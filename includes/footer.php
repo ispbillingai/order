@@ -8,6 +8,23 @@
     <!-- Toast notifications container -->
     <div id="toastContainer" class="toast-container"></div>
     
+    <?php if (!empty($currentUser)): ?>
+    <script>
+    // Labels for the guests' QR request bar (app.js).
+    window.REQ_I18N = <?= json_encode([
+        'table'       => t('table'),
+        'seat'        => t('seat'),
+        'bill'        => t('req_bill'),
+        'waiter'      => t('req_waiter'),
+        'change'      => t('req_change'),
+        'take'        => t('req_take'),
+        'done'        => t('req_done'),
+        'taken_by'    => t('req_taken_by'),
+        'now'         => t('req_now'),
+        'new_request' => t('req_new'),
+    ], JSON_UNESCAPED_UNICODE) ?>;
+    </script>
+    <?php endif; ?>
     <script src="/assets/js/app.js?v=<?= @filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
     <?php if (isset($extraJs)): ?>
         <?php foreach ((array)$extraJs as $js): ?>
