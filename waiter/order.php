@@ -54,11 +54,55 @@ if ($isEditable) {
         WHERE r.active = 1
           AND NOT EXISTS (SELECT 1 FROM orders o
                           WHERE (o.table_id = t.id OR o.id = t.current_order_id)
-                            AND o.status NOT IN ('paid', 'cancelled'))
+                            AND o.status NOT IN ('paid', 'cancelled')
+                            AND o.parent_order_id IS NULL)
         ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
     ")->fetchAll();
 }
 $seats = array_sum(array_map('intval', array_column($orderTables, 'capacity')));
+
+// Bill by seat. Each dish sits on a seat (0 = shared by the table); a seat can
+// be billed on its own, which splits it into a seat bill. On a seat bill
+// itself all of this is fixed: it is that one seat.
+$isSeatBill  = !empty($order['parent_order_id']);
+$seatBills   = [];
+$billedSeats = [];
+if (!$isSeatBill) {
+    $stmt = $pdo->prepare("SELECT id, order_number, seat, total, status FROM orders WHERE parent_order_id = ? AND status <> 'cancelled' ORDER BY seat, id");
+    $stmt->execute([$orderId]);
+    $seatBills   = $stmt->fetchAll();
+    $billedSeats = array_map('intval', array_column($seatBills, 'seat'));
+}
+$itemsBySeat = [];
+$seatTotals  = [];
+foreach ($orderItems as $it) {
+    $s = (int) $it['seat'];
+    $itemsBySeat[$s][] = $it;
+    if ($it['status'] !== 'cancelled') {
+        $seatTotals[$s] = ($seatTotals[$s] ?? 0) + (float) $it['total_price'];
+    }
+}
+ksort($itemsBySeat);
+$seatCount = max(1, (int) $order['number_of_people'] + count(array_unique($billedSeats)), max(array_keys($itemsBySeat) ?: [0]));
+// Group the dish list by seat once any dish is on a seat.
+$showSeatGroups = !$isSeatBill && (bool) array_filter(array_keys($itemsBySeat));
+
+// Other occupied tables that could be merged into this one.
+$mergeOrders = [];
+if ($isEditable && !$isSeatBill) {
+    $stmt = $pdo->prepare("
+        SELECT o.id, o.order_number, o.total, o.number_of_people,
+               COALESCE(o.table_label, t.table_number) AS table_number, r.name AS room_name
+        FROM orders o
+        JOIN tables_restaurant t ON t.id = o.table_id
+        JOIN rooms r ON r.id = o.room_id
+        WHERE o.id <> ? AND o.parent_order_id IS NULL AND o.channel = 'dine_in'
+          AND o.status NOT IN ('paid', 'cancelled')
+        ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
+    ");
+    $stmt->execute([$orderId]);
+    $mergeOrders = $stmt->fetchAll();
+}
 
 $pageTitle = "Order #{$order['order_number']}";
 
@@ -96,6 +140,17 @@ include __DIR__ . '/../includes/header.php';
 .join-pick { display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
 .join-pick:has(input:checked) { border-color: var(--primary); background: rgba(59, 130, 246, .08); }
 
+/* Bill by seat */
+.seat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 0; margin-bottom: 6px; border-bottom: 1px solid var(--border-color); }
+.seat-bar-label { font-size: .8rem; color: var(--text-secondary); margin-right: 2px; }
+.seat-chip { min-width: 40px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-light, #f3f4f6); font-weight: 700; cursor: pointer; }
+.seat-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.seat-chip.billed { opacity: .5; cursor: not-allowed; }
+.seat-group-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 4px 4px; margin-top: 6px; border-bottom: 2px solid var(--border-color); font-size: .9rem; }
+.seat-pill { margin-left: 6px; padding: 2px 8px; border: 1px dashed var(--border-color); border-radius: 999px; background: transparent; font-size: .75rem; color: var(--text-secondary); cursor: pointer; }
+.seat-bills { margin-top: 10px; }
+.seat-bill-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px dashed var(--border-color); color: inherit; text-decoration: none; }
+
 .recall-note {
     display: flex;
     align-items: center;
@@ -130,7 +185,7 @@ include __DIR__ . '/../includes/header.php';
         <?php if (count($orderTables) > 1): ?>
             <span class="text-muted">(<?= $seats ?> <?= te('seats') ?>)</span>
         <?php endif; ?>
-        <?php if ($isEditable): ?>
+        <?php if ($isEditable && !$isSeatBill): ?>
             <button type="button" class="btn btn-sm btn-outline" style="margin-left:8px;" onclick="openModal('joinTablesModal')">
                 <i class="fas fa-link"></i> <?= te('join_tables') ?>
             </button>
@@ -191,6 +246,26 @@ include __DIR__ . '/../includes/header.php';
             </div>
         <?php endif; ?>
 
+        <?php if ($isSeatBill): ?>
+            <div class="recall-note">
+                <i class="fas fa-user"></i>
+                <span><?= te('seat_bill_note') ?>
+                    <a href="/waiter/order.php?order=<?= (int) $order['parent_order_id'] ?>"><?= te('seat_bill_open_table') ?></a></span>
+            </div>
+        <?php elseif ($isEditable): ?>
+            <!-- Which seat new dishes go to -->
+            <div class="seat-bar">
+                <span class="seat-bar-label"><?= te('seat_adding_to') ?>:</span>
+                <button type="button" class="seat-chip" data-seat="0" onclick="setActiveSeat(0)"><i class="fas fa-utensils"></i> <?= te('seat_shared') ?></button>
+                <?php for ($s = 1; $s <= $seatCount; $s++): $billed = in_array($s, $billedSeats, true); ?>
+                    <button type="button" class="seat-chip<?= $billed ? ' billed' : '' ?>" data-seat="<?= $s ?>"
+                            <?= $billed ? 'disabled title="' . te('seat_billed') . '"' : 'onclick="setActiveSeat(' . $s . ')"' ?>>
+                        <?= $s ?><?= $billed ? ' <i class="fas fa-check"></i>' : '' ?>
+                    </button>
+                <?php endfor; ?>
+            </div>
+        <?php endif; ?>
+
         <div class="order-items" id="orderItemsList">
             <?php if (empty($orderItems)): ?>
                 <div class="text-center text-muted" style="padding: 40px;">
@@ -198,7 +273,21 @@ include __DIR__ . '/../includes/header.php';
                     <p><?= te('no_items_yet') ?></p>
                 </div>
             <?php else: ?>
-                <?php foreach ($orderItems as $item):
+                <?php foreach ($itemsBySeat as $seatNo => $seatItems): ?>
+                <?php if ($showSeatGroups): ?>
+                    <div class="seat-group-head">
+                        <strong><?= $seatNo ? te('seat') . ' ' . $seatNo : te('seat_shared') ?></strong>
+                        <span class="d-flex align-center gap-sm">
+                            <?= formatCurrency($seatTotals[$seatNo] ?? 0) ?>
+                            <?php if ($seatNo && $isEditable && !empty($seatTotals[$seatNo])): ?>
+                                <button type="button" class="btn btn-sm btn-warning" onclick="billSeat(<?= (int) $seatNo ?>)">
+                                    <i class="fas fa-receipt"></i> <?= te('seat_bill_btn') ?>
+                                </button>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+                <?php foreach ($seatItems as $item):
                     $mods = getItemModifications($item['id']);
                     $isCancelled = $item['status'] === 'cancelled';
                     // A dish already at a work point: editing it reprints there.
@@ -225,6 +314,11 @@ include __DIR__ . '/../includes/header.php';
                                 <span class="badge badge-<?= $isCancelled ? 'danger' : ($item['status'] === 'pending' ? 'warning' : ($item['status'] === 'ready' ? 'success' : 'info')) ?>">
                                     <?= htmlspecialchars(statusLabel($item['status'])) ?>
                                 </span>
+                                <?php if ($canEditItem && !$isSeatBill): ?>
+                                    <button type="button" class="seat-pill" onclick="openSeatMove(<?= (int) $item['id'] ?>, <?= (int) $item['seat'] ?>)" title="<?= te('seat_move_title') ?>">
+                                        <i class="fas fa-chair"></i> <?= $item['seat'] ? te('seat') . ' ' . (int) $item['seat'] : te('seat_shared') ?>
+                                    </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div class="item-qty">
@@ -239,9 +333,25 @@ include __DIR__ . '/../includes/header.php';
                         <div class="item-total"><?= formatCurrency($item['total_price']) ?></div>
                     </div>
                 <?php endforeach; ?>
+                <?php endforeach; ?>
             <?php endif; ?>
         </div>
-        
+
+        <?php if ($seatBills): ?>
+            <div class="seat-bills">
+                <div class="seat-group-head"><strong><?= te('seat_bills') ?></strong></div>
+                <?php foreach ($seatBills as $sb): ?>
+                    <a class="seat-bill-row" href="/waiter/order.php?order=<?= (int) $sb['id'] ?>">
+                        <span><i class="fas fa-user"></i> <?= te('seat') ?> <?= (int) $sb['seat'] ?></span>
+                        <span class="d-flex align-center gap-sm">
+                            <?= formatCurrency($sb['total']) ?>
+                            <span class="badge badge-<?= $sb['status'] === 'paid' ? 'success' : 'warning' ?>"><?= htmlspecialchars(statusLabel($sb['status'])) ?></span>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
         <div class="order-totals">
             <div class="total-row">
                 <span><?= te('items_label') ?></span>
@@ -271,15 +381,9 @@ include __DIR__ . '/../includes/header.php';
                     <span class="badge badge-light"><?= $pendingCount ?></span>
                 </button>
             <?php endif; ?>
-            <?php if (!empty($tills)): ?>
-                <button class="btn btn-warning" onclick="openModal('tillPickModal')">
-                    <i class="fas fa-receipt"></i> <?= te('bill') ?>
-                </button>
-            <?php else: ?>
-                <button class="btn btn-warning" onclick="requestBillAction()">
-                    <i class="fas fa-receipt"></i> <?= te('bill') ?>
-                </button>
-            <?php endif; ?>
+            <button class="btn btn-warning" onclick="billSeat(null)">
+                <i class="fas fa-receipt"></i> <?= te('bill') ?>
+            </button>
         </div>
     </div>
 </div>
@@ -309,7 +413,7 @@ include __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php if ($isEditable): ?>
+<?php if ($isEditable && !$isSeatBill): ?>
 <!-- Join tables (large party): one order, one bill across several tables -->
 <div class="modal-overlay" id="joinTablesModal">
     <div class="modal" style="max-width: 560px;">
@@ -346,13 +450,50 @@ include __DIR__ . '/../includes/header.php';
                         </label>
                     <?php endforeach; ?>
                 </div>
+                <?php if ($freeTables): ?>
+                    <button class="btn btn-primary" style="margin-top:10px;" onclick="joinTables()"><i class="fas fa-link"></i> <?= te('join_confirm') ?></button>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <label class="form-label" style="margin-top:20px;"><i class="fas fa-object-group"></i> <?= te('merge_title') ?></label>
+            <p class="text-muted" style="font-size:.85rem;margin:0 0 8px;"><?= te('merge_hint') ?></p>
+            <?php if (!$mergeOrders): ?>
+                <p class="text-muted"><?= te('merge_none') ?></p>
+            <?php else: ?>
+                <div class="join-list" style="max-height:30vh;overflow-y:auto;">
+                    <?php foreach ($mergeOrders as $mo): ?>
+                        <div class="join-row">
+                            <span><strong><?= htmlspecialchars($mo['table_number']) ?></strong>
+                                <span class="text-muted">· <?= htmlspecialchars($mo['room_name']) ?> · <?= (int) $mo['number_of_people'] ?> <?= te('guests') ?> · <?= formatCurrency($mo['total']) ?></span></span>
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    onclick="mergeOrder(<?= (int) $mo['id'] ?>, <?= htmlspecialchars(json_encode($mo['table_number'])) ?>)">
+                                <i class="fas fa-object-group"></i> <?= te('merge_btn') ?>
+                            </button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline" onclick="closeModal('joinTablesModal')"><?= te('cancel') ?></button>
-            <?php if ($freeTables): ?>
-                <button class="btn btn-primary" onclick="joinTables()"><i class="fas fa-link"></i> <?= te('join_confirm') ?></button>
-            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Move a dish to another seat -->
+<div class="modal-overlay" id="seatMoveModal">
+    <div class="modal" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-chair"></i> <?= te('seat_move_title') ?></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="seat-bar" style="border:none;padding:0;">
+                <button type="button" class="seat-chip" data-move-seat="0" onclick="moveItemToSeat(0)"><i class="fas fa-utensils"></i> <?= te('seat_shared') ?></button>
+                <?php for ($s = 1; $s <= $seatCount; $s++): if (in_array($s, $billedSeats, true)) continue; ?>
+                    <button type="button" class="seat-chip" data-move-seat="<?= $s ?>" onclick="moveItemToSeat(<?= $s ?>)"><?= $s ?></button>
+                <?php endfor; ?>
+            </div>
         </div>
     </div>
 </div>
@@ -417,7 +558,59 @@ const T = {
     billFailed: <?= json_encode(t('toast_bill_failed')) ?>,
     joinPick: <?= json_encode(t('join_pick_one')) ?>,
     joined: <?= json_encode(t('toast_tables_joined')) ?>,
+    seatBill: <?= json_encode(t('toast_seat_bill')) ?>,
+    seatMoved: <?= json_encode(t('toast_seat_moved')) ?>,
+    confirmMerge: <?= json_encode(t('merge_confirm')) ?>,
+    merged: <?= json_encode(t('toast_merged')) ?>,
 };
+const HAS_TILLS = <?= !empty($tills) ? 'true' : 'false' ?>;
+const SEAT_BILL = <?= $isSeatBill ? 'true' : 'false' ?>;
+
+/* ---- Bill by seat ----
+ * The chosen seat survives the reload after each added dish, so the waiter
+ * can take one guest's whole order without re-picking the seat. */
+const SEAT_KEY = 'order-seat-' + orderId;
+let activeSeat = 0;
+try { activeSeat = parseInt(sessionStorage.getItem(SEAT_KEY), 10) || 0; } catch (e) {}
+function setActiveSeat(seat) {
+    const chip = document.querySelector(`.seat-bar [data-seat="${seat}"]`);
+    if (!chip || chip.disabled) seat = 0; // seat gone (billed) → back to the table
+    activeSeat = seat;
+    try { sessionStorage.setItem(SEAT_KEY, String(seat)); } catch (e) {}
+    document.querySelectorAll('.seat-bar [data-seat]').forEach(c => c.classList.toggle('active', parseInt(c.dataset.seat, 10) === seat));
+}
+setActiveSeat(activeSeat);
+
+// seat = null → the whole table's bill; a number → just that seat.
+let pendingBillSeat = null;
+function billSeat(seat) {
+    pendingBillSeat = seat;
+    if (HAS_TILLS) openModal('tillPickModal'); else requestBillAction();
+}
+
+let seatMoveItemId = null;
+function openSeatMove(orderItemId, currentSeat) {
+    seatMoveItemId = orderItemId;
+    document.querySelectorAll('[data-move-seat]').forEach(c => c.classList.toggle('active', parseInt(c.dataset.moveSeat, 10) === currentSeat));
+    openModal('seatMoveModal');
+}
+async function moveItemToSeat(seat) {
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'set_item_seat', order_item_id: seatMoveItemId, seat });
+        showToast(T.seatMoved, 'success');
+        location.reload();
+    } catch (e) { /* apiCall already showed the reason */ }
+}
+
+/* ---- Merge another occupied table into this order ---- */
+async function mergeOrder(sourceOrderId, tableLabel) {
+    if (!await confirmAction(`${T.confirmMerge} ${tableLabel}?`)) return;
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'merge_order', order_id: orderId, source_order_id: sourceOrderId });
+        showToast(T.merged, 'success');
+        location.reload();
+    } catch (e) { /* apiCall already showed the reason */ }
+}
 
 /* ---- Joined tables (large party) ---- */
 async function joinTables() {
@@ -543,7 +736,7 @@ async function confirmAddItem() {
     });
     
     try {
-        const result = await addItemToOrder(orderId, selectedItem.id, quantity, notes, modifications);
+        const result = await addItemToOrder(orderId, selectedItem.id, quantity, notes, modifications, SEAT_BILL ? null : activeSeat);
         
         if (result.success) {
             showToast(T.added, 'success');
@@ -618,7 +811,17 @@ async function sendOrderToKitchen() {
 }
 
 async function requestBillAction(tillId = null) {
+    const seat = pendingBillSeat;
+    pendingBillSeat = null;
     try {
+        if (seat) {
+            const body = { action: 'request_seat_bill', order_id: orderId, seat };
+            if (tillId) body.till_id = tillId;
+            await apiCall('/api/orders.php', 'POST', body);
+            showToast(T.seatBill, 'success');
+            location.reload();
+            return;
+        }
         const result = await requestBill(orderId, tillId);
         if (result.success) {
             showToast(T.billRequested, 'success');

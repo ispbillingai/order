@@ -19,6 +19,12 @@ calculateOrderTotals($orderId);
 $order = getOrderById($orderId); // refresh after recalc
 $orderItems = getOrderItems($orderId);
 
+// Seats of this table billed separately and still waiting to be paid.
+$pdoPay = getDBConnection();
+$stmt = $pdoPay->prepare("SELECT id, order_number, seat, total FROM orders WHERE parent_order_id = ? AND status NOT IN ('paid', 'cancelled') ORDER BY seat");
+$stmt->execute([(int) $order['id']]);
+$openSeatBills = $stmt->fetchAll();
+
 // Route the kiosk to this order's till devices (falls back to global).
 $cm     = tillConfigForOrder($order, 'cashmatic');
 $pos    = tillConfigForOrder($order, 'pos');
@@ -110,7 +116,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <?php foreach ($orderItems as $item): ?>
                     <div class="dev-row">
-                        <div><?= (int) $item['quantity'] ?>× <?= htmlspecialchars($item['item_name']) ?></div>
+                        <div><?= (int) $item['quantity'] ?>× <?= htmlspecialchars($item['item_name']) ?><?php if (!empty($item['seat']) && empty($order['parent_order_id'])): ?> <span class="badge badge-info"><?= te('seat') ?> <?= (int) $item['seat'] ?></span><?php endif; ?></div>
                         <strong><?= formatCurrency($item['total_price']) ?></strong>
                     </div>
                 <?php endforeach; ?>
@@ -120,6 +126,23 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+
+        <?php if ($openSeatBills): ?>
+        <div class="card mb-lg">
+            <div class="card-header"><h2><i class="fas fa-user"></i> <?= te('seat_bills') ?></h2></div>
+            <div class="card-body">
+                <?php foreach ($openSeatBills as $sb): ?>
+                    <div class="dev-row" style="align-items:center;">
+                        <div><?= te('seat') ?> <?= (int) $sb['seat'] ?> <span class="text-muted">· <?= htmlspecialchars($sb['order_number']) ?></span></div>
+                        <div class="d-flex gap-sm align-center">
+                            <strong><?= formatCurrency($sb['total']) ?></strong>
+                            <a class="btn btn-sm btn-success" href="/cashier/payment.php?order=<?= (int) $sb['id'] ?>"><i class="fas fa-money-bill"></i> <?= te('process_payment') ?></a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="card">
             <div class="card-header"><h2><i class="fas fa-percent"></i> <?= te('apply_discount') ?></h2></div>

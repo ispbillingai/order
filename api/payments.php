@@ -95,13 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE orders SET status = 'paid', closed_at = NOW() WHERE id = ?");
             $stmt->execute([$orderId]);
             
-            // Free up the table
-            $stmt = $pdo->prepare("
-                UPDATE tables_restaurant 
-                SET status = 'free', current_order_id = NULL 
-                WHERE current_order_id = ?
-            ");
-            $stmt->execute([$orderId]);
+            // Free up the table (unless seat bills on it are still unpaid)
+            releaseOrderTables($orderId);
             
             // Notify waiter
             createNotification(

@@ -254,6 +254,41 @@ function getOrderTables($orderId) {
  * Recompute the order's display label from its tables: "5 + 6 + 7" when
  * joined, NULL (= just its table number) when it's on a single table.
  */
+/**
+ * After an order is paid: free its tables once nothing on them is still owed.
+ * A seat bill never holds the tables itself; the table's own order does, and
+ * the tables stay taken until it and every seat bill split from it are paid.
+ * A table order emptied out entirely into seat bills (no dishes, no covers
+ * left) closes by itself when the last seat bill is paid.
+ */
+function releaseOrderTables($orderId) {
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT COALESCE(parent_order_id, id) FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $rootId = (int) $stmt->fetchColumn();
+    if (!$rootId) return;
+
+    $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+    $stmt->execute([$rootId]);
+    $root = $stmt->fetch();
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE parent_order_id = ? AND status NOT IN ('paid', 'cancelled')");
+    $stmt->execute([$rootId]);
+    $openSeatBills = (int) $stmt->fetchColumn();
+    if ($openSeatBills > 0) return;
+
+    if (!in_array($root['status'], ['paid', 'cancelled'], true)) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM order_items WHERE order_id = ? AND status <> 'cancelled'");
+        $stmt->execute([$rootId]);
+        if ((int) $stmt->fetchColumn() > 0 || (int) $root['number_of_people'] > 0) return; // still owes its own bill
+        $pdo->prepare("UPDATE orders SET status = 'paid', subtotal = 0, discount_amount = 0, total = 0, closed_at = NOW() WHERE id = ?")
+            ->execute([$rootId]);
+    }
+
+    $pdo->prepare("UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE current_order_id = ?")
+        ->execute([$rootId]);
+}
+
 function refreshOrderTableLabel($orderId) {
     $numbers = array_column(getOrderTables($orderId), 'table_number');
     $label   = count($numbers) > 1 ? mb_substr(implode(' + ', $numbers), 0, 100) : null;

@@ -251,9 +251,10 @@ async function createOrder(tableId, numberOfPeople) {
     });
 }
 
-async function addItemToOrder(orderId, menuItemId, quantity = 1, notes = '', modifications = []) {
+async function addItemToOrder(orderId, menuItemId, quantity = 1, notes = '', modifications = [], seat = null) {
     return await apiCall('/api/orders.php', 'POST', {
         action: 'add_item',
+        seat: seat,
         order_id: orderId,
         menu_item_id: menuItemId,
         quantity: quantity,

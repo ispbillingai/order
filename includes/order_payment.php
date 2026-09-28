@@ -60,10 +60,8 @@ function confirmOrderPayment(int $orderId, string $method, int $amountCents, arr
     $pdo->prepare("UPDATE orders SET status = 'paid', closed_at = NOW() WHERE id = ?")
         ->execute([$orderId]);
 
-    // Free the table (schema: tables_restaurant.current_order_id).
-    $pdo->prepare(
-        "UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE current_order_id = ?"
-    )->execute([$orderId]);
+    // Free the table(s) — unless seat bills on it are still unpaid.
+    releaseOrderTables($orderId);
 
     logDeviceEvent(
         $method === 'cash_machine' ? 'cashmatic'

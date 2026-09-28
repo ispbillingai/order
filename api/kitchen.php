@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $item['waiter_id'],
                         'dish_ready',
                         'Dish Ready!',
-                        "{$item['item_name']} is ready for Table {$item['table_number']}",
+                        "{$item['item_name']} is ready for Table {$item['table_number']}" . (!empty($item['seat']) ? " (seat {$item['seat']})" : ''),
                         $orderItemId,
                         ['order_id' => $item['order_id']]
                     );
@@ -197,6 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             SELECT 
                 oi.id as order_item_id,
                 oi.order_id,
+                oi.seat,
                 oi.quantity,
                 oi.notes,
                 oi.status,

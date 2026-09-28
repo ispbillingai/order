@@ -31,6 +31,7 @@ try {
         FROM tables_restaurant t
         JOIN rooms r ON t.room_id = r.id
         LEFT JOIN orders o ON (o.table_id = t.id OR o.id = t.current_order_id) AND o.status NOT IN ('paid', 'cancelled')
+            AND o.parent_order_id IS NULL
         WHERE r.active = 1
         ORDER BY r.sort_order, t.table_number
     ");
@@ -59,6 +60,9 @@ try {
         JOIN users u ON o.waiter_id = u.id
         LEFT JOIN stations st ON o.till_id = st.id
         WHERE o.status = 'bill_requested'
+          -- a table order emptied into seat bills: nothing to take, the seat bills are listed
+          AND NOT (o.parent_order_id IS NULL AND o.total = 0 AND EXISTS (
+                SELECT 1 FROM orders sb WHERE sb.parent_order_id = o.id AND sb.status NOT IN ('paid', 'cancelled')))
         ORDER BY o.updated_at ASC
     ");
     $pendingBills = $stmt->fetchAll();

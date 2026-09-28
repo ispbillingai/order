@@ -28,6 +28,7 @@ if ($selectedRoomId) {
             FROM tables_restaurant t
             JOIN orders o ON o.table_id = t.id OR o.id = t.current_order_id
             WHERE t.id IN ($placeholders) AND o.status NOT IN ('paid', 'cancelled')
+              AND o.parent_order_id IS NULL
         ");
         $stmt->execute($tableIds);
         foreach ($stmt->fetchAll() as $order) {

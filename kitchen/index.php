@@ -15,6 +15,7 @@ $stmt = $pdo->query("
         oi.id as order_item_id,
         oi.order_id,
         oi.quantity,
+        oi.seat,
         oi.notes,
         oi.status,
         oi.sent_to_kitchen_at,
@@ -253,7 +254,7 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="ticket-item" data-item-id="<?= $item['order_item_id'] ?>">
                                     <div>
                                         <span class="qty"><?= $item['quantity'] ?>×</span>
-                                        <strong><?= htmlspecialchars($item['item_name']) ?></strong>
+                                        <strong><?= htmlspecialchars($item['item_name']) ?></strong><?php if (!empty($item['seat'])): ?> <span class="badge badge-info"><?= te('seat') ?> <?= (int) $item['seat'] ?></span><?php endif; ?>
                                         <span class="badge badge-<?= $item['status'] === 'in_kitchen' ? 'info' : 'warning' ?>" style="margin-left: 8px;">
                                             <?= $item['status'] === 'in_kitchen' ? te('cooking') : te('queued') ?>
                                         </span>

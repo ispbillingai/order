@@ -200,7 +200,7 @@ return [
     'glovo_menu_item'       => 'Our dish',
 
     // ---- Joined tables (large party) ----
-    'join_tables'           => 'Join tables',
+    'join_tables'           => 'Join / merge tables',
     'join_current_tables'   => 'Tables on this order',
     'join_add_tables'       => 'Add free tables',
     'join_no_free'          => 'No free tables right now.',
@@ -209,6 +209,30 @@ return [
     'join_pick_one'         => 'Pick at least one table.',
     'join_table_busy'       => 'Table already has an order:',
     'join_primary_table'    => 'This is the order\'s own table; it can\'t be removed.',
+    // Bill by seat
+    'seat'                  => 'Seat',
+    'seat_shared'           => 'Table (shared)',
+    'seat_adding_to'        => 'New dishes go to',
+    'seat_bill_btn'         => 'Bill seat',
+    'seat_move_title'       => 'Move dish to',
+    'seat_bills'            => 'Separate seat bills',
+    'seat_billed'           => 'billed',
+    'seat_bill_note'        => 'This is the separate bill for one seat of the table.',
+    'seat_bill_open_table'  => 'Open the table\'s order',
+    'seat_bill_fixed'       => 'A seat bill only holds its own seat\'s dishes.',
+    'seat_bill_empty'       => 'This seat has no dishes to bill.',
+    'seat_bill_pending'     => 'Send this seat\'s dishes to the kitchen before billing it.',
+    'toast_seat_bill'       => 'Seat bill sent to the cashier',
+    'toast_seat_moved'      => 'Dish moved',
+    // Merge occupied tables
+    'merge_title'           => 'Merge an occupied table',
+    'merge_hint'            => 'Its dishes and guests move onto this order: one bill for both tables. Its seats are numbered on after this table\'s seats.',
+    'merge_btn'             => 'Merge',
+    'merge_none'            => 'No other occupied tables.',
+    'merge_confirm'         => 'Merge into this order: table',
+    'merge_not_allowed'     => 'These orders can\'t be merged.',
+    'merge_has_seat_bills'  => 'That table still has unpaid seat bills; settle them first.',
+    'toast_merged'          => 'Tables merged',
     'toast_tables_joined'   => 'Tables joined — one order, one bill.',
 
     // ---- Kitchen ----

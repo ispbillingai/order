@@ -29,6 +29,29 @@ function orderIsEditable(PDO $pdo, int $orderId): bool
     return $status !== false && !in_array($status, ['paid', 'cancelled'], true);
 }
 
+/** Seat number from the request: 1..99, anything else = shared by the table (NULL). */
+function seatOrNull($seat): ?int
+{
+    $seat = (int) $seat;
+    return ($seat >= 1 && $seat <= 99) ? $seat : null;
+}
+
+/** Tell every active cashier a bill is waiting. */
+function notifyCashiersBill(PDO $pdo, int $orderId): void
+{
+    $order = getOrderById($orderId);
+    foreach ($pdo->query("SELECT id FROM users WHERE role = 'cashier' AND active = 1")->fetchAll() as $cashier) {
+        createNotification(
+            $cashier['id'],
+            'bill_requested',
+            'Bill Requested',
+            "Table {$order['table_number']} is ready to pay",
+            null,
+            ['order_id' => $orderId]
+        );
+    }
+}
+
 // Handle GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
@@ -77,6 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("
                 SELECT id, order_number FROM orders
                 WHERE (table_id = ? OR id = ?) AND status NOT IN ('paid', 'cancelled')
+                  AND parent_order_id IS NULL
                 ORDER BY id DESC LIMIT 1
             ");
             $stmt->execute([$tableId, (int) ($table['current_order_id'] ?? 0)]);
@@ -134,6 +158,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order is closed']);
             }
 
+            // Seat the dish belongs to (NULL = shared by the table). A seat
+            // bill only ever holds its own seat's dishes.
+            $stmt = $pdo->prepare("SELECT seat, parent_order_id FROM orders WHERE id = ?");
+            $stmt->execute([$orderId]);
+            $orderRow = $stmt->fetch();
+            $seat = $orderRow['parent_order_id'] ? (int) $orderRow['seat'] : seatOrNull($input['seat'] ?? null);
+
             // Get menu item
             $stmt = $pdo->prepare("SELECT * FROM menu_items WHERE id = ?");
             $stmt->execute([$menuItemId]);
@@ -155,10 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Insert order item
             $stmt = $pdo->prepare("
-                INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, notes)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$orderId, $menuItemId, $quantity, $unitPrice, $totalPrice, $notes]);
+            $stmt->execute([$orderId, $seat, $menuItemId, $quantity, $unitPrice, $totalPrice, $notes]);
             
             $orderItemId = $pdo->lastInsertId();
             
@@ -383,21 +414,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$orderId]);
             
             // Notify cashiers
-            $stmt = $pdo->query("SELECT id FROM users WHERE role = 'cashier' AND active = 1");
-            $cashiers = $stmt->fetchAll();
-            
-            $order = getOrderById($orderId);
-            foreach ($cashiers as $cashier) {
-                createNotification(
-                    $cashier['id'],
-                    'bill_requested',
-                    'Bill Requested',
-                    "Table {$order['table_number']} is ready to pay",
-                    null,
-                    ['order_id' => $orderId]
-                );
-            }
-            
+            notifyCashiersBill($pdo, (int) $orderId);
+
             logActivity('bill_requested', 'orders', $orderId);
             
             jsonResponse(['success' => true]);
@@ -425,7 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Table not found']);
             }
             // Only free tables: joining an occupied one would silently hide its order.
-            $busy = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE (table_id = ? OR id = ?) AND id <> ? AND status NOT IN ('paid','cancelled')");
+            $busy = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE (table_id = ? OR id = ?) AND id <> ? AND parent_order_id IS NULL AND status NOT IN ('paid','cancelled')");
             foreach ($rows as $t) {
                 $busy->execute([$t['id'], (int) ($t['current_order_id'] ?? 0), $orderId]);
                 if ((int) $busy->fetchColumn() > 0) {
@@ -461,6 +479,181 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $label = refreshOrderTableLabel($orderId);
             logActivity('table_unjoined', 'orders', $orderId, ['table_id' => $tableId, 'label' => $label]);
             jsonResponse(['success' => true, 'table_label' => $label]);
+            break;
+
+        case 'set_item_seat':
+            // Move a dish to another seat (or back to the shared table).
+            $orderItemId = (int) ($input['order_item_id'] ?? 0);
+            $seat        = seatOrNull($input['seat'] ?? null);
+            $stmt = $pdo->prepare("
+                SELECT oi.id, oi.order_id, o.parent_order_id
+                FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                WHERE oi.id = ?
+            ");
+            $stmt->execute([$orderItemId]);
+            $item = $stmt->fetch();
+            if (!$item) {
+                jsonResponse(['success' => false, 'message' => 'Item not found']);
+            }
+            if (!orderIsEditable($pdo, (int) $item['order_id'])) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            if ($item['parent_order_id']) {
+                jsonResponse(['success' => false, 'message' => t('seat_bill_fixed')]);
+            }
+            $pdo->prepare("UPDATE order_items SET seat = ? WHERE id = ?")->execute([$seat, $orderItemId]);
+            jsonResponse(['success' => true]);
+            break;
+
+        case 'request_seat_bill':
+            // Bill ONE seat: its dishes (and one cover) move into a seat bill —
+            // a normal order the cashier takes payment for as usual — while the
+            // rest of the table carries on on the table's order.
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $seat    = seatOrNull($input['seat'] ?? null);
+            $tillId  = (isset($input['till_id']) && (int) $input['till_id'] > 0) ? (int) $input['till_id'] : null;
+            if (!$orderId || !$seat) {
+                jsonResponse(['success' => false, 'message' => 'Order ID and seat required']);
+            }
+            if (!orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ? FOR UPDATE");
+            $stmt->execute([$orderId]);
+            $parent = $stmt->fetch();
+            if ($parent['parent_order_id']) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('seat_bill_fixed')]);
+            }
+
+            $stmt = $pdo->prepare("SELECT status FROM order_items WHERE order_id = ? AND seat = ? AND status <> 'cancelled'");
+            $stmt->execute([$orderId, $seat]);
+            $statuses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!$statuses) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('seat_bill_empty')]);
+            }
+            // Dishes not yet sent would never reach the kitchen from a bill.
+            if (in_array('pending', $statuses, true)) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('seat_bill_pending')]);
+            }
+
+            $order = getOrderById($orderId);
+            $cover = (int) $parent['number_of_people'] > 0 ? 1 : 0;
+            $label = mb_substr($order['table_number'] . ' · ' . t('seat') . ' ' . $seat, 0, 100);
+
+            $seatOrderNumber = generateOrderNumber();
+            $pdo->prepare("
+                INSERT INTO orders (order_number, table_id, table_label, parent_order_id, seat, room_id, waiter_id,
+                                    number_of_people, cover_charge_per_person, status, till_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bill_requested', ?)
+            ")->execute([
+                $seatOrderNumber, $parent['table_id'], $label, $orderId, $seat, $parent['room_id'], $parent['waiter_id'],
+                $cover, $parent['cover_charge_per_person'], $tillId,
+            ]);
+            $seatOrderId = (int) $pdo->lastInsertId();
+
+            // The seat's dishes (cancelled ones too, so the history travels
+            // with them) and their kitchen-display tickets move to the seat bill.
+            $pdo->prepare("UPDATE order_items SET order_id = ? WHERE order_id = ? AND seat = ?")
+                ->execute([$seatOrderId, $orderId, $seat]);
+            $pdo->prepare("UPDATE kitchen_tickets SET order_id = ? WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)")
+                ->execute([$seatOrderId, $seatOrderId]);
+            $pdo->prepare("UPDATE orders SET number_of_people = number_of_people - ? WHERE id = ?")
+                ->execute([$cover, $orderId]);
+
+            calculateOrderTotals($seatOrderId);
+            calculateOrderTotals($orderId);
+
+            // Every seat billed and nothing shared left: the table itself is
+            // now just waiting for its seat bills to be paid.
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM order_items WHERE order_id = ? AND status <> 'cancelled'");
+            $stmt->execute([$orderId]);
+            if ((int) $stmt->fetchColumn() === 0 && (int) $parent['number_of_people'] - $cover <= 0) {
+                $pdo->prepare("UPDATE orders SET status = 'bill_requested' WHERE id = ?")->execute([$orderId]);
+                $pdo->prepare("UPDATE tables_restaurant SET status = 'bill_requested' WHERE current_order_id = ?")->execute([$orderId]);
+            }
+            $pdo->commit();
+
+            notifyCashiersBill($pdo, $seatOrderId);
+            logActivity('seat_bill_requested', 'orders', $seatOrderId, ['table_order' => $orderId, 'seat' => $seat]);
+
+            jsonResponse(['success' => true, 'order_id' => $seatOrderId, 'order_number' => $seatOrderNumber, 'table_label' => $label]);
+            break;
+
+        case 'merge_order':
+            // Merge another occupied table into this order: its dishes, guests
+            // and tables all come over, and one bill covers both tables.
+            $orderId  = (int) ($input['order_id'] ?? 0);
+            $sourceId = (int) ($input['source_order_id'] ?? 0);
+            if (!$orderId || !$sourceId || $orderId === $sourceId) {
+                jsonResponse(['success' => false, 'message' => 'Two different orders required']);
+            }
+            if (!orderIsEditable($pdo, $orderId) || !orderIsEditable($pdo, $sourceId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("SELECT * FROM orders WHERE id IN (?, ?) FOR UPDATE");
+            $stmt->execute([$orderId, $sourceId]);
+            $rows = array_column($stmt->fetchAll(), null, 'id');
+            $target = $rows[$orderId] ?? null;
+            $source = $rows[$sourceId] ?? null;
+            if (!$target || !$source || $target['parent_order_id'] || $source['parent_order_id']
+                || ($source['channel'] ?? 'dine_in') !== 'dine_in') {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('merge_not_allowed')]);
+            }
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE parent_order_id = ? AND status NOT IN ('paid', 'cancelled')");
+            $stmt->execute([$sourceId]);
+            if ((int) $stmt->fetchColumn() > 0) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('merge_has_seat_bills')]);
+            }
+
+            // The other table's seats follow on after this order's seats, so
+            // seat 1 there doesn't end up on the same bill as seat 1 here.
+            $stmt = $pdo->prepare("
+                SELECT GREATEST(
+                    (SELECT COALESCE(MAX(seat), 0) FROM order_items WHERE order_id = ?),
+                    (SELECT COALESCE(MAX(seat), 0) FROM orders WHERE parent_order_id = ?),
+                    ?)
+            ");
+            $stmt->execute([$orderId, $orderId, (int) $target['number_of_people']]);
+            $offset = (int) $stmt->fetchColumn();
+
+            $pdo->prepare("UPDATE order_items SET order_id = ?, seat = IF(seat IS NULL, NULL, LEAST(seat + ?, 99)) WHERE order_id = ?")
+                ->execute([$orderId, $offset, $sourceId]);
+            $pdo->prepare("UPDATE kitchen_tickets SET order_id = ? WHERE order_id = ?")
+                ->execute([$orderId, $sourceId]);
+            $pdo->prepare("UPDATE orders SET number_of_people = number_of_people + ? WHERE id = ?")
+                ->execute([(int) $source['number_of_people'], $orderId]);
+
+            // The other table's tables now belong to this order.
+            $tableStatus = $target['status'] === 'bill_requested' ? 'bill_requested' : 'occupied';
+            $pdo->prepare("UPDATE tables_restaurant SET status = ?, current_order_id = ? WHERE current_order_id = ? OR id = ?")
+                ->execute([$tableStatus, $orderId, $sourceId, $source['table_id']]);
+
+            // The emptied order is closed out with nothing on it.
+            $pdo->prepare("
+                UPDATE orders SET status = 'cancelled', number_of_people = 0, subtotal = 0, discount_amount = 0, total = 0,
+                                  closed_at = NOW(), notes = TRIM(CONCAT(COALESCE(notes, ''), ' ', ?))
+                WHERE id = ?
+            ")->execute(['[merged into #' . $target['order_number'] . ']', $sourceId]);
+
+            $label = refreshOrderTableLabel($orderId);
+            calculateOrderTotals($orderId);
+            $pdo->commit();
+
+            logActivity('orders_merged', 'orders', $orderId, [
+                'merged_order' => $source['order_number'],
+                'seat_offset'  => $offset,
+                'label'        => $label,
+            ]);
+            jsonResponse(['success' => true, 'table_label' => $label, 'seat_offset' => $offset]);
             break;
 
         default:

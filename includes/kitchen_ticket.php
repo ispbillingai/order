@@ -217,7 +217,7 @@ function printStationTicket(
 
     $in   = implode(',', array_fill(0, count($orderItemIds), '?'));
     $stmt = $pdo->prepare(
-        "SELECT oi.id, oi.quantity, oi.notes, mi.name AS item_name
+        "SELECT oi.id, oi.seat, oi.quantity, oi.notes, mi.name AS item_name
          FROM order_items oi
          JOIN menu_items mi ON oi.menu_item_id = mi.id
          WHERE oi.id IN ($in)
@@ -249,7 +249,8 @@ function printStationTicket(
 
         $items[] = [
             'qty'    => (int) $r['quantity'],
-            'name'   => (string) $r['item_name'],
+            // Which guest it's for (Posto = seat), so it's served to the right person.
+            'name'   => ($r['seat'] ? '[P' . (int) $r['seat'] . '] ' : '') . (string) $r['item_name'],
             'mods'   => $mods,
             'note'   => (string) ($r['notes'] ?? ''),
             'change' => $change,
