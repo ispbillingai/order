@@ -301,6 +301,15 @@ return [
     'guest_err_no_order'    => 'Non c\'è ancora un ordine aperto su questo tavolo.',
     'guest_err_too_many'    => 'Troppe richieste. Il personale sta arrivando.',
     'guest_err_bad_type'    => 'Invio non riuscito. Riprova.',
+    'guest_change_how'      => 'Cosa vuoi fare?',
+    'guest_mode_modify'     => 'Modifica questo piatto',
+    'guest_mode_swap'       => 'Cambialo con un altro',
+    'guest_pick_new'        => 'Scegli il nuovo piatto',
+    'guest_note_optional'   => 'Nota (facoltativa)',
+    'guest_req_swap'        => 'Cambio',
+    'guest_err_no_replacement' => 'Questo piatto non è disponibile al momento.',
+    'guest_err_no_change'   => 'Scrivi cosa vuoi cambiare.',
+    'req_swap'              => 'Cambio',
     'toast_tables_joined'   => 'Tavoli uniti — un solo ordine, un solo conto.',
 
     // ---- Kitchen ----

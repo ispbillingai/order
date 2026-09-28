@@ -17,6 +17,7 @@
         'bill'        => t('req_bill'),
         'waiter'      => t('req_waiter'),
         'change'      => t('req_change'),
+        'swap'        => t('req_swap'),
         'take'        => t('req_take'),
         'done'        => t('req_done'),
         'taken_by'    => t('req_taken_by'),

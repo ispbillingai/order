@@ -301,6 +301,15 @@ return [
     'guest_err_no_order'    => 'There is no open order on this table yet.',
     'guest_err_too_many'    => 'Too many requests. The staff are on their way.',
     'guest_err_bad_type'    => 'Could not send. Please try again.',
+    'guest_change_how'      => 'What would you like to do?',
+    'guest_mode_modify'     => 'Change this dish',
+    'guest_mode_swap'       => 'Swap for another dish',
+    'guest_pick_new'        => 'Pick the new dish',
+    'guest_note_optional'   => 'Note (optional)',
+    'guest_req_swap'        => 'Swap',
+    'guest_err_no_replacement' => 'That dish is not available right now.',
+    'guest_err_no_change'   => 'Write what you would like changed.',
+    'req_swap'              => 'Swap',
     'toast_tables_joined'   => 'Tables joined — one order, one bill.',
 
     // ---- Kitchen ----

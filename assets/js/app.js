@@ -398,9 +398,11 @@ function trText(r) {
     const L = window.REQ_I18N || {};
     if (r.type === 'bill') return L.bill || 'Asks for the bill';
     if (r.type === 'waiter') return L.waiter || 'Calls the waiter';
-    let t = (L.change || 'Change to') + ' ' + (r.item_name || '');
-    if (r.seat) t += ' (' + (L.seat || 'Seat') + ' ' + r.seat + ')';
-    return t;
+    const seat = r.seat ? ' (' + (L.seat || 'Seat') + ' ' + r.seat + ')' : '';
+    if (r.replacement_name) {
+        return (L.swap || 'Swap') + ': ' + (r.item_name || '') + seat + ' → ' + r.replacement_name;
+    }
+    return (L.change || 'Change to') + ' ' + (r.item_name || '') + seat;
 }
 
 function trBeep() {

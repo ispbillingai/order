@@ -102,7 +102,7 @@ function tableMealItems(int $orderId): array
  *
  * @return array{ok:bool, id?:int, duplicate?:bool, error?:string}
  */
-function createTableRequest(array $table, string $type, ?int $orderItemId = null, string $message = ''): array
+function createTableRequest(array $table, string $type, ?int $orderItemId = null, string $message = '', ?int $replacementId = null): array
 {
     if (!in_array($type, ['bill', 'waiter', 'change'], true)) {
         return ['ok' => false, 'error' => 'bad_type'];
@@ -120,8 +120,17 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         ");
         $stmt->execute([$orderItemId, $order['id'], $order['id']]);
         if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_dish'];
+        // Swap for another dish: it must be on the menu right now.
+        if ($replacementId) {
+            $stmt = $pdo->prepare("SELECT mi.id FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
+            $stmt->execute([$replacementId]);
+            if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_replacement'];
+        } elseif ($message === '') {
+            return ['ok' => false, 'error' => 'no_change'];
+        }
     } else {
-        $orderItemId = null;
+        $orderItemId   = null;
+        $replacementId = null;
     }
     if ($type === 'bill' && !$order) {
         return ['ok' => false, 'error' => 'no_order'];
@@ -134,7 +143,11 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
     ");
     $stmt->execute([$table['id'], $type, $orderItemId]);
     if ($id = $stmt->fetchColumn()) {
-        if ($message !== '') {
+        // Same dish asked again: the latest wish replaces the earlier one.
+        if ($type === 'change') {
+            $pdo->prepare("UPDATE table_requests SET message = ?, replacement_menu_item_id = ?, status = 'open' WHERE id = ?")
+                ->execute([$message !== '' ? $message : null, $replacementId, $id]);
+        } elseif ($message !== '') {
             $pdo->prepare("UPDATE table_requests SET message = ? WHERE id = ?")->execute([$message, $id]);
         }
         return ['ok' => true, 'id' => (int) $id, 'duplicate' => true];
@@ -147,8 +160,8 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         return ['ok' => false, 'error' => 'too_many'];
     }
 
-    $pdo->prepare("INSERT INTO table_requests (table_id, order_id, order_item_id, type, message) VALUES (?, ?, ?, ?, ?)")
-        ->execute([$table['id'], $order['id'] ?? null, $orderItemId, $type, $message !== '' ? $message : null]);
+    $pdo->prepare("INSERT INTO table_requests (table_id, order_id, order_item_id, replacement_menu_item_id, type, message) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([$table['id'], $order['id'] ?? null, $orderItemId, $replacementId, $type, $message !== '' ? $message : null]);
     return ['ok' => true, 'id' => (int) $pdo->lastInsertId()];
 }
 
@@ -162,18 +175,42 @@ function openTableRequestsForRole(string $role): array
         SELECT tr.id, tr.type, tr.status, tr.message, tr.order_id, tr.created_at,
                TIMESTAMPDIFF(SECOND, tr.created_at, NOW()) AS age_seconds,
                COALESCE(o.table_label, t.table_number) AS table_number, t.id AS table_id,
-               mi.name AS item_name, oi.seat, o.waiter_id, su.full_name AS seen_by_name
+               mi.name AS item_name, rmi.name AS replacement_name, oi.seat, o.waiter_id, su.full_name AS seen_by_name
         FROM table_requests tr
         JOIN tables_restaurant t ON t.id = tr.table_id
         LEFT JOIN orders o ON o.id = tr.order_id
         LEFT JOIN order_items oi ON oi.id = tr.order_item_id
         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+        LEFT JOIN menu_items rmi ON rmi.id = tr.replacement_menu_item_id
         LEFT JOIN users su ON su.id = tr.seen_by
         WHERE tr.status <> 'done' AND tr.type IN ($in)
         ORDER BY tr.created_at, tr.id
     ");
     $stmt->execute($types);
     return $stmt->fetchAll();
+}
+
+/** What a guest can pick as a replacement dish: active menu, by category. */
+function guestMenu(): array
+{
+    $rows = getDBConnection()->query("
+        SELECT mc.id AS category_id, mc.name AS category, mi.id, mi.name, mi.description, mi.base_price
+        FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
+        WHERE mi.active = 1 AND mc.active = 1
+        ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
+    ")->fetchAll();
+    $menu = [];
+    foreach ($rows as $r) {
+        $cid = (int) $r['category_id'];
+        $menu[$cid] ??= ['name' => $r['category'], 'items' => []];
+        $menu[$cid]['items'][] = [
+            'id'          => (int) $r['id'],
+            'name'        => $r['name'],
+            'description' => (string) $r['description'],
+            'price'       => formatCurrency($r['base_price']),
+        ];
+    }
+    return array_values($menu);
 }
 
 /** A table's meal is over (paid / cancelled): nothing left to answer there. */

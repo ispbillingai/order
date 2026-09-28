@@ -29,6 +29,10 @@ $L = [
     'write_change' => t('guest_write_change'),
     'failed'       => t('guest_failed'),
     'paid'         => t('guest_paid'),
+    'pick_new'     => t('guest_pick_new'),
+    'swap'         => t('guest_req_swap'),
+    'note_opt'     => t('guest_note_optional'),
+    'change_what'  => t('guest_change_what'),
 ];
 header('Cache-Control: no-store');
 ?>
@@ -83,6 +87,14 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .sheet .row { display: flex; gap: 8px; margin-top: 12px; }
 .sheet .row button { flex: 1; padding: 13px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; }
 .btn-go { background: var(--p); color: #fff; } .btn-no { background: #f3f4f6; }
+.step { font-weight: 700; margin: 14px 0 8px; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modes button { padding: 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); }
+.modes button.on { border-color: var(--p); background: #fff7ed; color: var(--p); }
+.menu-cat { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 6px; }
+.pick .price { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.pick .desc { display: block; font-size: .8rem; color: var(--muted); }
+#menuPicks { max-height: 38vh; overflow-y: auto; }
 .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; z-index: 20; display: none; max-width: 90vw; text-align: center; }
 .bad { text-align: center; padding: 60px 20px; }
 </style>
@@ -123,7 +135,19 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     <div class="sheet">
         <h3><?= te('guest_change_title') ?></h3>
         <div id="changePicks"></div>
-        <label for="changeMsg" style="font-weight:600;"><?= te('guest_change_what') ?></label>
+
+        <div class="step"><?= te('guest_change_how') ?></div>
+        <div class="modes">
+            <button type="button" id="modeModify" class="on" onclick="setMode('modify')"><i class="fas fa-pen"></i><?= te('guest_mode_modify') ?></button>
+            <button type="button" id="modeSwap" onclick="setMode('swap')"><i class="fas fa-right-left"></i><?= te('guest_mode_swap') ?></button>
+        </div>
+
+        <div id="swapBox" hidden>
+            <div class="step"><?= te('guest_pick_new') ?></div>
+            <div id="menuPicks"><div class="empty"><?= te('loading') ?></div></div>
+        </div>
+
+        <label for="changeMsg" class="step" id="msgLabel" style="display:block;"><?= te('guest_change_what') ?></label>
         <textarea id="changeMsg" maxlength="300" placeholder="<?= te('guest_change_ph') ?>"></textarea>
         <div class="row">
             <button class="btn-no" onclick="closeChange()"><?= te('cancel') ?></button>
@@ -165,7 +189,7 @@ function render(s) {
     $('requestsList').innerHTML = s.requests.map(r => `
         <div class="req ${r.status === 'seen' ? 'seen' : ''}">
             <i class="fas ${r.status === 'seen' ? 'fa-person-walking' : 'fa-clock'}"></i>
-            <div><strong>${esc(label[r.type])}${r.item_name ? ': ' + esc(r.item_name) : ''}</strong><br>
+            <div><strong>${r.replacement_name ? esc(L.swap) + ': ' + esc(r.item_name) + ' → ' + esc(r.replacement_name) : esc(label[r.type]) + (r.item_name ? ': ' + esc(r.item_name) : '')}</strong><br>
                  <small>${esc(r.status === 'seen' ? L.req_seen : L.req_open)}</small></div>
         </div>`).join('');
 }
@@ -198,15 +222,49 @@ function openChange() {
         <label class="pick"><input type="radio" name="dish" value="${i.id}">
             <span>${i.quantity}× ${esc(i.name)}${i.seat ? ' · ' + esc(L.seat) + ' ' + i.seat : ''}</span></label>`).join('');
     $('changeMsg').value = '';
+    document.querySelectorAll('input[name=newdish]').forEach(r => { r.checked = false; });
+    setMode('modify');
     $('changeSheet').classList.add('on');
 }
 function closeChange() { $('changeSheet').classList.remove('on'); }
+
+// Modify the same dish (write what to change) or swap it for another dish
+// from the menu (the note is then optional).
+let changeMode = 'modify', menuLoaded = false;
+function setMode(mode) {
+    changeMode = mode;
+    $('modeModify').classList.toggle('on', mode === 'modify');
+    $('modeSwap').classList.toggle('on', mode === 'swap');
+    $('swapBox').hidden = mode !== 'swap';
+    $('msgLabel').textContent = mode === 'swap' ? L.note_opt : L.change_what;
+    if (mode === 'swap' && !menuLoaded) loadMenu();
+}
+async function loadMenu() {
+    try {
+        const r = await fetch('/api/guest.php?menu=1&k=' + encodeURIComponent(K), { cache: 'no-store' });
+        const d = await r.json();
+        if (!d.success) throw new Error();
+        $('menuPicks').innerHTML = d.menu.map(c => `
+            <div class="menu-cat">${esc(c.name)}</div>
+            ${c.items.map(i => `
+                <label class="pick"><input type="radio" name="newdish" value="${i.id}">
+                    <span>${esc(i.name)}${i.description ? `<span class="desc">${esc(i.description)}</span>` : ''}</span>
+                    <span class="price">${esc(i.price)}</span></label>`).join('')}`).join('');
+        menuLoaded = true;
+    } catch (e) { $('menuPicks').innerHTML = `<div class="empty">${esc(L.failed)}</div>`; }
+}
+
 async function sendChange() {
     const dish = document.querySelector('input[name=dish]:checked');
     const message = $('changeMsg').value.trim();
     if (!dish) { toast(L.pick_dish); return; }
-    if (!message) { toast(L.write_change); return; }
-    if (await send({ type: 'change', order_item_id: parseInt(dish.value, 10), message })) {
+    const body = { type: 'change', order_item_id: parseInt(dish.value, 10), message };
+    if (changeMode === 'swap') {
+        const nd = document.querySelector('input[name=newdish]:checked');
+        if (!nd) { toast(L.pick_new); return; }
+        body.replacement_menu_item_id = parseInt(nd.value, 10);
+    } else if (!message) { toast(L.write_change); return; }
+    if (await send(body)) {
         closeChange();
         toast(L.change_sent);
     }

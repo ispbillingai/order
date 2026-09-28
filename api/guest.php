@@ -5,7 +5,8 @@
  * ever gives access to that table's current meal.
  *
  * GET  ?k=<token>                                  → the table's order + open requests
- * POST {k, type: bill|waiter|change, order_item_id?, message?} → new request
+ * GET  ?k=<token>&menu=1                          → the menu (to swap a dish)
+ * POST {k, type: bill|waiter|change, order_item_id?, replacement_menu_item_id?, message?} → new request
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -45,10 +46,11 @@ function guestState(array $table): array
         }
     }
     $stmt = getDBConnection()->prepare("
-        SELECT tr.id, tr.type, tr.status, mi.name AS item_name
+        SELECT tr.id, tr.type, tr.status, mi.name AS item_name, rmi.name AS replacement_name
         FROM table_requests tr
         LEFT JOIN order_items oi ON oi.id = tr.order_item_id
         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+        LEFT JOIN menu_items rmi ON rmi.id = tr.replacement_menu_item_id
         WHERE tr.table_id = ? AND tr.status <> 'done'
         ORDER BY tr.id
     ");
@@ -70,12 +72,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $table,
         (string) ($input['type'] ?? ''),
         isset($input['order_item_id']) ? (int) $input['order_item_id'] : null,
-        (string) ($input['message'] ?? '')
+        (string) ($input['message'] ?? ''),
+        !empty($input['replacement_menu_item_id']) ? (int) $input['replacement_menu_item_id'] : null
     );
     if (!$res['ok']) {
         jsonResponse(['success' => false, 'message' => t('guest_err_' . $res['error'])]);
     }
     jsonResponse(guestState($table) + ['request_id' => $res['id']]);
+}
+
+// The menu, for swapping a dish for another one.
+if (!empty($_GET['menu'])) {
+    jsonResponse(['success' => true, 'menu' => guestMenu()]);
 }
 
 jsonResponse(guestState($table));
