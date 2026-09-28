@@ -149,10 +149,22 @@ switch ($action) {
             case 'success':
                 $complete($s['raw']);
             case 'signature':
-                $reply(['ok' => true, 'state' => 'signature', 'status' => $s['status']]);
+                // Dojo gives the operator 80 s from entering this state, then
+                // accepts the signature by itself. Report what's left so the
+                // cashier's popup counts down to the real deadline (also after a reload).
+                $since = null;
+                foreach ((array) ($s['raw']['statusEvents'] ?? []) as $ev) {
+                    if (($ev['status'] ?? '') === 'SignatureVerificationRequired' && !empty($ev['createdAt'])) {
+                        $since = strtotime((string) $ev['createdAt']);
+                    }
+                }
+                $left = $since ? max(0, 80 - (time() - $since)) : 80;
+                $reply(['ok' => true, 'state' => 'signature', 'status' => $s['status'], 'seconds_left' => $left]);
             case 'failure':
                 $forget();
-                $err = DojoClient::failureReason($s['raw'], $s['status']);
+                $err = ($state['signature'] ?? '') === 'rejected'
+                    ? 'signature_rejected'
+                    : DojoClient::failureReason($s['raw'], $s['status']);
                 logDeviceEvent('dojo', 'payment_fail', $orderId, ['stage' => 'terminal', 'status' => $s['status'],
                     'error' => $err, 'session_id' => $state['session_id']]);
                 $reply(['ok' => false, 'state' => 'failed', 'status' => $s['status'], 'error' => $err]);
@@ -164,8 +176,15 @@ switch ($action) {
         if (!$state) $reply(['ok' => false, 'error' => 'no_active_session']);
         $accepted = !empty($input['accepted']);
         $r = $dojo->answerSignature($state['session_id'], $accepted);
-        logDeviceEvent('dojo', $accepted ? 'signature_accepted' : 'signature_rejected', $orderId,
-            ['session_id' => $state['session_id'], 'error' => $r['error'] ?? null]);
+        logDeviceEvent('dojo', $accepted ? 'signature_accepted' : 'signature_rejected', $orderId, [
+            'session_id' => $state['session_id'],
+            'by_user'    => (int) $u['id'],   // who checked the signature
+            'error'      => $r['error'] ?? null,
+            'receipts'   => $r['receipts'] ?? null,
+        ]);
+        if ($r['ok']) {
+            $_SESSION['dojo'][$orderId]['signature'] = $accepted ? 'accepted' : 'rejected';
+        }
         $reply($r['ok'] ? ['ok' => true, 'state' => 'pending'] : ['ok' => false, 'error' => $r['error']]);
 
     case 'cancel':

@@ -80,6 +80,9 @@ $jsCfg  = [
         'bill_printed'    => t('js_bill_printed'),
         'dojo_cancelling'     => t('dojo_cancelling'),
         'dojo_cancel_refused' => t('dojo_cancel_refused'),
+        'dojo_sig_countdown'  => t('dojo_sig_countdown'),
+        'dojo_sig_auto'       => t('dojo_sig_auto'),
+        'dojo_sig_rejected'   => t('dojo_sig_rejected'),
         // Terminal prompts from Dojo notificationEvents; unknown ones are shown as-is.
         'dojo_prompts'    => [
             'PresentCard'                   => t('dojo_p_present_card'),
@@ -271,14 +274,28 @@ include __DIR__ . '/../includes/header.php';
                 <h2><?= te('pay_by_dojo') ?></h2>
                 <div class="kiosk-amount" style="font-size:2.2rem;"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
                 <div class="dev-status" id="d-prompt"><?= te('follow_terminal') ?></div>
-                <div id="d-sig" class="hidden">
-                    <p class="dev-err" style="font-weight:700;"><?= te('dojo_sig_question') ?></p>
-                    <div class="kiosk-actions">
-                        <button class="btn-cash" onclick="dojoSignature(true)"><i class="fas fa-check"></i> <?= te('dojo_sig_accept') ?></button>
-                        <button class="btn-cancel" onclick="dojoSignature(false)"><i class="fas fa-times"></i> <?= te('dojo_sig_reject') ?></button>
-                    </div>
-                </div>
                 <button id="d-cancel" class="btn btn-danger btn-block" style="margin-top:12px;" onclick="dojoCancel()"><?= te('cancel') ?></button>
+            </div>
+        </div>
+
+        <!-- Dojo signature verification popup: the terminal printed a slip for
+             the customer to sign; the cashier compares it with the card. Dojo
+             accepts on its own after 80 s, so the popup counts down. -->
+        <div class="modal-overlay" id="dojoSigModal">
+            <div class="modal" style="max-width:480px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-signature"></i> <?= te('dojo_sig_title') ?></h3>
+                </div>
+                <div class="modal-body" style="text-align:center;">
+                    <div class="kiosk-amount" style="font-size:2rem;"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
+                    <p style="font-size:1.05rem;"><?= te('dojo_sig_question') ?></p>
+                    <p class="text-muted" id="d-sig-count"></p>
+                    <p class="dev-err" id="d-sig-err"></p>
+                </div>
+                <div class="modal-footer" style="display:flex;gap:10px;">
+                    <button id="d-sig-reject" class="btn btn-danger btn-lg" style="flex:1;" onclick="dojoSignature(false)"><i class="fas fa-times"></i> <?= te('dojo_sig_reject') ?></button>
+                    <button id="d-sig-accept" class="btn btn-success btn-lg" style="flex:1;" onclick="dojoSignature(true)"><i class="fas fa-check"></i> <?= te('dojo_sig_accept') ?></button>
+                </div>
             </div>
         </div>
 
@@ -370,18 +387,21 @@ function dojoPrompt(code) {
 }
 function dojoFail(msg) {
     dojoActive = false; if (dojoTimer) { clearTimeout(dojoTimer); dojoTimer = null; }
+    sigClose();
+    if (msg === 'signature_rejected') msg = CFG.i18n.dojo_sig_rejected;
     $('k-choose-err').textContent = CFG.i18n.pay_by_dojo + ': ' + (msg || CFG.i18n.card_declined);
     showPanel('k-choose');
 }
 function dojoDone(r) {
     dojoActive = false;
+    sigClose();
     done(r.receipt && r.receipt.receipt_number ? (CFG.i18n.fiscal_no + r.receipt.receipt_number)
         : CFG.i18n.card_approved + (r.auth_code ? ' (' + r.auth_code + ')' : ''));
 }
 async function payDojo() {
     $('k-choose-err').textContent = '';
     $('d-prompt').textContent = CFG.i18n.starting;
-    $('d-sig').classList.add('hidden'); $('d-cancel').disabled = false;
+    sigClose(); $('d-cancel').disabled = false;
     showPanel('k-dojo');
     try {
         const r = await dojoPost('start');
@@ -398,23 +418,61 @@ async function dojoPoll() {
         if (r.state === 'done') return dojoDone(r);
         if (r.state === 'failed' || !r.ok) return dojoFail(r.error);
         if (r.state === 'signature') {
+            // Keep polling while the popup is up: if Dojo's 80 s run out it
+            // accepts by itself and the next poll closes the popup with the result.
             $('d-prompt').textContent = CFG.i18n.dojo_prompts.SignatureVerificationRequired;
-            $('d-sig').classList.remove('hidden'); $('d-cancel').disabled = true;
-            return; // wait for the cashier's answer
+            $('d-cancel').disabled = true;
+            sigOpen(r.seconds_left);
+        } else {
+            sigClose();
+            $('d-prompt').textContent = dojoPrompt(r.prompt);
         }
-        $('d-prompt').textContent = dojoPrompt(r.prompt);
     } catch (e) { $('d-prompt').textContent = e.message; }
     if (dojoActive) dojoTimer = setTimeout(dojoPoll, CFG.dojo_poll_ms);
 }
+
+/* Signature popup. It reopens itself on the next poll if someone closes it
+ * (Esc / click outside) while the terminal still waits for an answer. */
+let sigDeadline = 0, sigTick = null, sigAnswered = false;
+function sigOpen(secondsLeft) {
+    if (sigAnswered) return;   // answer sent, waiting for Dojo's result
+    if (typeof secondsLeft === 'number') sigDeadline = Date.now() + secondsLeft * 1000;
+    if (!$('dojoSigModal').classList.contains('active')) {
+        $('d-sig-err').textContent = '';
+        $('d-sig-accept').disabled = $('d-sig-reject').disabled = false;
+        openModal('dojoSigModal');
+    }
+    if (!sigTick) sigTick = setInterval(sigCountdown, 500);
+    sigCountdown();
+}
+function sigCountdown() {
+    const s = Math.max(0, Math.ceil((sigDeadline - Date.now()) / 1000));
+    $('d-sig-count').textContent = s > 0 ? CFG.i18n.dojo_sig_countdown.replace('%s', s) : CFG.i18n.dojo_sig_auto;
+}
+function sigClose() {
+    if (sigTick) { clearInterval(sigTick); sigTick = null; }
+    sigAnswered = false;
+    closeModal('dojoSigModal');
+}
 async function dojoSignature(accepted) {
-    $('d-sig').classList.add('hidden');
-    $('d-prompt').textContent = CFG.i18n.working;
+    $('d-sig-accept').disabled = $('d-sig-reject').disabled = true;
+    $('d-sig-err').textContent = '';
     try {
         const r = await dojoPost('signature', { accepted });
-        if (!r.ok) $('d-prompt').textContent = r.error || CFG.i18n.failed;
-    } catch (e) { $('d-prompt').textContent = e.message; }
-    // Keep polling: accepted → Captured, rejected → Declined.
-    dojoTimer = setTimeout(dojoPoll, CFG.dojo_poll_ms);
+        if (!r.ok) {   // e.g. network: let the cashier try again before the deadline
+            $('d-sig-err').textContent = r.error || CFG.i18n.failed;
+            $('d-sig-accept').disabled = $('d-sig-reject').disabled = false;
+            return;
+        }
+        sigAnswered = true;
+        if (sigTick) { clearInterval(sigTick); sigTick = null; }
+        closeModal('dojoSigModal');
+        $('d-prompt').textContent = CFG.i18n.working;
+    } catch (e) {
+        $('d-sig-err').textContent = e.message;
+        $('d-sig-accept').disabled = $('d-sig-reject').disabled = false;
+    }
+    // The poll loop is still running: accepted → Captured, rejected → failed.
 }
 async function dojoCancel() {
     $('d-cancel').disabled = true;
@@ -427,7 +485,8 @@ async function dojoCancel() {
     $('d-cancel').disabled = false;
 }
 // Reload during a Dojo sale: pick the running session back up.
-if (CFG.dojo_inflight) payDojo();
+// (after load: openModal/closeModal come from app.js, included by the footer)
+if (CFG.dojo_inflight) document.addEventListener('DOMContentLoaded', payDojo);
 
 /* ---- Cash machine (Cashmatic) ---- */
 async function payCash() {

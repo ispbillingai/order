@@ -156,7 +156,14 @@ class DojoClient
     {
         $r = $this->request('PUT', '/terminal-sessions/' . rawurlencode($sessionId) . '/signature',
             ['accepted' => $accepted]);
-        return $r['ok'] ? ['ok' => true] : ['ok' => false, 'error' => $r['error'] ?? 'signature_failed'];
+        if (!$r['ok']) {
+            return ['ok' => false, 'error' => $r['error'] ?? 'signature_failed'];
+        }
+        // On acceptance Dojo returns the receipt texts; kept for the payment record.
+        return ['ok' => true, 'receipts' => array_filter([
+            'customer' => $r['body']['customerReceipt'] ?? null,
+            'merchant' => $r['body']['merchantReceipt'] ?? null,
+        ])];
     }
 
     /** Step 5: cancel. Dojo refuses once a card has been presented. */
