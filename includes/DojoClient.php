@@ -214,9 +214,10 @@ class DojoClient
                 // the printed identifiers (TID, serial, name) so staff can tell
                 // which physical machine is which.
                 $label = [];
+                $props = array_merge($t, is_array($t['properties'] ?? null) ? $t['properties'] : []);
                 foreach (['tid', 'terminalNumber', 'serialNumber', 'name', 'model'] as $k) {
-                    if (isset($t[$k]) && is_scalar($t[$k]) && (string) $t[$k] !== '') {
-                        $label[] = (string) $t[$k];
+                    if (isset($props[$k]) && is_scalar($props[$k]) && (string) $props[$k] !== '') {
+                        $label[] = (string) $props[$k];
                     }
                 }
                 $out[] = ['id' => (string) $t['id'], 'status' => (string) ($t['status'] ?? ''),
