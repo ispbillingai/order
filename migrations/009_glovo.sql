@@ -5,12 +5,12 @@
 -- webhook retries), external_meta keeps the raw Glovo payload + sync state.
 
 ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS channel VARCHAR(20) NOT NULL DEFAULT 'dine_in' AFTER till_id,
-    ADD COLUMN IF NOT EXISTS external_id VARCHAR(64) NULL DEFAULT NULL AFTER channel,
-    ADD COLUMN IF NOT EXISTS external_meta LONGTEXT NULL DEFAULT NULL AFTER external_id;
+    ADD COLUMN channel VARCHAR(20) NOT NULL DEFAULT 'dine_in' AFTER till_id,
+    ADD COLUMN external_id VARCHAR(64) NULL DEFAULT NULL AFTER channel,
+    ADD COLUMN external_meta LONGTEXT NULL DEFAULT NULL AFTER external_id;
 
 ALTER TABLE orders
-    ADD UNIQUE INDEX IF NOT EXISTS uq_orders_channel_external (channel, external_id);
+    ADD UNIQUE INDEX uq_orders_channel_external (channel, external_id);
 
 -- Glovo pays the restaurant, not the customer at the till.
 ALTER TABLE payments

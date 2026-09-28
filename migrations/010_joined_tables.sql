@@ -6,4 +6,4 @@
 -- holds the display name "5 + 6 + 7"; NULL = single table.
 
 ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS table_label VARCHAR(100) NULL DEFAULT NULL AFTER table_id;
+    ADD COLUMN table_label VARCHAR(100) NULL DEFAULT NULL AFTER table_id;
