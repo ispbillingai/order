@@ -259,6 +259,7 @@ return [
     // Table QR codes (admin)
     'table_qr_title'        => 'Table QR codes',
     'table_qr_print'        => 'Print all',
+    'table_qr_print_room'   => 'Print room',
     'table_qr_intro'        => 'Print these and put each one on its table. Guests scan it to see their order, ask for the bill, call the waiter or ask for a change to a dish; the staff see the request in their own screen.',
     'table_qr_hint'         => 'Scan to see your order, call the waiter or ask for the bill',
     'table_qr_open'         => 'Open',

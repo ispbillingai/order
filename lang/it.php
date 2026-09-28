@@ -259,6 +259,7 @@ return [
     // QR dei tavoli (admin)
     'table_qr_title'        => 'QR dei tavoli',
     'table_qr_print'        => 'Stampa tutti',
+    'table_qr_print_room'   => 'Stampa sala',
     'table_qr_intro'        => 'Stampali e metti ciascuno sul suo tavolo. Il cliente lo scansiona per vedere il suo ordine, chiedere il conto, chiamare il cameriere o chiedere la modifica di una portata; il personale vede la richiesta nella propria schermata.',
     'table_qr_hint'         => 'Scansiona per vedere il tuo ordine, chiamare il cameriere o chiedere il conto',
     'table_qr_open'         => 'Apri',
