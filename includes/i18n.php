@@ -46,6 +46,26 @@ function i18n_init(string $default = I18N_FALLBACK): string
     return $lang;
 }
 
+/**
+ * Guest pages (table QR): with no explicit choice (?lang / cookie) follow the
+ * phone's language instead of the staff default, falling back to $fallback.
+ */
+function i18n_prefer_browser(string $fallback = 'it'): string
+{
+    if (isset($_GET['lang']) || isset($_COOKIE[I18N_COOKIE])) {
+        return currentLang();
+    }
+    $lang = $fallback;
+    foreach (explode(',', (string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')) as $part) {
+        $code = strtolower(substr(trim($part), 0, 2));
+        if (in_array($code, i18n_available(), true)) { $lang = $code; break; }
+    }
+    $file = __DIR__ . '/../lang/' . $lang . '.php';
+    $GLOBALS['__i18n_lang']    = $lang;
+    $GLOBALS['__i18n_strings'] = is_file($file) ? require $file : [];
+    return $lang;
+}
+
 function currentLang(): string
 {
     return $GLOBALS['__i18n_lang'] ?? I18N_FALLBACK;

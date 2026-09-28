@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/table_requests.php';
+i18n_prefer_browser('it');
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
