@@ -236,6 +236,12 @@ return [
     'cancel_order_btn'      => 'Cancel order',
     'confirm_cancel_order'  => 'Cancel this whole order and free the table? Every dish is cancelled; dishes already sent get a cancellation slip at their work point. This cannot be undone.',
     'toast_order_cancelled' => 'Order cancelled, table is free',
+    'seat_split_title'      => 'Split the bill by seat',
+    'seat_split_hint'       => 'Take one guest\'s payment: their dishes plus their cover. The rest stays on the table\'s bill.',
+    'seat_pay_btn'          => 'Pay seat',
+    'seat_dishes'           => 'dishes',
+    'seat_plus_cover'       => 'cover',
+    'back_to_table_bill'    => 'Back to the table\'s bill',
     'toast_tables_joined'   => 'Tables joined — one order, one bill.',
 
     // ---- Kitchen ----

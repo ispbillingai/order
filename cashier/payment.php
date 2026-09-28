@@ -25,6 +25,22 @@ $stmt = $pdoPay->prepare("SELECT id, order_number, seat, total FROM orders WHERE
 $stmt->execute([(int) $order['id']]);
 $openSeatBills = $stmt->fetchAll();
 
+// Split at the till: each seat the waiter put dishes on, with what that guest
+// owes (their dishes + one cover). Paying a seat splits it into a seat bill.
+$isSeatBill = !empty($order['parent_order_id']);
+$paySeats   = [];
+if (!$isSeatBill) {
+    foreach ($orderItems as $it) {
+        if ($it['status'] === 'cancelled' || empty($it['seat'])) continue;
+        $s = (int) $it['seat'];
+        $paySeats[$s]['items']  = ($paySeats[$s]['items'] ?? 0) + (float) $it['total_price'];
+        $paySeats[$s]['count']  = ($paySeats[$s]['count'] ?? 0) + (int) $it['quantity'];
+    }
+    ksort($paySeats);
+}
+// Each split seat takes one cover while the table still has covers to give.
+$seatCover = (int) $order['number_of_people'] > 0 ? (float) $order['cover_charge_per_person'] : 0.0;
+
 // Route the kiosk to this order's till devices (falls back to global).
 $cm     = tillConfigForOrder($order, 'cashmatic');
 $pos    = tillConfigForOrder($order, 'pos');
@@ -97,7 +113,12 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <h1><i class="fas fa-cash-register"></i> <?= te('process_payment') ?></h1>
-    <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
+    <div class="d-flex gap-sm">
+        <?php if ($isSeatBill): ?>
+            <a href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>" class="btn btn-outline"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
+        <?php endif; ?>
+        <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
+    </div>
 </div>
 
 <div class="payment-layout" style="display:grid;grid-template-columns:1fr 420px;gap:24px;">
@@ -126,6 +147,27 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+
+        <?php if ($paySeats): ?>
+        <div class="card mb-lg">
+            <div class="card-header"><h2><i class="fas fa-chair"></i> <?= te('seat_split_title') ?></h2></div>
+            <div class="card-body">
+                <p class="text-muted" style="margin-top:0;"><?= te('seat_split_hint') ?></p>
+                <?php foreach ($paySeats as $seatNo => $ps): ?>
+                    <div class="dev-row" style="align-items:center;">
+                        <div>
+                            <strong><?= te('seat') ?> <?= (int) $seatNo ?></strong>
+                            <span class="text-muted">· <?= (int) $ps['count'] ?> <?= te('seat_dishes') ?> <?= formatCurrency($ps['items']) ?><?php if ($seatCover > 0): ?> + <?= te('seat_plus_cover') ?> <?= formatCurrency($seatCover) ?><?php endif; ?></span>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="paySeat(<?= (int) $seatNo ?>, this)">
+                            <i class="fas fa-money-bill"></i> <?= te('seat_pay_btn') ?> <?= (int) $seatNo ?> · <?= formatCurrency($ps['items'] + $seatCover) ?>
+                        </button>
+                    </div>
+                <?php endforeach; ?>
+                <p id="seat-split-err" class="dev-err" style="margin:8px 0 0;"></p>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <?php if ($openSeatBills): ?>
         <div class="card mb-lg">
@@ -248,6 +290,9 @@ include __DIR__ . '/../includes/header.php';
                 <h2 class="dev-ok"><?= te('payment_received') ?></h2>
                 <p id="done-receipt" style="color:var(--text-secondary);"></p>
                 <a id="done-print" class="btn btn-primary btn-block" href="#"><i class="fas fa-receipt"></i> <?= te('print_order_receipt') ?></a>
+                <?php if ($isSeatBill): ?>
+                    <a class="btn btn-success btn-block" style="margin-top:8px;" href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
+                <?php endif; ?>
                 <a class="btn btn-outline btn-block" style="margin-top:8px;" href="/cashier/index.php"><?= te('done') ?></a>
             </div>
         </div>
@@ -276,6 +321,20 @@ function done(receiptText) {
     $('done-receipt').textContent = receiptText || '';
     $('done-print').href = '/cashier/receipt.php?order=' + CFG.order_id;
     showPanel('k-done');
+}
+
+/* ---- Split at the till: pay one seat ----
+ * Splits the seat into its own bill (its dishes + one cover) and opens that
+ * bill here, so it is paid with the usual cash machine / card / Dojo flow. */
+async function paySeat(seat, btn) {
+    const err = $('seat-split-err');
+    err.textContent = '';
+    btn.disabled = true;
+    try {
+        const r = await post('/api/orders.php', { action: 'request_seat_bill', order_id: CFG.order_id, seat, at_till: true });
+        if (!r.success) { err.textContent = r.message || CFG.i18n.failed; btn.disabled = false; return; }
+        location.href = '/cashier/payment.php?order=' + r.order_id;
+    } catch (e) { err.textContent = e.message; btn.disabled = false; }
 }
 
 /* ---- Closing: print the non-fiscal proforma bill (with prices) ---- */

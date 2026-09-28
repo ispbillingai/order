@@ -552,7 +552,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bill_requested', ?)
             ")->execute([
                 $seatOrderNumber, $parent['table_id'], $label, $orderId, $seat, $parent['room_id'], $parent['waiter_id'],
-                $cover, $parent['cover_charge_per_person'], $tillId,
+                $cover, $parent['cover_charge_per_person'], $tillId ?? ($parent['till_id'] ?: null),
             ]);
             $seatOrderId = (int) $pdo->lastInsertId();
 
@@ -578,7 +578,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
 
-            notifyCashiersBill($pdo, $seatOrderId);
+            // Split at the till by the cashier: they're already on it.
+            if (empty($input['at_till'])) {
+                notifyCashiersBill($pdo, $seatOrderId);
+            }
             logActivity('seat_bill_requested', 'orders', $seatOrderId, ['table_order' => $orderId, 'seat' => $seat]);
 
             jsonResponse(['success' => true, 'order_id' => $seatOrderId, 'order_number' => $seatOrderNumber, 'table_label' => $label]);

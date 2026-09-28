@@ -236,6 +236,12 @@ return [
     'cancel_order_btn'      => 'Annulla ordine',
     'confirm_cancel_order'  => 'Annullare tutto l\'ordine e liberare il tavolo? Tutti i piatti vengono annullati; quelli già inviati ricevono uno scontrino di annullo al loro punto di lavoro. L\'operazione non si può annullare.',
     'toast_order_cancelled' => 'Ordine annullato, tavolo libero',
+    'seat_split_title'      => 'Dividi il conto per posto',
+    'seat_split_hint'       => 'Incassa un solo ospite: i suoi piatti più il suo coperto. Il resto rimane sul conto del tavolo.',
+    'seat_pay_btn'          => 'Paga posto',
+    'seat_dishes'           => 'piatti',
+    'seat_plus_cover'       => 'coperto',
+    'back_to_table_bill'    => 'Torna al conto del tavolo',
     'toast_tables_joined'   => 'Tavoli uniti — un solo ordine, un solo conto.',
 
     // ---- Kitchen ----
