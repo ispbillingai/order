@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // If marked as ready, notify waiter
             if ($status === 'ready') {
                 $stmt = $pdo->prepare("
-                    SELECT oi.*, o.waiter_id, mi.name as item_name, t.table_number
+                    SELECT oi.*, o.waiter_id, mi.name as item_name, COALESCE(o.table_label, t.table_number) AS table_number
                     FROM order_items oi
                     JOIN orders o ON oi.order_id = o.id
                     JOIN menu_items mi ON oi.menu_item_id = mi.id
@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Notify waiter
             $stmt = $pdo->prepare("
-                SELECT o.waiter_id, t.table_number
+                SELECT o.waiter_id, COALESCE(o.table_label, t.table_number) AS table_number
                 FROM orders o
                 JOIN tables_restaurant t ON o.table_id = t.id
                 WHERE o.id = ?
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Notify the waiter once for the whole course.
             $stmt = $pdo->prepare("
-                SELECT o.id AS order_id, o.waiter_id, t.table_number
+                SELECT o.id AS order_id, o.waiter_id, COALESCE(o.table_label, t.table_number) AS table_number
                 FROM order_items oi
                 JOIN orders o ON oi.order_id = o.id
                 JOIN tables_restaurant t ON o.table_id = t.id
@@ -202,7 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 oi.status,
                 oi.sent_to_kitchen_at,
                 o.order_number,
-                t.table_number,
+                COALESCE(o.table_label, t.table_number) AS table_number,
                 r.name as room_name,
                 mi.name as item_name,
                 u.full_name as waiter_name

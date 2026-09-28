@@ -71,7 +71,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$table) {
                 jsonResponse(['success' => false, 'message' => 'Table not found']);
             }
-            
+
+            // The table already carries an open order (its own or one it was
+            // joined to): open that one instead of starting a second bill.
+            $stmt = $pdo->prepare("
+                SELECT id, order_number FROM orders
+                WHERE (table_id = ? OR id = ?) AND status NOT IN ('paid', 'cancelled')
+                ORDER BY id DESC LIMIT 1
+            ");
+            $stmt->execute([$tableId, (int) ($table['current_order_id'] ?? 0)]);
+            if ($existing = $stmt->fetch()) {
+                jsonResponse(['success' => true, 'order_id' => $existing['id'], 'order_number' => $existing['order_number'], 'existing' => true]);
+            }
+
             // Get workspace cover charge
             $stmt = $pdo->query("SELECT cover_charge FROM workspaces LIMIT 1");
             $workspace = $stmt->fetch();
@@ -391,6 +403,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true]);
             break;
             
+        case 'join_tables':
+            // Large party: put more free tables on this order (one bill).
+            $orderId  = (int) ($input['order_id'] ?? 0);
+            $tableIds = array_values(array_unique(array_filter(array_map('intval', (array) ($input['table_ids'] ?? [])))));
+            if (!$orderId || !$tableIds) {
+                jsonResponse(['success' => false, 'message' => 'Order ID and tables required']);
+            }
+            if (!orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            $order = getOrderById($orderId);
+
+            $pdo->beginTransaction();
+            $in   = implode(',', array_fill(0, count($tableIds), '?'));
+            $stmt = $pdo->prepare("SELECT * FROM tables_restaurant WHERE id IN ($in) FOR UPDATE");
+            $stmt->execute($tableIds);
+            $rows = $stmt->fetchAll();
+            if (count($rows) !== count($tableIds)) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => 'Table not found']);
+            }
+            // Only free tables: joining an occupied one would silently hide its order.
+            $busy = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE (table_id = ? OR id = ?) AND id <> ? AND status NOT IN ('paid','cancelled')");
+            foreach ($rows as $t) {
+                $busy->execute([$t['id'], (int) ($t['current_order_id'] ?? 0), $orderId]);
+                if ((int) $busy->fetchColumn() > 0) {
+                    $pdo->rollBack();
+                    jsonResponse(['success' => false, 'message' => t('join_table_busy') . ' ' . $t['table_number']]);
+                }
+            }
+            // Follow the order's own table state (occupied / bill requested).
+            $tableStatus = $order['status'] === 'bill_requested' ? 'bill_requested' : 'occupied';
+            $pdo->prepare("UPDATE tables_restaurant SET status = ?, current_order_id = ? WHERE id IN ($in)")
+                ->execute(array_merge([$tableStatus, $orderId], $tableIds));
+            $label = refreshOrderTableLabel($orderId);
+            $pdo->commit();
+
+            logActivity('tables_joined', 'orders', $orderId, ['tables' => array_column($rows, 'table_number'), 'label' => $label]);
+            jsonResponse(['success' => true, 'table_label' => $label]);
+            break;
+
+        case 'unjoin_table':
+            // Take one joined table back off the order (it becomes free). The
+            // order's own first table can't be removed.
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $tableId = (int) ($input['table_id'] ?? 0);
+            $order   = $orderId ? getOrderById($orderId) : null;
+            if (!$order || !$tableId) {
+                jsonResponse(['success' => false, 'message' => 'Order ID and table required']);
+            }
+            if ((int) $order['table_id'] === $tableId) {
+                jsonResponse(['success' => false, 'message' => t('join_primary_table')]);
+            }
+            $pdo->prepare("UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE id = ? AND current_order_id = ?")
+                ->execute([$tableId, $orderId]);
+            $label = refreshOrderTableLabel($orderId);
+            logActivity('table_unjoined', 'orders', $orderId, ['table_id' => $tableId, 'label' => $label]);
+            jsonResponse(['success' => true, 'table_label' => $label]);
+            break;
+
         default:
             jsonResponse(['success' => false, 'message' => 'Invalid action']);
     }

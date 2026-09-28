@@ -42,6 +42,24 @@ $stmt->execute([$selectedCategoryId]);
 $categoryInfo = $stmt->fetch();
 $allowComposition = $categoryInfo ? $categoryInfo['allow_composition'] : 0;
 
+// Joined tables (large party): the tables this order sits on, and the free
+// tables that could be added to it.
+$orderTables = getOrderTables($orderId);
+$freeTables  = [];
+if ($isEditable) {
+    $freeTables = $pdo->query("
+        SELECT t.id, t.table_number, t.capacity, r.name AS room_name
+        FROM tables_restaurant t
+        JOIN rooms r ON t.room_id = r.id
+        WHERE r.active = 1
+          AND NOT EXISTS (SELECT 1 FROM orders o
+                          WHERE (o.table_id = t.id OR o.id = t.current_order_id)
+                            AND o.status NOT IN ('paid', 'cancelled'))
+        ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
+    ")->fetchAll();
+}
+$seats = array_sum(array_map('intval', array_column($orderTables, 'capacity')));
+
 $pageTitle = "Order #{$order['order_number']}";
 
 include __DIR__ . '/../includes/header.php';
@@ -70,6 +88,13 @@ include __DIR__ . '/../includes/header.php';
 .order-item.item-cancelled .item-total {
     text-decoration: line-through;
 }
+
+.join-list { display: flex; flex-direction: column; gap: 6px; }
+.join-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; }
+.join-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; max-height: 50vh; overflow-y: auto; }
+.join-room { grid-column: 1 / -1; font-size: .8rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-top: 6px; }
+.join-pick { display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
+.join-pick:has(input:checked) { border-color: var(--primary); background: rgba(59, 130, 246, .08); }
 
 .recall-note {
     display: flex;
@@ -100,7 +125,17 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="order-info mb-lg" style="display: flex; gap: 24px; flex-wrap: wrap;">
-    <div><strong><?= te('table') ?>:</strong> <?= htmlspecialchars($order['table_number']) ?></div>
+    <div>
+        <strong><?= te('table') ?>:</strong> <?= htmlspecialchars($order['table_number']) ?>
+        <?php if (count($orderTables) > 1): ?>
+            <span class="text-muted">(<?= $seats ?> <?= te('seats') ?>)</span>
+        <?php endif; ?>
+        <?php if ($isEditable): ?>
+            <button type="button" class="btn btn-sm btn-outline" style="margin-left:8px;" onclick="openModal('joinTablesModal')">
+                <i class="fas fa-link"></i> <?= te('join_tables') ?>
+            </button>
+        <?php endif; ?>
+    </div>
     <div><strong><?= te('room') ?>:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
     <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
@@ -274,6 +309,55 @@ include __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
+<?php if ($isEditable): ?>
+<!-- Join tables (large party): one order, one bill across several tables -->
+<div class="modal-overlay" id="joinTablesModal">
+    <div class="modal" style="max-width: 560px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-link"></i> <?= te('join_tables') ?></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="form-label"><?= te('join_current_tables') ?></label>
+            <div class="join-list">
+                <?php foreach ($orderTables as $ot): ?>
+                    <div class="join-row">
+                        <span><strong><?= htmlspecialchars($ot['table_number']) ?></strong>
+                            <span class="text-muted">· <?= htmlspecialchars($ot['room_name']) ?> · <?= (int) $ot['capacity'] ?> <?= te('seats') ?></span></span>
+                        <?php if (!$ot['is_primary']): ?>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="unjoinTable(<?= (int) $ot['id'] ?>)"><i class="fas fa-unlink"></i> <?= te('join_remove') ?></button>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <label class="form-label" style="margin-top:16px;"><?= te('join_add_tables') ?></label>
+            <?php if (!$freeTables): ?>
+                <p class="text-muted"><?= te('join_no_free') ?></p>
+            <?php else: ?>
+                <div class="join-grid">
+                    <?php $lastRoom = null; foreach ($freeTables as $ft): ?>
+                        <?php if ($ft['room_name'] !== $lastRoom): $lastRoom = $ft['room_name']; ?>
+                            <div class="join-room"><?= htmlspecialchars($ft['room_name']) ?></div>
+                        <?php endif; ?>
+                        <label class="join-pick">
+                            <input type="checkbox" name="join_table" value="<?= (int) $ft['id'] ?>">
+                            <span><?= htmlspecialchars($ft['table_number']) ?> <small class="text-muted">(<?= (int) $ft['capacity'] ?>)</small></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('joinTablesModal')"><?= te('cancel') ?></button>
+            <?php if ($freeTables): ?>
+                <button class="btn btn-primary" onclick="joinTables()"><i class="fas fa-link"></i> <?= te('join_confirm') ?></button>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Add Item Modal -->
 <div class="modal-overlay" id="addItemModal">
     <div class="modal" style="max-width: 600px;">
@@ -331,7 +415,26 @@ const T = {
     workPointPrintFailed: <?= json_encode(t('toast_work_point_print_failed')) ?>,
     billRequested: <?= json_encode(t('toast_bill_requested')) ?>,
     billFailed: <?= json_encode(t('toast_bill_failed')) ?>,
+    joinPick: <?= json_encode(t('join_pick_one')) ?>,
+    joined: <?= json_encode(t('toast_tables_joined')) ?>,
 };
+
+/* ---- Joined tables (large party) ---- */
+async function joinTables() {
+    const ids = [...document.querySelectorAll('input[name=join_table]:checked')].map(c => parseInt(c.value, 10));
+    if (!ids.length) { showToast(T.joinPick, 'error'); return; }
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'join_tables', order_id: orderId, table_ids: ids });
+        showToast(T.joined, 'success');
+        location.reload();
+    } catch (e) { /* apiCall already showed the reason */ }
+}
+async function unjoinTable(tableId) {
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'unjoin_table', order_id: orderId, table_id: tableId });
+        location.reload();
+    } catch (e) { /* apiCall already showed the reason */ }
+}
 
 async function selectMenuItem(item, allowComposition) {
     selectedItem = item;

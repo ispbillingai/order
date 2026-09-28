@@ -26,10 +26,11 @@ try {
             o.order_number,
             o.total,
             o.status as order_status,
-            o.number_of_people
+            o.number_of_people,
+            o.table_label
         FROM tables_restaurant t
         JOIN rooms r ON t.room_id = r.id
-        LEFT JOIN orders o ON t.id = o.table_id AND o.status NOT IN ('paid', 'cancelled')
+        LEFT JOIN orders o ON (o.table_id = t.id OR o.id = t.current_order_id) AND o.status NOT IN ('paid', 'cancelled')
         WHERE r.active = 1
         ORDER BY r.sort_order, t.table_number
     ");
@@ -48,7 +49,7 @@ try {
             o.status,
             o.number_of_people,
             o.updated_at,
-            t.table_number,
+            COALESCE(o.table_label, t.table_number) AS table_number,
             r.name as room_name,
             u.full_name as waiter_name,
             st.name as till_name
@@ -203,6 +204,9 @@ include __DIR__ . '/../includes/header.php';
                         <div style="margin-top: 8px; font-weight: 700; color: var(--primary);">
                             <?= formatCurrency($table['total']) ?>
                         </div>
+                        <?php if (!empty($table['table_label'])): ?>
+                            <div class="table-joined"><i class="fas fa-link"></i> <?= htmlspecialchars($table['table_label']) ?></div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>

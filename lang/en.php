@@ -199,6 +199,18 @@ return [
     'glovo_product_id'      => 'Glovo product ID',
     'glovo_menu_item'       => 'Our dish',
 
+    // ---- Joined tables (large party) ----
+    'join_tables'           => 'Join tables',
+    'join_current_tables'   => 'Tables on this order',
+    'join_add_tables'       => 'Add free tables',
+    'join_no_free'          => 'No free tables right now.',
+    'join_remove'           => 'Remove',
+    'join_confirm'          => 'Join to this order',
+    'join_pick_one'         => 'Pick at least one table.',
+    'join_table_busy'       => 'Table already has an order:',
+    'join_primary_table'    => 'This is the order\'s own table; it can\'t be removed.',
+    'toast_tables_joined'   => 'Tables joined — one order, one bill.',
+
     // ---- Kitchen ----
     'kitchen_display'     => 'Kitchen Display',
     'queued'              => 'Queued',

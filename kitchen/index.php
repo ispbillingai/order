@@ -21,7 +21,7 @@ $stmt = $pdo->query("
         oi.created_at,
         o.order_number,
         o.number_of_people,
-        t.table_number,
+        COALESCE(o.table_label, t.table_number) AS table_number,
         r.name as room_name,
         mi.name as item_name,
         mc.name as category_name,

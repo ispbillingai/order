@@ -64,8 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'delete_table') {
         // Only delete if not in use
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM orders WHERE table_id = ? AND status NOT IN ('paid', 'cancelled')");
-        $stmt->execute([$_POST['table_id']]);
+        // In use = its own open order, or joined to another table's open order.
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM orders o
+            WHERE (o.table_id = ? OR o.id = (SELECT current_order_id FROM tables_restaurant WHERE id = ?))
+              AND o.status NOT IN ('paid', 'cancelled')");
+        $stmt->execute([$_POST['table_id'], $_POST['table_id']]);
         if ($stmt->fetch()['count'] == 0) {
             $stmt = $pdo->prepare("DELETE FROM tables_restaurant WHERE id = ?");
             $stmt->execute([$_POST['table_id']]);

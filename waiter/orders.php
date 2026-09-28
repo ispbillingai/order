@@ -12,7 +12,7 @@ $pdo = getDBConnection();
 
 // Get active orders for this waiter (or all if admin)
 $sql = "
-    SELECT o.*, t.table_number, r.name as room_name,
+    SELECT o.*, COALESCE(o.table_label, t.table_number) AS table_number, r.name as room_name,
            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id AND status != 'cancelled') as item_count
     FROM orders o
     JOIN tables_restaurant t ON o.table_id = t.id

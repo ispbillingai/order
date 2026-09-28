@@ -34,7 +34,7 @@ $stats['menu_items'] = $stmt->fetch()['count'];
 
 // Recent orders
 $stmt = $pdo->query("
-    SELECT o.*, t.table_number, u.full_name as waiter_name
+    SELECT o.*, COALESCE(o.table_label, t.table_number) AS table_number, u.full_name as waiter_name
     FROM orders o
     JOIN tables_restaurant t ON o.table_id = t.id
     JOIN users u ON o.waiter_id = u.id

@@ -221,7 +221,7 @@ function getMenuItemComponents($menuItemId) {
 function getOrderById($orderId) {
     $pdo = getDBConnection();
     $stmt = $pdo->prepare("
-        SELECT o.*, t.table_number, r.name as room_name, u.full_name as waiter_name
+        SELECT o.*, COALESCE(o.table_label, t.table_number) AS table_number, r.name as room_name, u.full_name as waiter_name
         FROM orders o
         JOIN tables_restaurant t ON o.table_id = t.id
         JOIN rooms r ON o.room_id = r.id
@@ -230,6 +230,35 @@ function getOrderById($orderId) {
     ");
     $stmt->execute([$orderId]);
     return $stmt->fetch();
+}
+
+/**
+ * Tables an order sits on: its own table plus any joined to it (large party).
+ * Returns rows of tables_restaurant with room_name, first table first.
+ */
+function getOrderTables($orderId) {
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare("
+        SELECT t.*, r.name AS room_name, (t.id = o.table_id) AS is_primary
+        FROM orders o
+        JOIN tables_restaurant t ON t.id = o.table_id OR t.current_order_id = o.id
+        JOIN rooms r ON t.room_id = r.id
+        WHERE o.id = ?
+        ORDER BY is_primary DESC, r.sort_order, t.table_number + 0, t.table_number
+    ");
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Recompute the order's display label from its tables: "5 + 6 + 7" when
+ * joined, NULL (= just its table number) when it's on a single table.
+ */
+function refreshOrderTableLabel($orderId) {
+    $numbers = array_column(getOrderTables($orderId), 'table_number');
+    $label   = count($numbers) > 1 ? mb_substr(implode(' + ', $numbers), 0, 100) : null;
+    getDBConnection()->prepare("UPDATE orders SET table_label = ? WHERE id = ?")->execute([$label, $orderId]);
+    return $label;
 }
 
 /**

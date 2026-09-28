@@ -21,15 +21,17 @@ if ($selectedRoomId) {
     $tableIds = array_column($tables, 'id');
     if (!empty($tableIds)) {
         $placeholders = str_repeat('?,', count($tableIds) - 1) . '?';
+        // A table belongs to an order either as its own table or as one joined
+        // to it for a large party (current_order_id).
         $stmt = $pdo->prepare("
-            SELECT o.*, t.id as table_id 
-            FROM orders o 
-            JOIN tables_restaurant t ON o.table_id = t.id 
+            SELECT o.*, t.id AS floor_table_id
+            FROM tables_restaurant t
+            JOIN orders o ON o.table_id = t.id OR o.id = t.current_order_id
             WHERE t.id IN ($placeholders) AND o.status NOT IN ('paid', 'cancelled')
         ");
         $stmt->execute($tableIds);
         foreach ($stmt->fetchAll() as $order) {
-            $tableOrders[$order['table_id']] = $order;
+            $tableOrders[$order['floor_table_id']] = $order;
         }
     }
 }
@@ -84,6 +86,9 @@ include __DIR__ . '/../includes/header.php';
                 <div class="table-order-info" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);">
                     <?= formatCurrency($order['total']) ?>
                 </div>
+                <?php if (!empty($order['table_label'])): ?>
+                    <div class="table-joined"><i class="fas fa-link"></i> <?= htmlspecialchars($order['table_label']) ?></div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     <?php endforeach; ?>
@@ -108,7 +113,7 @@ include __DIR__ . '/../includes/header.php';
 
             <div class="form-group">
                 <label class="form-label"><?= te('number_of_guests') ?></label>
-                <input type="number" id="numberOfPeople" class="form-control" min="1" max="20" value="1">
+                <input type="number" id="numberOfPeople" class="form-control" min="1" max="99" value="1">
             </div>
         </div>
         <div class="modal-footer">

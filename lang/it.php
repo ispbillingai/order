@@ -199,6 +199,18 @@ return [
     'glovo_product_id'      => 'ID prodotto Glovo',
     'glovo_menu_item'       => 'Nostro piatto',
 
+    // ---- Tavoli uniti (gruppo numeroso) ----
+    'join_tables'           => 'Unisci tavoli',
+    'join_current_tables'   => 'Tavoli di questo ordine',
+    'join_add_tables'       => 'Aggiungi tavoli liberi',
+    'join_no_free'          => 'Nessun tavolo libero al momento.',
+    'join_remove'           => 'Togli',
+    'join_confirm'          => 'Unisci a questo ordine',
+    'join_pick_one'         => 'Scegli almeno un tavolo.',
+    'join_table_busy'       => 'Il tavolo ha già un ordine:',
+    'join_primary_table'    => 'È il tavolo principale dell\'ordine, non si può togliere.',
+    'toast_tables_joined'   => 'Tavoli uniti — un solo ordine, un solo conto.',
+
     // ---- Kitchen ----
     'kitchen_display'     => 'Display Cucina',
     'queued'              => 'In Coda',

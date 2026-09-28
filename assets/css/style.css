@@ -610,6 +610,14 @@ textarea.form-control {
     color: var(--status-bill);
 }
 
+/* Joined tables (large party): which tables share this order. */
+.table-card .table-joined {
+    margin-top: var(--space-xs);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
 /* ============================================
    Room Tabs
    ============================================ */
