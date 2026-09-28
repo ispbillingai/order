@@ -131,6 +131,7 @@ return [
     'dojo_secret_key_set'   => '•••••••• (saved — leave blank to keep)',
     'dojo_secret_key_hint'  => 'From the Dojo Developer Portal. Leave blank to keep the current key.',
     'dojo_terminal_id'      => 'Terminal ID',
+    'dojo_terminal_hint'    => 'Dojo API id (tm_…), not the 8-digit ID on the terminal screen. Leave blank and press Test connection to pick it from a list.',
     'api_version'           => 'API version',
     'capture_mode'          => 'Capture mode',
     'advanced'              => 'Advanced',

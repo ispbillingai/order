@@ -165,7 +165,8 @@ $v = static fn($val, $d = '') => htmlspecialchars((string) ($val ?? $d), ENT_QUO
                            placeholder="<?= $dojoKeySet ? te('dojo_secret_key_set') : 'sk_prod_… / sk_sandbox_…' ?>">
                     <small class="text-muted"><?= te('dojo_secret_key_hint') ?></small></div>
                 <div class="form-group"><label class="form-label"><?= te('dojo_terminal_id') ?></label>
-                    <input type="text" name="d_terminal" class="form-control" value="<?= $v($dojo['terminal_id'] ?? '') ?>"></div>
+                    <input type="text" name="d_terminal" class="form-control" value="<?= $v($dojo['terminal_id'] ?? '') ?>" placeholder="tm_…">
+                    <small class="text-muted"><?= te('dojo_terminal_hint') ?></small></div>
             </div>
             <div class="form-row">
                 <div class="form-group"><label class="form-label"><?= te('api_version') ?></label>
@@ -233,7 +234,7 @@ async function testGw(gateway, btn) {
             data.terminals.forEach(t => {
                 const b = document.createElement('button');
                 b.type = 'button'; b.className = 'btn btn-sm btn-outline'; b.style.margin = '4px';
-                b.textContent = GW_I18N.use + ' ' + t.id + (t.status ? ' (' + t.status + ')' : '');
+                b.textContent = GW_I18N.use + ' ' + t.id + (t.label ? ' — ' + t.label : '') + (t.status ? ' (' + t.status + ')' : '');
                 b.onclick = () => { document.querySelector('[name=d_terminal]').value = t.id; };
                 out.appendChild(b);
             });

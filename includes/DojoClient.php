@@ -210,7 +210,17 @@ class DojoClient
         $out  = [];
         foreach ((array) $list as $t) {
             if (is_array($t) && !empty($t['id'])) {
-                $out[] = ['id' => (string) $t['id'], 'status' => (string) ($t['status'] ?? '')];
+                // The API id (tm_…) is not what the terminal screen shows; carry
+                // the printed identifiers (TID, serial, name) so staff can tell
+                // which physical machine is which.
+                $label = [];
+                foreach (['tid', 'terminalNumber', 'serialNumber', 'name', 'model'] as $k) {
+                    if (isset($t[$k]) && is_scalar($t[$k]) && (string) $t[$k] !== '') {
+                        $label[] = (string) $t[$k];
+                    }
+                }
+                $out[] = ['id' => (string) $t['id'], 'status' => (string) ($t['status'] ?? ''),
+                          'label' => implode(' · ', $label)];
             }
         }
         return ['ok' => true, 'terminals' => $out];

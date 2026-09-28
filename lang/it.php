@@ -131,6 +131,7 @@ return [
     'dojo_secret_key_set'   => '•••••••• (salvata — lascia vuoto per mantenerla)',
     'dojo_secret_key_hint'  => 'Dal Portale Sviluppatori Dojo. Lascia vuoto per mantenere la chiave attuale.',
     'dojo_terminal_id'      => 'ID Terminale',
+    'dojo_terminal_hint'    => 'ID API Dojo (tm_…), non l\'ID di 8 cifre mostrato sul terminale. Lascia vuoto e premi Prova connessione per sceglierlo da un elenco.',
     'api_version'           => 'Versione API',
     'capture_mode'          => 'Modalità di cattura',
     'advanced'              => 'Avanzate',
