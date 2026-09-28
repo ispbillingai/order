@@ -233,6 +233,9 @@ return [
     'merge_not_allowed'     => 'Questi ordini non si possono unire.',
     'merge_has_seat_bills'  => 'Quel tavolo ha ancora conti per posto da pagare; chiudili prima.',
     'toast_merged'          => 'Tavoli uniti',
+    'cancel_order_btn'      => 'Annulla ordine',
+    'confirm_cancel_order'  => 'Annullare tutto l\'ordine e liberare il tavolo? Tutti i piatti vengono annullati; quelli già inviati ricevono uno scontrino di annullo al loro punto di lavoro. L\'operazione non si può annullare.',
+    'toast_order_cancelled' => 'Ordine annullato, tavolo libero',
     'toast_tables_joined'   => 'Tavoli uniti — un solo ordine, un solo conto.',
 
     // ---- Kitchen ----

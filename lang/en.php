@@ -233,6 +233,9 @@ return [
     'merge_not_allowed'     => 'These orders can\'t be merged.',
     'merge_has_seat_bills'  => 'That table still has unpaid seat bills; settle them first.',
     'toast_merged'          => 'Tables merged',
+    'cancel_order_btn'      => 'Cancel order',
+    'confirm_cancel_order'  => 'Cancel this whole order and free the table? Every dish is cancelled; dishes already sent get a cancellation slip at their work point. This cannot be undone.',
+    'toast_order_cancelled' => 'Order cancelled, table is free',
     'toast_tables_joined'   => 'Tables joined — one order, one bill.',
 
     // ---- Kitchen ----

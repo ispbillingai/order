@@ -384,6 +384,11 @@ include __DIR__ . '/../includes/header.php';
             <button class="btn btn-warning" onclick="billSeat(null)">
                 <i class="fas fa-receipt"></i> <?= te('bill') ?>
             </button>
+            <?php if ($isEditable): ?>
+                <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
+                    <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
+                </button>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -562,7 +567,21 @@ const T = {
     seatMoved: <?= json_encode(t('toast_seat_moved')) ?>,
     confirmMerge: <?= json_encode(t('merge_confirm')) ?>,
     merged: <?= json_encode(t('toast_merged')) ?>,
+    confirmCancelOrder: <?= json_encode(t('confirm_cancel_order')) ?>,
+    orderCancelled: <?= json_encode(t('toast_order_cancelled')) ?>,
 };
+
+/* ---- Cancel the whole order (opened by mistake / start the table over) ---- */
+async function cancelWholeOrder() {
+    if (!await confirmAction(T.confirmCancelOrder)) return;
+    try {
+        const r = await apiCall('/api/orders.php', 'POST', { action: 'cancel_order', order_id: orderId });
+        if (r.print_failed > 0) showToast(T.workPointPrintFailed, 'error');
+        else showToast(T.orderCancelled, 'success');
+        try { sessionStorage.removeItem(SEAT_KEY); } catch (e) {}
+        setTimeout(() => { location.href = '/waiter/index.php'; }, r.print_failed > 0 ? 1600 : 500);
+    } catch (e) { /* apiCall already showed the reason */ }
+}
 const HAS_TILLS = <?= !empty($tills) ? 'true' : 'false' ?>;
 const SEAT_BILL = <?= $isSeatBill ? 'true' : 'false' ?>;
 

@@ -584,6 +584,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true, 'order_id' => $seatOrderId, 'order_number' => $seatOrderNumber, 'table_label' => $label]);
             break;
 
+        case 'cancel_order':
+            // Cancel a whole unpaid order (opened by mistake, or to start the
+            // table over): every dish is cancelled — ones already at a work
+            // point get a void slip there — and the tables are freed. On the
+            // table's order this takes its open seat bills with it.
+            $orderId = (int) ($input['order_id'] ?? 0);
+            if (!$orderId || !orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            $stmt = $pdo->prepare("SELECT id FROM orders WHERE (id = ? OR parent_order_id = ?) AND status NOT IN ('paid', 'cancelled')");
+            $stmt->execute([$orderId, $orderId]);
+            $orderIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+            $in = implode(',', array_fill(0, count($orderIds), '?'));
+
+            // Void slips first, while the dishes can still be named.
+            $stmt = $pdo->prepare("SELECT id, order_id FROM order_items WHERE order_id IN ($in) AND status IN ('in_kitchen', 'ready')");
+            $stmt->execute($orderIds);
+            $printFailed = 0;
+            foreach ($stmt->fetchAll() as $it) {
+                $print = printOrderChangeTicket((int) $it['order_id'], (int) $it['id'], TICKET_VOID);
+                if (empty($print['ok'])) $printFailed++;
+            }
+
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM kitchen_tickets WHERE order_id IN ($in)")->execute($orderIds);
+            $pdo->prepare("UPDATE order_items SET status = 'cancelled' WHERE order_id IN ($in) AND status <> 'served'")->execute($orderIds);
+            $pdo->prepare("
+                UPDATE orders SET status = 'cancelled', subtotal = 0, discount_amount = 0, total = 0, closed_at = NOW(),
+                                  notes = TRIM(CONCAT(COALESCE(notes, ''), ' ', ?))
+                WHERE id IN ($in)
+            ")->execute(array_merge(['[cancelled by ' . ($user['full_name'] ?? $user['username'] ?? '?') . ']'], $orderIds));
+            $pdo->commit();
+
+            // Frees the tables unless this was one seat bill of a table still eating.
+            releaseOrderTables($orderId);
+
+            logActivity('order_cancelled', 'orders', $orderId, ['orders' => $orderIds]);
+            jsonResponse(['success' => true, 'print_failed' => $printFailed]);
+            break;
+
         case 'merge_order':
             // Merge another occupied table into this order: its dishes, guests
             // and tables all come over, and one bill covers both tables.
