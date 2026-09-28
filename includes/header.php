@@ -36,7 +36,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=<?= @filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <?php if (isset($extraCss)): ?>
         <?php foreach ((array)$extraCss as $css): ?>
             <link rel="stylesheet" href="<?= $css ?>">

@@ -736,7 +736,15 @@ async function confirmAddItem() {
     });
     
     try {
-        const result = await addItemToOrder(orderId, selectedItem.id, quantity, notes, modifications, SEAT_BILL ? null : activeSeat);
+        const result = await apiCall('/api/orders.php', 'POST', {
+            action: 'add_item',
+            order_id: orderId,
+            menu_item_id: selectedItem.id,
+            quantity,
+            notes,
+            modifications,
+            seat: SEAT_BILL ? null : activeSeat,
+        });
         
         if (result.success) {
             showToast(T.added, 'success');

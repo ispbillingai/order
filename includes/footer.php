@@ -8,7 +8,7 @@
     <!-- Toast notifications container -->
     <div id="toastContainer" class="toast-container"></div>
     
-    <script src="/assets/js/app.js"></script>
+    <script src="/assets/js/app.js?v=<?= @filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
     <?php if (isset($extraJs)): ?>
         <?php foreach ((array)$extraJs as $js): ?>
             <script src="<?= $js ?>"></script>
