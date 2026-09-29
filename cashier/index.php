@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/table_visual.php';
 requireRole(['admin', 'cashier']);
 
 $pdo = getDBConnection();
@@ -182,18 +183,19 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div class="card-body">
         <div class="tables-grid">
-            <?php foreach ($tables as $table): 
+            <?php $occupancy = tableOccupancy(); // guests seated per table (chairs red/green)
+            foreach ($tables as $table):
                 $status = $table['order_id'] ? ($table['order_status'] === 'bill_requested' ? 'bill_requested' : 'occupied') : 'free';
+                $guests = $table['order_id'] ? ($occupancy[$table['id']]['guests'] ?? 0) : null;
             ?>
-                <div class="table-card <?= $status ?>" 
+                <div class="table-card table-visual <?= $status ?>"
                      <?php if ($table['order_id']): ?>
                      onclick="window.location.href='/cashier/payment.php?order=<?= $table['order_id'] ?>'"
                      <?php endif; ?>
                      style="<?= $table['order_id'] ? '' : 'cursor: default;' ?>">
-                    <div class="table-number"><?= htmlspecialchars($table['table_number'] ?? '') ?></div>
-                    <div class="table-capacity">
-                        <i class="fas fa-users"></i>
-                        <?= $table['capacity'] ?? 4 ?>
+                    <?= renderTableVisual((string) $table['table_number'], (int) ($table['capacity'] ?? 4), $guests, (string) $table['status']) ?>
+                    <div class="tv-guests <?= tableFill((int) ($table['capacity'] ?? 4), $guests) ?>">
+                        <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) ($table['capacity'] ?? 4) ?>
                     </div>
                     <div class="table-status">
                         <?php if ($status === 'free'): ?>

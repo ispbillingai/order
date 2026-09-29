@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/table_visual.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -168,6 +169,10 @@ if ($rooms) {
     ")->fetchAll();
 }
 
+// Guests seated per table (chairs drawn red/green). A table with no order is free.
+$occupancy = tableOccupancy();
+$seatedAt  = fn($t) => isset($occupancy[$t['id']]) ? $occupancy[$t['id']]['guests'] : ($t['status'] === 'free' ? null : 0);
+
 $scrollerKey   = 'admin-rooms';
 $scrollerRooms = [[
     'id'          => 'occupied',
@@ -204,10 +209,11 @@ include __DIR__ . '/../includes/room_scroller.php';
         <?php else: ?>
             <div class="tables-grid">
                 <?php foreach ($occupiedTables as $table): ?>
-                    <div class="table-card <?= htmlspecialchars($table['status']) ?>" style="cursor: default;">
+                    <?php $guests = $seatedAt($table); ?>
+                    <div class="table-card table-visual <?= htmlspecialchars($table['status']) ?>" style="cursor: default;">
                         <div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div>
-                        <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
-                        <div class="table-capacity"><i class="fas fa-users"></i> <?= (int) $table['capacity'] ?> <?= te('seats') ?></div>
+                        <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
+                        <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
                         <div class="table-status"><?= htmlspecialchars($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status']))) ?></div>
                         <?php if (!empty($table['order_number'])): ?>
                             <div class="table-order">
@@ -251,11 +257,10 @@ include __DIR__ . '/../includes/room_scroller.php';
         <?php else: ?>
             <div class="tables-grid">
                 <?php foreach ($tables as $table): ?>
-                    <div class="table-card <?= $table['status'] ?>" style="cursor: default;">
-                        <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
-                        <div class="table-capacity">
-                            <i class="fas fa-users"></i> <?= $table['capacity'] ?> <?= te('seats') ?>
-                        </div>
+                    <?php $guests = $seatedAt($table); ?>
+                    <div class="table-card table-visual <?= $table['status'] ?>" style="cursor: default;">
+                        <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
+                        <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
                         <div class="table-status"><?= htmlspecialchars($table['status'] === 'free' ? t('available') : ($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status'])))) ?></div>
 
                         <div class="d-flex gap-sm" style="margin-top: 10px; justify-content: center;">

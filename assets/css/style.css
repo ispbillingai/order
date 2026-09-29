@@ -1451,3 +1451,15 @@ textarea.form-control {
 .room-scroller .room-tab.active .count.busy { background: #fff; color: var(--warning, #b45309); }
 .table-card .table-room { font-size: .8rem; font-weight: 700; color: var(--primary); margin-bottom: 2px; }
 .table-card .table-order { margin-top: 6px; font-size: .8rem; color: var(--text-secondary); }
+
+/* Floor plan: the table drawn with its chairs instead of a box (table_visual.php). */
+.table-card.table-visual { background: transparent; border: 0; box-shadow: none; padding: var(--space-sm) var(--space-xs); overflow: visible; }
+.table-card.table-visual::before { display: none; }
+.table-card.table-visual:hover { transform: translateY(-3px); box-shadow: none; }
+.table-card.table-visual .tv-svg { display: block; max-width: 100%; height: auto; margin: 0 auto 4px; filter: drop-shadow(0 3px 5px rgba(0,0,0,.15)); }
+.table-card.table-visual .tv-guests { font-size: .85rem; font-weight: 700; color: var(--text-secondary); }
+.table-card.table-visual .tv-guests.partial { color: #b45309; }
+.table-card.table-visual .tv-guests.full { color: #dc2626; }
+.table-card.table-visual .table-status { margin-top: 4px; }
+.table-card.table-visual { position: relative; }
+.table-card.table-visual .tv-bell { position: absolute; top: 0; right: 4px; z-index: 1; }
