@@ -8,6 +8,10 @@
 require_once __DIR__ . '/functions.php';
 
 /** Request types → which staff roles see them. Admin sees everything. */
+
+/** A guest can ask to change / swap a dish only until it is ready. */
+const GUEST_CHANGEABLE_STATUSES = ['pending', 'in_kitchen'];
+
 const TABLE_REQUEST_ROLES = [
     'waiter'  => ['bill', 'waiter', 'change'],
     'kitchen' => ['change'],
@@ -116,7 +120,8 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         // The dish must be on this table's meal.
         $stmt = $pdo->prepare("
             SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
-            WHERE oi.id = ? AND (o.id = ? OR o.parent_order_id = ?) AND oi.status NOT IN ('cancelled', 'served')
+            WHERE oi.id = ? AND (o.id = ? OR o.parent_order_id = ?) AND o.status <> 'paid'
+              AND oi.status IN ('" . implode("','", GUEST_CHANGEABLE_STATUSES) . "')
         ");
         $stmt->execute([$orderItemId, $order['id'], $order['id']]);
         if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_dish'];

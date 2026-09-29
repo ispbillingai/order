@@ -88,6 +88,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .sheet .row button { flex: 1; padding: 13px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; }
 .btn-go { background: var(--p); color: #fff; } .btn-no { background: #f3f4f6; }
 .step { font-weight: 700; margin: 14px 0 8px; }
+.hint-small { font-size: .8rem; color: var(--muted); margin: 4px 0 0; }
 .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .modes button { padding: 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); }
 .modes button.on { border-color: var(--p); background: #fff7ed; color: var(--p); }
@@ -135,6 +136,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     <div class="sheet">
         <h3><?= te('guest_change_title') ?></h3>
         <div id="changePicks"></div>
+        <p id="notChangeable" class="hint-small" hidden><?= te('guest_ready_locked') ?></p>
 
         <div class="step"><?= te('guest_change_how') ?></div>
         <div class="modes">
@@ -218,6 +220,7 @@ async function ask(type) {
 
 function openChange() {
     const dishes = (state?.items || []).filter(i => i.changeable);
+    $('notChangeable').hidden = dishes.length === (state?.items || []).length;
     $('changePicks').innerHTML = dishes.map(i => `
         <label class="pick"><input type="radio" name="dish" value="${i.id}">
             <span>${i.quantity}× ${esc(i.name)}${i.seat ? ' · ' + esc(L.seat) + ' ' + i.seat : ''}</span></label>`).join('');

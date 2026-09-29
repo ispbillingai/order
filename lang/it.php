@@ -297,7 +297,7 @@ return [
     'guest_st_ready'        => 'Pronto, in arrivo',
     'guest_st_served'       => 'Servito',
     'guest_st_cancelled'    => 'Annullato',
-    'guest_err_no_dish'     => 'Questa portata non si può più modificare.',
+    'guest_err_no_dish'     => 'Questa portata è già pronta e non si può più cambiare.',
     'guest_err_no_order'    => 'Non c\'è ancora un ordine aperto su questo tavolo.',
     'guest_err_too_many'    => 'Troppe richieste. Il personale sta arrivando.',
     'guest_err_bad_type'    => 'Invio non riuscito. Riprova.',
@@ -309,6 +309,7 @@ return [
     'guest_req_swap'        => 'Cambio',
     'guest_err_no_replacement' => 'Questo piatto non è disponibile al momento.',
     'guest_err_no_change'   => 'Scrivi cosa vuoi cambiare.',
+    'guest_ready_locked'    => 'Le portate già pronte o servite non si possono più cambiare.',
     'req_swap'              => 'Cambio',
     'toast_tables_joined'   => 'Tavoli uniti — un solo ordine, un solo conto.',
 

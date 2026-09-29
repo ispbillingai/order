@@ -297,7 +297,7 @@ return [
     'guest_st_ready'        => 'Ready, on its way',
     'guest_st_served'       => 'Served',
     'guest_st_cancelled'    => 'Cancelled',
-    'guest_err_no_dish'     => 'That dish can\'t be changed any more.',
+    'guest_err_no_dish'     => 'That dish is already ready and can no longer be changed.',
     'guest_err_no_order'    => 'There is no open order on this table yet.',
     'guest_err_too_many'    => 'Too many requests. The staff are on their way.',
     'guest_err_bad_type'    => 'Could not send. Please try again.',
@@ -309,6 +309,7 @@ return [
     'guest_req_swap'        => 'Swap',
     'guest_err_no_replacement' => 'That dish is not available right now.',
     'guest_err_no_change'   => 'Write what you would like changed.',
+    'guest_ready_locked'    => 'Dishes that are already ready or served can no longer be changed.',
     'req_swap'              => 'Swap',
     'toast_tables_joined'   => 'Tables joined — one order, one bill.',
 

@@ -41,7 +41,7 @@ function guestState(array $table): array
                 'status'    => $r['status'],
                 'label'     => t('guest_st_' . $r['status']),
                 'paid'      => $r['order_status'] === 'paid',
-                'changeable'=> !in_array($r['status'], ['served'], true) && $r['order_status'] !== 'paid',
+                'changeable'=> in_array($r['status'], GUEST_CHANGEABLE_STATUSES, true) && $r['order_status'] !== 'paid',
             ];
         }
     }
