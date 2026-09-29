@@ -23,28 +23,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt = $pdo->prepare("INSERT INTO rooms (workspace_id, name, sort_order) VALUES (?, ?, ?)");
         $stmt->execute([$workspaceId, $_POST['name'], $_POST['sort_order'] ?? 0]);
-        header('Location: /admin/rooms.php?success=room_added');
+        header('Location: /admin/rooms.php?success=room_added&room=' . (int) $pdo->lastInsertId());
         exit;
     }
     
     if ($action === 'add_table') {
         $stmt = $pdo->prepare("INSERT INTO tables_restaurant (room_id, table_number, capacity) VALUES (?, ?, ?)");
         $stmt->execute([$_POST['room_id'], $_POST['table_number'], $_POST['capacity'] ?? 4]);
-        header('Location: /admin/rooms.php?success=table_added');
+        header('Location: /admin/rooms.php?success=table_added&room=' . (int) $_POST['room_id']);
         exit;
     }
 
     if ($action === 'edit_table') {
         $stmt = $pdo->prepare("UPDATE tables_restaurant SET room_id = ?, table_number = ?, capacity = ? WHERE id = ?");
         $stmt->execute([$_POST['room_id'], $_POST['table_number'], $_POST['capacity'] ?? 4, (int) $_POST['table_id']]);
-        header('Location: /admin/rooms.php?success=table_updated');
+        header('Location: /admin/rooms.php?success=table_updated&room=' . (int) $_POST['room_id']);
         exit;
     }
 
     if ($action === 'edit_room') {
         $stmt = $pdo->prepare("UPDATE rooms SET name = ?, sort_order = ? WHERE id = ?");
         $stmt->execute([$_POST['name'], $_POST['sort_order'] ?? 0, (int) $_POST['room_id']]);
-        header('Location: /admin/rooms.php?success=room_updated');
+        header('Location: /admin/rooms.php?success=room_updated&room=' . (int) $_POST['room_id']);
         exit;
     }
 
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tableNumber = $prefix . ($startFrom + $i);
             $stmt->execute([$roomId, $tableNumber, $capacity]);
         }
-        header('Location: /admin/rooms.php?success=tables_added');
+        header('Location: /admin/rooms.php?success=tables_added&room=' . (int) $roomId);
         exit;
     }
 }
@@ -146,10 +146,21 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<?php foreach ($rooms as $room): 
-    $tables = getTablesByRoom($room['id']);
+<?php
+// Pick a room from the scrolling bar; only its tables are shown.
+$roomTables = [];
+foreach ($rooms as $room) {
+    $roomTables[$room['id']] = getTablesByRoom($room['id']);
+}
+$scrollerKey   = 'admin-rooms';
+$scrollerRooms = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'count' => count($roomTables[$r['id']])], $rooms);
+include __DIR__ . '/../includes/room_scroller.php';
 ?>
-<div class="card mb-lg">
+
+<?php foreach ($rooms as $room):
+    $tables = $roomTables[$room['id']];
+?>
+<div class="card mb-lg" data-room-panel="<?= (int) $room['id'] ?>">
     <div class="card-header">
         <h2><i class="fas fa-door-open"></i> <?= htmlspecialchars($room['name']) ?></h2>
         <div class="d-flex align-center gap-sm">

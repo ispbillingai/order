@@ -1432,3 +1432,15 @@ textarea.form-control {
 .tr-by { margin-top: 4px; font-size: .8rem; color: #16a34a; }
 .tr-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
 @keyframes trPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+
+/* Room scroller: pick a room from a horizontally scrolling bar, see only its tables
+   (admin Rooms & Tables, Table QR codes). */
+.room-scroller-wrap { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 6px; background: rgba(245, 247, 250, .95); backdrop-filter: blur(6px); padding: 8px 0 12px; margin-bottom: var(--space-md, 16px); }
+.room-scroller { display: flex; gap: var(--space-sm, 8px); overflow-x: auto; scroll-snap-type: x proximity; scroll-behavior: smooth; flex: 1 1 auto; padding: 2px; scrollbar-width: thin; }
+.room-scroller .room-tab { flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.room-scroller .room-tab .count { font-size: .75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: rgba(0,0,0,.08); }
+.room-scroller .room-tab.active .count { background: rgba(255,255,255,.25); }
+.room-scroll-btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border-color); background: #fff; cursor: pointer; }
+.room-scroll-btn:hover { border-color: var(--primary); color: var(--primary); }
+@media (hover: none) { .room-scroll-btn { display: none; } }
+.is-hidden { display: none !important; }

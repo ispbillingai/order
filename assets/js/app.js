@@ -465,3 +465,44 @@ async function tableRequestAction(id, action) {
 document.addEventListener('app:update', e => renderTableRequests(e.detail && e.detail.table_requests));
 // Show waiting requests straight away instead of after the first 10 s poll.
 document.addEventListener('DOMContentLoaded', () => { if (window.REQ_I18N) checkForUpdates(); });
+
+// ============================================
+// Room scroller: a horizontally scrolling bar of rooms; picking one shows only
+// that room's panel. Markup: .room-scroller[data-key] > [data-room] chips,
+// panels [data-room-panel="<id>"]. Remembers the choice (?room= in the URL,
+// else the last one picked on this device).
+// ============================================
+function initRoomScroller() {
+    const bar = document.querySelector('.room-scroller');
+    if (!bar) return;
+    const chips  = [...bar.querySelectorAll('[data-room]')];
+    const panels = [...document.querySelectorAll('[data-room-panel]')];
+    if (!chips.length) return;
+    const key = 'room-scroller-' + (bar.dataset.key || location.pathname);
+
+    function select(id, scroll = true) {
+        id = String(id);
+        if (!chips.some(c => c.dataset.room === id)) id = chips[0].dataset.room;
+        chips.forEach(c => c.classList.toggle('active', c.dataset.room === id));
+        panels.forEach(p => p.classList.toggle('is-hidden', p.dataset.roomPanel !== id));
+        const active = chips.find(c => c.dataset.room === id);
+        if (scroll && active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+        try { localStorage.setItem(key, id); } catch (e) {}
+        const url = new URL(location.href);
+        url.searchParams.set('room', id);
+        ['success', 'error', 'done'].forEach(p => url.searchParams.delete(p)); // one-off messages: not again on reload
+        history.replaceState(null, '', url);
+    }
+
+    chips.forEach(c => c.addEventListener('click', () => select(c.dataset.room)));
+    document.querySelectorAll('[data-room-scroll]').forEach(b => b.addEventListener('click', () => {
+        bar.scrollBy({ left: parseInt(b.dataset.roomScroll, 10) * bar.clientWidth * 0.7, behavior: 'smooth' });
+    }));
+
+    let start = new URLSearchParams(location.search).get('room');
+    if (!start) { try { start = localStorage.getItem(key); } catch (e) {} }
+    select(start || chips[0].dataset.room, false);
+    const active = bar.querySelector('.active');
+    if (active) bar.scrollLeft = active.offsetLeft - bar.clientWidth / 2 + active.clientWidth / 2;
+}
+document.addEventListener('DOMContentLoaded', initRoomScroller);

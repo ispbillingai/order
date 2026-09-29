@@ -59,6 +59,7 @@ include __DIR__ . '/../includes/header.php';
     .room-qr { box-shadow: none; border: 0; break-after: page; }
     .room-qr:last-child { break-after: auto; }
     /* "Print room": only that room */
+    .room-qr.is-hidden { display: block !important; }  /* "Print all" = every room, not just the one on screen */
     body.print-one .room-qr:not(.print-this) { display: none !important; }
 }
 </style>
@@ -73,8 +74,15 @@ include __DIR__ . '/../includes/header.php';
     <div class="alert alert-success no-print"><?= te('table_qr_regenerated') ?></div>
 <?php endif; ?>
 
+<?php
+// Pick a room from the scrolling bar; "Print all" still prints every room.
+$scrollerKey   = 'admin-table-qr';
+$scrollerRooms = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'count' => count($r['tables'])], $rooms);
+include __DIR__ . '/../includes/room_scroller.php';
+?>
+
 <?php foreach ($rooms as $room): ?>
-<div class="card mb-lg room-qr" id="room-<?= (int) $room['id'] ?>">
+<div class="card mb-lg room-qr" id="room-<?= (int) $room['id'] ?>" data-room-panel="<?= (int) $room['id'] ?>">
     <div class="card-header">
         <h2><i class="fas fa-door-open"></i> <?= htmlspecialchars($room['name']) ?></h2>
         <div class="d-flex align-center gap-sm">
