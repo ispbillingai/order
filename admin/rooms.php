@@ -152,10 +152,77 @@ $roomTables = [];
 foreach ($rooms as $room) {
     $roomTables[$room['id']] = getTablesByRoom($room['id']);
 }
+
+// "Occupied": every table in use, from any room, with its room and order.
+$occupiedTables = [];
+if ($rooms) {
+    $occupiedTables = $pdo->query("
+        SELECT t.*, r.name AS room_name, o.order_number, o.total, o.number_of_people,
+               COALESCE(o.table_label, '') AS order_label, u.full_name AS waiter_name
+        FROM tables_restaurant t
+        JOIN rooms r ON r.id = t.room_id
+        LEFT JOIN orders o ON o.id = t.current_order_id AND o.status NOT IN ('paid', 'cancelled')
+        LEFT JOIN users u ON u.id = o.waiter_id
+        WHERE r.active = 1 AND t.status <> 'free'
+        ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
+    ")->fetchAll();
+}
+
 $scrollerKey   = 'admin-rooms';
-$scrollerRooms = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'count' => count($roomTables[$r['id']])], $rooms);
+$scrollerRooms = [[
+    'id'          => 'occupied',
+    'name'        => t('rooms_occupied_view'),
+    'icon'        => 'fa-utensils',
+    'count'       => count($occupiedTables),
+    'count_class' => 'busy',
+]];
+foreach ($rooms as $r) {
+    $all  = count($roomTables[$r['id']]);
+    $free = count(array_filter($roomTables[$r['id']], fn($t) => $t['status'] === 'free'));
+    // Green number = tables still free in that room.
+    $scrollerRooms[] = [
+        'id'          => $r['id'],
+        'name'        => $r['name'],
+        'count'       => $free,
+        'count_class' => 'free',
+        'title'       => t('rooms_free_of', ['free' => $free, 'all' => $all]),
+    ];
+}
 include __DIR__ . '/../includes/room_scroller.php';
 ?>
+
+<?php if ($rooms): ?>
+<!-- Every occupied table, any room -->
+<div class="card mb-lg" data-room-panel="occupied">
+    <div class="card-header">
+        <h2><i class="fas fa-utensils"></i> <?= te('rooms_occupied_title') ?></h2>
+        <span class="badge badge-warning"><?= count($occupiedTables) ?></span>
+    </div>
+    <div class="card-body">
+        <?php if (!$occupiedTables): ?>
+            <p class="text-muted text-center" style="padding: 40px;"><?= te('rooms_none_occupied') ?></p>
+        <?php else: ?>
+            <div class="tables-grid">
+                <?php foreach ($occupiedTables as $table): ?>
+                    <div class="table-card <?= htmlspecialchars($table['status']) ?>" style="cursor: default;">
+                        <div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div>
+                        <div class="table-number"><?= htmlspecialchars($table['table_number']) ?></div>
+                        <div class="table-capacity"><i class="fas fa-users"></i> <?= (int) $table['capacity'] ?> <?= te('seats') ?></div>
+                        <div class="table-status"><?= htmlspecialchars($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status']))) ?></div>
+                        <?php if (!empty($table['order_number'])): ?>
+                            <div class="table-order">
+                                <?= formatCurrency($table['total']) ?> · <?= (int) $table['number_of_people'] ?> <?= te('guests') ?>
+                                <?php if ($table['waiter_name']): ?><br><?= htmlspecialchars($table['waiter_name']) ?><?php endif; ?>
+                                <?php if ($table['order_label'] !== ''): ?><br><i class="fas fa-link"></i> <?= htmlspecialchars($table['order_label']) ?><?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php foreach ($rooms as $room):
     $tables = $roomTables[$room['id']];

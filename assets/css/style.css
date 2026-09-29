@@ -1444,3 +1444,10 @@ textarea.form-control {
 .room-scroll-btn:hover { border-color: var(--primary); color: var(--primary); }
 @media (hover: none) { .room-scroll-btn { display: none; } }
 .is-hidden { display: none !important; }
+/* Green number = free tables in that room; busy = occupied tables (all rooms). */
+.room-scroller .room-tab .count.free { background: var(--success, #16a34a); color: #fff; }
+.room-scroller .room-tab .count.busy { background: var(--warning, #f59e0b); color: #fff; }
+.room-scroller .room-tab.active .count.free { background: #fff; color: var(--success, #16a34a); }
+.room-scroller .room-tab.active .count.busy { background: #fff; color: var(--warning, #b45309); }
+.table-card .table-room { font-size: .8rem; font-weight: 700; color: var(--primary); margin-bottom: 2px; }
+.table-card .table-order { margin-top: 6px; font-size: .8rem; color: var(--text-secondary); }
