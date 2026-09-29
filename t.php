@@ -102,6 +102,12 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 #menuPicks { max-height: 38vh; overflow-y: auto; }
 .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; z-index: 20; display: none; max-width: 90vw; text-align: center; }
 .bad { text-align: center; padding: 60px 20px; }
+.gate { text-align: center; padding: 28px 20px; }
+.gate-icon { font-size: 2.2rem; color: var(--p); margin-bottom: 8px; }
+.gate-text { color: var(--muted); margin: 6px 0 18px; }
+.code-input { width: 100%; max-width: 240px; font: inherit; font-size: 1.8rem; letter-spacing: .35em; text-align: center; padding: 12px; border: 2px solid var(--line); border-radius: 12px; }
+.code-input:focus { outline: none; border-color: var(--p); }
+.gate-btn { display: block; width: 100%; max-width: 240px; margin: 12px auto 0; padding: 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -118,7 +124,27 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 <?php if (!$table): ?>
     <main><div class="card bad"><i class="fas fa-qrcode" style="font-size:2.5rem;color:var(--muted);"></i><p><?= te('guest_bad_qr') ?></p></div></main>
 <?php else: ?>
-<main>
+<!-- Access: the code the guest got on WhatsApp with the order -->
+<main id="gate" hidden>
+    <div class="card gate">
+        <i class="fas fa-lock gate-icon"></i>
+        <div id="gateCode" hidden>
+            <h2><?= te('guest_gate_title') ?></h2>
+            <p class="gate-text"><?= te('guest_gate_text') ?></p>
+            <form onsubmit="unlock(event)">
+                <input id="codeInput" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code"
+                       maxlength="7" pattern="[0-9 ]{6,7}" placeholder="••••••" required>
+                <button class="btn-go gate-btn" type="submit"><?= te('guest_gate_enter') ?></button>
+            </form>
+        </div>
+        <div id="gatePhone" hidden>
+            <h2><?= te('guest_gate_phone_title') ?></h2>
+            <p class="gate-text"><?= te('guest_need_phone') ?></p>
+        </div>
+    </div>
+</main>
+
+<main id="app" hidden>
     <div class="card" id="requestsCard" hidden>
         <h2><?= te('guest_your_requests') ?></h2>
         <div id="requestsList"></div>
@@ -130,7 +156,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     </div>
 </main>
 
-<div class="actions">
+<div class="actions" id="actionsBar" hidden>
     <button class="a-bill" id="btnBill" onclick="ask('bill')"><i class="fas fa-cash-register"></i><?= te('guest_btn_bill_till') ?></button>
     <button class="a-wa" id="btnBillWa" onclick="billWhatsapp()" hidden><i class="fab fa-whatsapp"></i><?= te('guest_btn_bill_wa') ?></button>
     <button class="a-waiter" onclick="ask('waiter')"><i class="fas fa-hand"></i><?= te('guest_btn_waiter') ?></button>
@@ -185,8 +211,30 @@ function toast(msg) {
     clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3500);
 }
 
+// Not let in yet: ask for the code, or explain the number is needed.
+function renderLocked(s) {
+    state = null;
+    if (s.table) $('tableName').textContent = s.table;
+    $('app').hidden = true;
+    $('actionsBar').hidden = true;
+    $('gate').hidden = false;
+    $('gateCode').hidden = !s.has_phone;
+    $('gatePhone').hidden = !!s.has_phone;
+    if (s.has_phone && !renderLocked.focused) { renderLocked.focused = true; $('codeInput').focus(); }
+}
+async function unlock(e) {
+    e.preventDefault();
+    if (await send({ action: 'unlock', code: $('codeInput').value })) {
+        $('codeInput').value = '';
+    }
+}
+
 function render(s) {
+    if (s.locked) return renderLocked(s);
     state = s;
+    $('gate').hidden = true;
+    $('app').hidden = false;
+    $('actionsBar').hidden = false;
     if (s.table) $('tableName').textContent = s.table;
     $('dishes').innerHTML = s.items.length ? s.items.map(i => `
         <div class="dish">
@@ -226,6 +274,7 @@ async function send(body) {
     try {
         const r = await fetch('/api/guest.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ k: K }, body)) });
         const s = await r.json();
+        if (s.locked && !s.success) { load(); toast(s.message || L.failed); return false; }
         if (!s.success) { toast(s.message || L.failed); return false; }
         render(s);
         return true;

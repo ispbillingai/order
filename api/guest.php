@@ -1,9 +1,11 @@
 <?php
 /**
  * Guest API — used by the customer page a table's QR code opens (t.php).
- * No login: the table's secret QR token is the only credential, and it only
- * ever gives access to that table's current meal.
+ * The table's QR token finds the table; the order's 6-digit access code (sent
+ * on WhatsApp to the numbers left with the order) lets this browser in, for
+ * that order only. Without it only {locked: true, ...} comes back.
  *
+ * POST {k, action: 'unlock', code}                 → check the code, let this browser in
  * GET  ?k=<token>                                  → the table's order + open requests
  * GET  ?k=<token>&menu=1                          → the menu (to swap a dish)
  * POST {k, type: bill|waiter|change, order_item_id?, replacement_menu_item_id?, message?} → new request
@@ -23,6 +25,44 @@ $input = $_SERVER['REQUEST_METHOD'] === 'POST'
 $table = tableByQrToken((string) ($input['k'] ?? ''));
 if (!$table) {
     jsonResponse(['success' => false, 'message' => t('guest_bad_qr')], 404);
+}
+
+// The service is for the guests of the table's current order who left a
+// number and entered the code they got on WhatsApp.
+$order   = tableCurrentOrder($table);
+$granted = guestAccessGranted($table, $order);
+
+/** Not let in: only whether there is something to unlock. */
+function lockedState(array $table, ?array $order): array
+{
+    return [
+        'success'   => true,
+        'locked'    => true,
+        'table'     => $order ? $order['table_number'] : $table['table_number'],
+        'has_order' => (bool) $order,
+        'has_phone' => $order ? orderHasGuestPhone($order) : false,
+    ];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'unlock') {
+    if (!$order || !orderHasGuestPhone($order)) {
+        jsonResponse(['success' => false, 'message' => t('guest_need_phone')]);
+    }
+    orderGuestCode((int) $order['id']); // an order whose link wasn't sent yet still gets its code
+    $order = tableCurrentOrder($table);
+    $res   = guestUnlock($table, $order, (string) ($input['code'] ?? ''));
+    if ($res !== 'ok') {
+        jsonResponse(['success' => false, 'message' => t($res === 'locked' ? 'guest_code_locked' : 'guest_code_bad')]);
+    }
+    logActivity('guest_unlocked', 'orders', (int) $order['id']);
+    $granted = true;
+}
+
+if (!$granted) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        jsonResponse(['success' => false, 'locked' => true, 'message' => t('guest_need_code')], 403);
+    }
+    jsonResponse(lockedState($table, $order));
 }
 
 /** What the guest may see: dishes, their progress, the total — no staff data. */
@@ -72,7 +112,7 @@ function guestState(array $table): array
     ];
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') !== 'unlock') {
     // "Bill on WhatsApp": the bill request as usual, plus the receipt copy
     // sent straight away to the chosen guest's number.
     $waTarget = null;

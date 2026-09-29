@@ -2,8 +2,8 @@
 /**
  * Admin — table QR codes. One QR per table, to print and put on the table:
  * guests scan it to see their order, ask for the bill, call the waiter or ask
- * for a change to a dish (t.php). "New code" replaces a table's secret, so any
- * copy printed before stops working (e.g. a QR photographed and shared).
+ * for a change to a dish (t.php). The QR never changes: what lets a guest in
+ * is the per-order access code sent on WhatsApp with the order.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -11,16 +11,6 @@ require_once __DIR__ . '/../includes/table_requests.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'regenerate') {
-    $tableId = (int) ($_POST['table_id'] ?? 0);
-    if ($tableId) {
-        regenerateTableQrToken($tableId);
-        logActivity('table_qr_regenerated', 'tables_restaurant', $tableId);
-    }
-    header('Location: /admin/table-qr.php?done=1#table-' . $tableId);
-    exit;
-}
 
 // Same layout as Rooms & Tables: one card per room, its tables inside.
 $rooms = [];
@@ -70,9 +60,6 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <p class="text-muted no-print"><?= te('table_qr_intro') ?></p>
-<?php if (isset($_GET['done'])): ?>
-    <div class="alert alert-success no-print"><?= te('table_qr_regenerated') ?></div>
-<?php endif; ?>
 
 <?php
 // Pick a room from the scrolling bar; "Print all" still prints every room.
@@ -103,11 +90,6 @@ include __DIR__ . '/../includes/room_scroller.php';
             <div class="room"><?= htmlspecialchars($room['name']) ?></div>
             <div class="qr-tools">
                 <a class="btn btn-sm btn-outline" href="<?= htmlspecialchars($tb['url']) ?>" target="_blank"><i class="fas fa-up-right-from-square"></i> <?= te('table_qr_open') ?></a>
-                <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('table_qr_regen_confirm'))) ?>);">
-                    <input type="hidden" name="action" value="regenerate">
-                    <input type="hidden" name="table_id" value="<?= (int) $tb['id'] ?>">
-                    <button class="btn btn-sm btn-outline" type="submit"><i class="fas fa-rotate"></i> <?= te('table_qr_regen') ?></button>
-                </form>
             </div>
         </div>
     <?php endforeach; ?>

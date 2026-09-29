@@ -241,6 +241,12 @@ include __DIR__ . '/../includes/header.php';
         <?php if ($isEditable): ?>
             <button type="button" class="btn btn-sm btn-outline" onclick="editCustomer(true)"><i class="fas fa-pen"></i> <?= te('edit') ?></button>
         <?php endif; ?>
+        <?php if ($waOn && !empty($order['guest_code']) && orderHasGuestPhone($order)): ?>
+            <span class="badge badge-light" title="<?= te('guest_code_label') ?>" style="font-size:.85rem;letter-spacing:.08em;"><i class="fas fa-key"></i> <?= htmlspecialchars($order['guest_code']) ?></span>
+            <?php if ($isEditable): ?>
+                <button type="button" class="btn btn-sm btn-outline" onclick="resendGuestLink()"><i class="fab fa-whatsapp"></i> <?= te('guest_code_resend') ?></button>
+            <?php endif; ?>
+        <?php endif; ?>
         <?php foreach ([[$waLink, 'link'], [$waBill, 'bill']] as [$m, $kind]): if ($st = $waState($m, $kind)): ?>
             <span class="badge badge-<?= $st['cls'] ?>" title="<?= htmlspecialchars($st['err']) ?>"><i class="fab fa-whatsapp"></i> <i class="fas <?= $st['icon'] ?>"></i> <?= htmlspecialchars($st['text']) ?></span>
         <?php endif; endforeach; ?>
@@ -711,6 +717,15 @@ const T = {
     confirmCancelOrder: <?= json_encode(t('confirm_cancel_order')) ?>,
     orderCancelled: <?= json_encode(t('toast_order_cancelled')) ?>,
 };
+
+/* ---- Guest link + access code again on WhatsApp ---- */
+async function resendGuestLink() {
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'resend_guest_link', order_id: orderId });
+        showToast(<?= json_encode(t('toast_guest_resent')) ?>, 'success');
+        setTimeout(() => location.reload(), 1200);
+    } catch (e) { /* apiCall already showed the reason */ }
+}
 
 /* ---- The guest's details ---- */
 function editCustomer(on) {

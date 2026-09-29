@@ -675,6 +675,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
             break;
 
+        case 'resend_guest_link':
+            // The guest lost the message or got locked out: link + code again.
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $o = $orderId ? getOrderById($orderId) : null;
+            if (!$o || !orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            $sent = resendGuestAccess($o);
+            if (!$sent) {
+                jsonResponse(['success' => false, 'message' => t('wa_no_phone')]);
+            }
+            logActivity('guest_link_resent', 'orders', $orderId, ['messages' => $sent]);
+            jsonResponse(['success' => true, 'sent' => $sent]);
+            break;
+
         case 'cancel_order':
             // Cancel a whole unpaid order (opened by mistake, or to start the
             // table over): every dish is cancelled — ones already at a work

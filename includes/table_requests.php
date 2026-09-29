@@ -32,7 +32,7 @@ function tableQrToken(int $tableId): string
     return $token;
 }
 
-/** New secret for a table: every QR printed before stops working. */
+/** The table's QR secret, made once when the QR is first shown; it never changes after that. */
 function regenerateTableQrToken(int $tableId): string
 {
     $token = bin2hex(random_bytes(12));

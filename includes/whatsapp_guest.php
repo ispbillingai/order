@@ -42,7 +42,7 @@ function restaurantName(): string
     return (string) ($ws['name'] ?? 'RistoUpgrade');
 }
 
-/** "Here is your table's link, this is what you can do with it". */
+/** "Here is your table's link and your access code, this is what you can do". */
 function guestTableLinkText(array $order, string $lang): string
 {
     $url = tableQrUrl(tableQrToken((int) $order['table_id']));
@@ -50,7 +50,84 @@ function guestTableLinkText(array $order, string $lang): string
         'restaurant' => restaurantName(),
         'table'      => $order['table_number'],
         'url'        => $url,
+        'code'       => orderGuestCode((int) $order['id']),
     ]);
+}
+
+// ---------------------------------------------------------------------------
+// Guest access code. The table QR never changes; what opens the guest page is
+// the order's 6-digit code, sent on WhatsApp to the numbers left with the
+// order. It dies with the order (the next guests at the table can't get in).
+// ---------------------------------------------------------------------------
+
+const GUEST_CODE_MAX_TRIES = 10;
+
+/** The order's access code, created the first time it is needed. */
+function orderGuestCode(int $orderId, bool $renew = false): string
+{
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT guest_code FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $code = (string) $stmt->fetchColumn();
+    if ($code === '' || $renew) {
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $pdo->prepare("UPDATE orders SET guest_code = ?, guest_code_attempts = 0 WHERE id = ?")->execute([$code, $orderId]);
+    }
+    return $code;
+}
+
+/** Did any guest of this order leave a number (table guest or a seat guest)? */
+function orderHasGuestPhone(array $order): bool
+{
+    if (!empty($order['customer_phone'])) return true;
+    foreach (orderSeatGuests((int) $order['id']) as $g) {
+        if (!empty($g['customer_phone'])) return true;
+    }
+    return false;
+}
+
+/** Is this browser let in to the table's current order? */
+function guestAccessGranted(array $table, ?array $order): bool
+{
+    return $order && !empty($order['guest_code'])
+        && (int) ($_SESSION['guest_access'][(int) $table['id']] ?? 0) === (int) $order['id'];
+}
+
+/** Check a typed code: 'ok' (browser let in) | 'bad' | 'locked' | 'no_code'. */
+function guestUnlock(array $table, array $order, string $code): string
+{
+    if (empty($order['guest_code'])) return 'no_code';
+    if ((int) $order['guest_code_attempts'] >= GUEST_CODE_MAX_TRIES) return 'locked';
+    if (hash_equals((string) $order['guest_code'], preg_replace('/\D/', '', $code))) {
+        $_SESSION['guest_access'][(int) $table['id']] = (int) $order['id'];
+        return 'ok';
+    }
+    getDBConnection()->prepare("UPDATE orders SET guest_code_attempts = guest_code_attempts + 1 WHERE id = ?")->execute([$order['id']]);
+    return (int) $order['guest_code_attempts'] + 1 >= GUEST_CODE_MAX_TRIES ? 'locked' : 'bad';
+}
+
+/**
+ * Send the link + code again to every number of the order (the waiter's
+ * "resend"). A code locked by wrong attempts is replaced by a new one.
+ * Returns how many messages were queued.
+ */
+function resendGuestAccess(array $order): int
+{
+    if (!guestWhatsappEnabled()) return 0;
+    orderGuestCode((int) $order['id'], (int) $order['guest_code_attempts'] >= GUEST_CODE_MAX_TRIES);
+    getDBConnection()->prepare("UPDATE orders SET guest_code_attempts = 0 WHERE id = ?")->execute([$order['id']]);
+    $order = getOrderById((int) $order['id']);
+    $sent  = 0;
+    if (!empty($order['customer_phone'])) {
+        queueGuestWhatsapp((int) $order['id'], null, 'table_link', $order['customer_phone'], guestTableLinkText($order, guestLang($order['customer_country'])));
+        $sent++;
+    }
+    foreach (orderSeatGuests((int) $order['id']) as $seat => $g) {
+        if (empty($g['customer_phone'])) continue;
+        queueGuestWhatsapp((int) $order['id'], (int) $seat, 'table_link', $g['customer_phone'], guestTableLinkText($order, guestLang($g['customer_country'])));
+        $sent++;
+    }
+    return $sent;
 }
 
 /**
