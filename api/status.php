@@ -32,6 +32,10 @@ try {
     $data['table_requests'] = []; // migration 012 not applied yet
 }
 
+// Tables asking for the bill: their drawing blinks on the floor plans.
+require_once __DIR__ . '/../includes/table_visual.php';
+$data['bill_tables'] = billAlertTables();
+
 // Role-specific data
 switch ($user['role']) {
     case 'waiter':

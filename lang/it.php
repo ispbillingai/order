@@ -264,6 +264,7 @@ return [
     'rooms_occupied_title'  => 'Tavoli occupati — tutte le sale',
     'rooms_none_occupied'   => 'Nessun tavolo occupato al momento.',
     'rooms_free_of'         => '{free} liberi su {all}',
+    'tv_bill'               => 'Conto',
     'table_qr_intro'        => 'Stampali e metti ciascuno sul suo tavolo. Il cliente lo scansiona per vedere il suo ordine, chiedere il conto, chiamare il cameriere o chiedere la modifica di una portata; il personale vede la richiesta nella propria schermata.',
     'table_qr_hint'         => 'Scansiona per vedere il tuo ordine, chiamare il cameriere o chiedere il conto',
     'table_qr_open'         => 'Apri',

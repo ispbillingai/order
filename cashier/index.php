@@ -184,15 +184,17 @@ include __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <div class="tables-grid">
             <?php $occupancy = tableOccupancy(); // guests seated per table (chairs red/green)
+            $billTables = array_flip(billAlertTables()); // blink: asking for the bill
             foreach ($tables as $table):
                 $status = $table['order_id'] ? ($table['order_status'] === 'bill_requested' ? 'bill_requested' : 'occupied') : 'free';
                 $guests = $table['order_id'] ? ($occupancy[$table['id']]['guests'] ?? 0) : null;
             ?>
-                <div class="table-card table-visual <?= $status ?>"
+                <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>"
                      <?php if ($table['order_id']): ?>
                      onclick="window.location.href='/cashier/payment.php?order=<?= $table['order_id'] ?>'"
                      <?php endif; ?>
                      style="<?= $table['order_id'] ? '' : 'cursor: default;' ?>">
+                    <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
                     <?= renderTableVisual((string) $table['table_number'], (int) ($table['capacity'] ?? 4), $guests, (string) $table['status']) ?>
                     <div class="tv-guests <?= tableFill((int) ($table['capacity'] ?? 4), $guests) ?>">
                         <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) ($table['capacity'] ?? 4) ?>

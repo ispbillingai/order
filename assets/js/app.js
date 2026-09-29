@@ -506,3 +506,13 @@ function initRoomScroller() {
     if (active) bar.scrollLeft = active.offsetLeft - bar.clientWidth / 2 + active.clientWidth / 2;
 }
 document.addEventListener('DOMContentLoaded', initRoomScroller);
+
+// Floor plans: tables asking for the bill blink — kept live from the status poll.
+document.addEventListener('app:update', e => {
+    const ids = e.detail && e.detail.bill_tables;
+    if (!Array.isArray(ids)) return;
+    const on = new Set(ids.map(String));
+    document.querySelectorAll('.table-card.table-visual[data-table-id]').forEach(card => {
+        card.classList.toggle('bill-alert', on.has(card.dataset.tableId));
+    });
+});

@@ -1463,3 +1463,12 @@ textarea.form-control {
 .table-card.table-visual .table-status { margin-top: 4px; }
 .table-card.table-visual { position: relative; }
 .table-card.table-visual .tv-bell { position: absolute; top: 0; right: 4px; z-index: 1; }
+
+/* A table asking for the bill: its drawing blinks with a glow until it is paid. */
+@keyframes tvBillBlink {
+    0%, 100% { opacity: 1; filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0)); }
+    50%      { opacity: .35; filter: drop-shadow(0 0 10px rgba(245, 158, 11, .95)); }
+}
+.table-card.table-visual.bill-alert .tv-svg { animation: tvBillBlink 1s ease-in-out infinite; }
+.table-card.table-visual.bill-alert .tv-billicon { display: inline-flex; }
+.table-card.table-visual .tv-billicon { display: none; position: absolute; top: 0; left: 4px; z-index: 1; align-items: center; gap: 4px; background: #f59e0b; color: #fff; font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }

@@ -40,6 +40,7 @@ if ($selectedRoomId) {
 
 // Guests seated at each table (chairs drawn red/green).
 $occupancy = tableOccupancy();
+$billTables = array_flip(billAlertTables()); // blink: asking for the bill
 
 // Tables with a guest request (QR) still waiting: bell on the table.
 $tableAsks = [];
@@ -83,12 +84,13 @@ include __DIR__ . '/../includes/header.php';
         if ($status === 'open' || $status === 'sent_to_kitchen') $status = 'occupied';
     ?>
         <?php $guests = $order ? ($occupancy[$table['id']]['guests'] ?? 0) : null; ?>
-        <div class="table-card table-visual <?= $status ?>"
+        <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>"
              onclick="selectTable(<?= $table['id'] ?>, '<?= $status ?>', <?= $order ? $order['id'] : 'null' ?>)"
              data-table-id="<?= $table['id'] ?>">
             <?php if (!empty($tableAsks[$table['id']])): ?>
                 <span class="badge badge-danger tv-bell" title="<?= te('req_waiting_table') ?>"><i class="fas fa-bell"></i> <?= (int) $tableAsks[$table['id']] ?></span>
             <?php endif; ?>
+            <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
             <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
             <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>">
                 <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?>

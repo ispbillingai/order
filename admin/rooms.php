@@ -171,6 +171,7 @@ if ($rooms) {
 
 // Guests seated per table (chairs drawn red/green). A table with no order is free.
 $occupancy = tableOccupancy();
+$billTables = array_flip(billAlertTables()); // blink: asking for the bill
 $seatedAt  = fn($t) => isset($occupancy[$t['id']]) ? $occupancy[$t['id']]['guests'] : ($t['status'] === 'free' ? null : 0);
 
 $scrollerKey   = 'admin-rooms';
@@ -210,8 +211,9 @@ include __DIR__ . '/../includes/room_scroller.php';
             <div class="tables-grid">
                 <?php foreach ($occupiedTables as $table): ?>
                     <?php $guests = $seatedAt($table); ?>
-                    <div class="table-card table-visual <?= htmlspecialchars($table['status']) ?>" style="cursor: default;">
+                    <div class="table-card table-visual <?= htmlspecialchars($table['status']) ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
                         <div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div>
+                        <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
                         <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
                         <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
                         <div class="table-status"><?= htmlspecialchars($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status']))) ?></div>
@@ -258,7 +260,8 @@ include __DIR__ . '/../includes/room_scroller.php';
             <div class="tables-grid">
                 <?php foreach ($tables as $table): ?>
                     <?php $guests = $seatedAt($table); ?>
-                    <div class="table-card table-visual <?= $table['status'] ?>" style="cursor: default;">
+                    <div class="table-card table-visual <?= $table['status'] ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
+                        <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
                         <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
                         <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
                         <div class="table-status"><?= htmlspecialchars($table['status'] === 'free' ? t('available') : ($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status'])))) ?></div>

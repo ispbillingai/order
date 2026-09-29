@@ -119,3 +119,26 @@ function renderTableVisual(string $label, int $capacity, ?int $guests, string $s
         $tx + $tw / 2, $ty + $th / 2, $font, htmlspecialchars($label));
     return $svg . '</svg>';
 }
+
+/**
+ * Tables asking for the bill right now (their drawing blinks): the table's
+ * order or one of its seat bills is waiting to be paid, or the guests asked
+ * for the bill from the table QR and nobody has closed that request yet.
+ */
+function billAlertTables(): array
+{
+    $pdo = getDBConnection();
+    $ids = $pdo->query("
+        SELECT t.id FROM tables_restaurant t
+        JOIN orders o ON o.id = t.current_order_id
+        WHERE o.status NOT IN ('paid', 'cancelled')
+          AND (o.status = 'bill_requested'
+               OR EXISTS (SELECT 1 FROM orders c WHERE c.parent_order_id = o.id AND c.status = 'bill_requested'))
+    ")->fetchAll(PDO::FETCH_COLUMN);
+    try {
+        $ids = array_merge($ids, $pdo->query("SELECT table_id FROM table_requests WHERE type = 'bill' AND status <> 'done'")->fetchAll(PDO::FETCH_COLUMN));
+    } catch (PDOException $e) {
+        // table_requests not migrated yet
+    }
+    return array_values(array_unique(array_map('intval', $ids)));
+}

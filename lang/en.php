@@ -264,6 +264,7 @@ return [
     'rooms_occupied_title'  => 'Occupied tables — all rooms',
     'rooms_none_occupied'   => 'No table is occupied right now.',
     'rooms_free_of'         => '{free} free of {all}',
+    'tv_bill'               => 'Bill',
     'table_qr_intro'        => 'Print these and put each one on its table. Guests scan it to see their order, ask for the bill, call the waiter or ask for a change to a dish; the staff see the request in their own screen.',
     'table_qr_hint'         => 'Scan to see your order, call the waiter or ask for the bill',
     'table_qr_open'         => 'Open',
