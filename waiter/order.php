@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/countries.php';
 requireRole(['admin', 'waiter']);
 
 $orderId = $_GET['order'] ?? null;
@@ -104,6 +105,11 @@ if ($isEditable && !$isSeatBill) {
     $mergeOrders = $stmt->fetchAll();
 }
 
+// The guest's details (name, city, phone with country prefix — Italy by default).
+$custCountry = $order['customer_country'] ?: 'IT';
+$hasCustomer = !empty($order['customer_name']) || !empty($order['customer_city']) || !empty($order['customer_phone']);
+$countries   = phoneCountryOptions();
+
 $pageTitle = "Order #{$order['order_number']}";
 
 include __DIR__ . '/../includes/header.php';
@@ -151,6 +157,19 @@ include __DIR__ . '/../includes/header.php';
 .seat-bills { margin-top: 10px; }
 .seat-bill-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px dashed var(--border-color); color: inherit; text-decoration: none; }
 
+/* Guest details box */
+.cust-box { padding: 14px 18px; }
+.cust-box .cust-title { font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cust-grid { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr auto; gap: 10px; align-items: end; }
+.cust-grid .form-group { margin: 0; }
+.cust-phone { display: flex; gap: 6px; }
+.cust-phone select { flex: 0 0 11.5rem; max-width: 11.5rem; }
+.cust-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cust-box [hidden] { display: none !important; }
+.cust-summary .muted { color: var(--text-secondary); }
+@media (max-width: 1024px) { .cust-grid { grid-template-columns: 1fr 1fr; } .cust-grid .cust-phone-wrap, .cust-grid .cust-actions { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .cust-grid { grid-template-columns: 1fr; } .cust-phone select { flex-basis: 9rem; } }
+
 .recall-note {
     display: flex;
     align-items: center;
@@ -195,6 +214,51 @@ include __DIR__ . '/../includes/header.php';
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
     <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
 </div>
+
+<?php if (!$isSeatBill && ($isEditable || $hasCustomer)): ?>
+<!-- The guest's details, taken with the order -->
+<div class="card mb-lg cust-box" id="custBox">
+    <div class="cust-summary" id="custSummary" <?= $hasCustomer ? '' : 'hidden' ?>>
+        <strong><i class="fas fa-user"></i> <?= htmlspecialchars($order['customer_name'] ?: t('cust_no_name')) ?></strong>
+        <?php if ($order['customer_city']): ?><span class="muted"><i class="fas fa-location-dot"></i> <?= htmlspecialchars($order['customer_city']) ?></span><?php endif; ?>
+        <?php if ($order['customer_phone']): ?><span class="flag-font"><?= countryFlag($custCountry) ?> <?= htmlspecialchars($order['customer_phone']) ?></span><?php endif; ?>
+        <?php if ($isEditable): ?>
+            <button type="button" class="btn btn-sm btn-outline" onclick="editCustomer(true)"><i class="fas fa-pen"></i> <?= te('edit') ?></button>
+        <?php endif; ?>
+    </div>
+    <?php if ($isEditable): ?>
+    <form id="custForm" onsubmit="saveCustomer(event)" <?= $hasCustomer ? 'hidden' : '' ?>>
+        <div class="cust-title"><i class="fas fa-user"></i> <?= te('cust_title') ?> <small class="text-muted" style="font-weight:400;"><?= te('cust_optional') ?></small></div>
+        <div class="cust-grid">
+            <div class="form-group">
+                <label class="form-label"><?= te('cust_name') ?></label>
+                <input type="text" id="custName" class="form-control" maxlength="120" autocomplete="off" value="<?= htmlspecialchars($order['customer_name'] ?? '') ?>" placeholder="<?= te('cust_name_ph') ?>">
+            </div>
+            <div class="form-group">
+                <label class="form-label"><?= te('cust_city') ?></label>
+                <input type="text" id="custCity" class="form-control" maxlength="100" autocomplete="off" value="<?= htmlspecialchars($order['customer_city'] ?? '') ?>" placeholder="<?= te('cust_city_ph') ?>">
+            </div>
+            <div class="form-group cust-phone-wrap">
+                <label class="form-label"><?= te('cust_phone') ?></label>
+                <div class="cust-phone">
+                    <select id="custCountry" class="form-control flag-font" aria-label="<?= te('cust_prefix') ?>">
+                        <?php foreach ($countries as $c): ?>
+                            <option value="<?= $c['iso'] ?>" <?= $c['iso'] === $custCountry ? 'selected' : '' ?>><?= $c['flag'] ?> <?= htmlspecialchars($c['name']) ?> <?= $c['dial'] ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="tel" id="custPhone" class="form-control" maxlength="20" inputmode="tel" autocomplete="off"
+                           value="<?= htmlspecialchars($order['customer_phone'] ? nationalPhone($custCountry, $order['customer_phone']) : '') ?>" placeholder="333 123 4567">
+                </div>
+            </div>
+            <div class="cust-actions d-flex gap-sm">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('cust_save') ?></button>
+                <?php if ($hasCustomer): ?><button type="button" class="btn btn-outline" onclick="editCustomer(false)"><?= te('cancel') ?></button><?php endif; ?>
+            </div>
+        </div>
+    </form>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="order-page">
     <!-- Menu Section -->
@@ -570,6 +634,28 @@ const T = {
     confirmCancelOrder: <?= json_encode(t('confirm_cancel_order')) ?>,
     orderCancelled: <?= json_encode(t('toast_order_cancelled')) ?>,
 };
+
+/* ---- The guest's details ---- */
+function editCustomer(on) {
+    document.getElementById('custForm').hidden = !on;
+    document.getElementById('custSummary').hidden = on;
+    if (on) document.getElementById('custName').focus();
+}
+async function saveCustomer(e) {
+    e.preventDefault();
+    try {
+        await apiCall('/api/orders.php', 'POST', {
+            action: 'set_customer',
+            order_id: orderId,
+            name: document.getElementById('custName').value,
+            city: document.getElementById('custCity').value,
+            country: document.getElementById('custCountry').value,
+            phone: document.getElementById('custPhone').value,
+        });
+        showToast(<?= json_encode(t('cust_saved')) ?>, 'success');
+        setTimeout(() => location.reload(), 300);
+    } catch (err) { /* apiCall already showed the reason */ }
+}
 
 /* ---- Cancel the whole order (opened by mistake / start the table over) ---- */
 async function cancelWholeOrder() {

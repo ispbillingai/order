@@ -587,6 +587,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true, 'order_id' => $seatOrderId, 'order_number' => $seatOrderNumber, 'table_label' => $label]);
             break;
 
+        case 'set_customer':
+            // The guest's details: name, city they come from, phone (country
+            // prefix + number). All optional; empty fields clear them.
+            require_once __DIR__ . '/../includes/countries.php';
+            $orderId = (int) ($input['order_id'] ?? 0);
+            if (!$orderId || !orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            $name    = mb_substr(trim((string) ($input['name'] ?? '')), 0, 120);
+            $city    = mb_substr(trim((string) ($input['city'] ?? '')), 0, 100);
+            $country = strtoupper(trim((string) ($input['country'] ?? 'IT')));
+            $number  = trim((string) ($input['phone'] ?? ''));
+            $phone   = null;
+            if ($number !== '') {
+                $phone = internationalPhone($country, $number);
+                if ($phone === null) {
+                    jsonResponse(['success' => false, 'message' => t('cust_bad_phone')]);
+                }
+            }
+            $pdo->prepare("UPDATE orders SET customer_name = ?, customer_city = ?, customer_country = ?, customer_phone = ? WHERE id = ?")
+                ->execute([$name ?: null, $city ?: null, isset(PHONE_COUNTRIES[$country]) ? $country : null, $phone, $orderId]);
+            logActivity('order_customer_saved', 'orders', $orderId);
+            jsonResponse(['success' => true, 'phone' => $phone]);
+            break;
+
         case 'cancel_order':
             // Cancel a whole unpaid order (opened by mistake, or to start the
             // table over): every dish is cancelled — ones already at a work
@@ -674,6 +699,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$orderId, $sourceId]);
             $pdo->prepare("UPDATE orders SET number_of_people = number_of_people + ? WHERE id = ?")
                 ->execute([(int) $source['number_of_people'], $orderId]);
+            // No guest details here yet: take the other table's.
+            if (empty($target['customer_name']) && empty($target['customer_phone'])) {
+                $pdo->prepare("UPDATE orders SET customer_name = ?, customer_city = ?, customer_country = ?, customer_phone = ? WHERE id = ?")
+                    ->execute([$source['customer_name'] ?? null, $source['customer_city'] ?? null, $source['customer_country'] ?? null, $source['customer_phone'] ?? null, $orderId]);
+            }
 
             // The other table's tables now belong to this order.
             $tableStatus = $target['status'] === 'bill_requested' ? 'bill_requested' : 'occupied';

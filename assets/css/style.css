@@ -1472,3 +1472,13 @@ textarea.form-control {
 .table-card.table-visual.bill-alert .tv-svg { animation: tvBillBlink 1s ease-in-out infinite; }
 .table-card.table-visual.bill-alert .tv-billicon { display: inline-flex; }
 .table-card.table-visual .tv-billicon { display: none; position: absolute; top: 0; left: 4px; z-index: 1; align-items: center; gap: 4px; background: #f59e0b; color: #fff; font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+
+/* Country flags (phone prefix): Windows has no flag emoji, so draw them with
+   the Twemoji flags font; other systems use their own. */
+@font-face {
+    font-family: 'Twemoji Country Flags';
+    unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
+    src: url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2') format('woff2');
+    font-display: swap;
+}
+.flag-font { font-family: 'Twemoji Country Flags', var(--font-main), sans-serif; }

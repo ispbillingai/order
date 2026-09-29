@@ -135,6 +135,16 @@ include __DIR__ . '/../includes/header.php';
                     <?php if ($till): ?>
                         <span class="badge badge-warning"><i class="fas fa-cash-register"></i> <?= htmlspecialchars($till['name']) ?></span>
                     <?php endif; ?>
+                    <?php
+                    // The guest's details come from the table's order (a seat bill has its parent's).
+                    $cust = $order;
+                    if (!empty($order['parent_order_id'])) { $cust = getOrderById((int) $order['parent_order_id']) ?: $order; }
+                    ?>
+                    <?php if (!empty($cust['customer_name']) || !empty($cust['customer_phone'])): ?>
+                        <span class="badge badge-info"><i class="fas fa-user"></i>
+                            <?= htmlspecialchars(trim(($cust['customer_name'] ?? '') . (!empty($cust['customer_city']) ? ' · ' . $cust['customer_city'] : ''))) ?>
+                            <?= !empty($cust['customer_phone']) ? ' · ' . htmlspecialchars($cust['customer_phone']) : '' ?></span>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="card-body">
