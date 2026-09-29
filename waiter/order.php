@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/countries.php';
+require_once __DIR__ . '/../includes/whatsapp_guest.php';
 requireRole(['admin', 'waiter']);
 
 $orderId = $_GET['order'] ?? null;
@@ -110,6 +111,18 @@ $custCountry = $order['customer_country'] ?: 'IT';
 $hasCustomer = !empty($order['customer_name']) || !empty($order['customer_city']) || !empty($order['customer_phone']);
 $countries   = phoneCountryOptions();
 
+// WhatsApp to guests (TextMeBot): table link when a number is given, bill on request.
+$waOn       = guestWhatsappEnabled();
+$seatGuests = $isSeatBill ? [] : orderSeatGuests((int) $orderId);
+$waLink     = $waOn ? lastGuestWhatsapp((int) $orderId, 'table_link') : null;
+$waBill     = $waOn ? lastGuestWhatsapp((int) $orderId, 'bill') : null;
+$waState    = fn(?array $m, string $kind) => !$m ? null : [
+    'cls'  => ['sent' => 'success', 'failed' => 'danger'][$m['status']] ?? 'info',
+    'icon' => ['sent' => 'fa-check', 'failed' => 'fa-triangle-exclamation'][$m['status']] ?? 'fa-clock',
+    'text' => t('wa_' . $kind . '_' . (['sent' => 'sent', 'failed' => 'failed'][$m['status']] ?? 'queued')),
+    'err'  => $m['status'] === 'failed' ? (string) $m['error'] : '',
+];
+
 $pageTitle = "Order #{$order['order_number']}";
 
 include __DIR__ . '/../includes/header.php';
@@ -166,6 +179,9 @@ include __DIR__ . '/../includes/header.php';
 .cust-phone select { flex: 0 0 11.5rem; max-width: 11.5rem; }
 .cust-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .cust-box [hidden] { display: none !important; }
+.seat-phone-btn { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-group-head > strong { white-space: nowrap; }
+.seat-group-head > span { flex-wrap: wrap; justify-content: flex-end; }
 .cust-summary .muted { color: var(--text-secondary); }
 @media (max-width: 1024px) { .cust-grid { grid-template-columns: 1fr 1fr; } .cust-grid .cust-phone-wrap, .cust-grid .cust-actions { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .cust-grid { grid-template-columns: 1fr; } .cust-phone select { flex-basis: 9rem; } }
@@ -225,6 +241,9 @@ include __DIR__ . '/../includes/header.php';
         <?php if ($isEditable): ?>
             <button type="button" class="btn btn-sm btn-outline" onclick="editCustomer(true)"><i class="fas fa-pen"></i> <?= te('edit') ?></button>
         <?php endif; ?>
+        <?php foreach ([[$waLink, 'link'], [$waBill, 'bill']] as [$m, $kind]): if ($st = $waState($m, $kind)): ?>
+            <span class="badge badge-<?= $st['cls'] ?>" title="<?= htmlspecialchars($st['err']) ?>"><i class="fab fa-whatsapp"></i> <i class="fas <?= $st['icon'] ?>"></i> <?= htmlspecialchars($st['text']) ?></span>
+        <?php endif; endforeach; ?>
     </div>
     <?php if ($isEditable): ?>
     <form id="custForm" onsubmit="saveCustomer(event)" <?= $hasCustomer ? 'hidden' : '' ?>>
@@ -343,10 +362,29 @@ include __DIR__ . '/../includes/header.php';
                         <strong><?= $seatNo ? te('seat') . ' ' . $seatNo : te('seat_shared') ?></strong>
                         <span class="d-flex align-center gap-sm">
                             <?= formatCurrency($seatTotals[$seatNo] ?? 0) ?>
-                            <?php if ($seatNo && $isEditable && !empty($seatTotals[$seatNo])): ?>
-                                <button type="button" class="btn btn-sm btn-warning" onclick="billSeat(<?= (int) $seatNo ?>)">
-                                    <i class="fas fa-receipt"></i> <?= te('seat_bill_btn') ?>
+                            <?php if ($seatNo && $isEditable && $waOn):
+                                // This seat's guest: their own number for the link + their bill on WhatsApp.
+                                $sg = $seatGuests[$seatNo] ?? null; ?>
+                                <button type="button" class="btn btn-sm btn-outline seat-phone-btn flag-font"
+                                        onclick='openSeatGuest(<?= (int) $seatNo ?>, <?= htmlspecialchars(json_encode([
+                                            "name" => $sg["customer_name"] ?? "", "country" => $sg["customer_country"] ?? "IT",
+                                            "phone" => $sg ? nationalPhone($sg["customer_country"] ?: "IT", $sg["customer_phone"]) : ""]), ENT_QUOTES) ?>)'>
+                                    <?php if ($sg): ?>
+                                        <?= countryFlag($sg['customer_country'] ?: 'IT') ?> <?= htmlspecialchars($sg['customer_name'] ?: $sg['customer_phone']) ?>
+                                    <?php else: ?>
+                                        <i class="fas fa-mobile-screen"></i> <?= te('seat_phone_add') ?>
+                                    <?php endif; ?>
                                 </button>
+                            <?php endif; ?>
+                            <?php if ($seatNo && $isEditable && !empty($seatTotals[$seatNo])): ?>
+                                <button type="button" class="btn btn-sm btn-warning" onclick="billSeat(<?= (int) $seatNo ?>)" title="<?= te('bill_at_till') ?>">
+                                    <i class="fas fa-cash-register"></i> <?= te('seat_bill_btn') ?>
+                                </button>
+                                <?php if ($waOn && !empty($seatGuests[$seatNo]['customer_phone'])): ?>
+                                    <button type="button" class="btn btn-sm btn-success" onclick="billSeat(<?= (int) $seatNo ?>, true)" title="<?= te('bill_whatsapp') ?>">
+                                        <i class="fab fa-whatsapp"></i> <?= te('seat_bill_wa') ?>
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </span>
                     </div>
@@ -446,8 +484,14 @@ include __DIR__ . '/../includes/header.php';
                 </button>
             <?php endif; ?>
             <button class="btn btn-warning" onclick="billSeat(null)">
-                <i class="fas fa-receipt"></i> <?= te('bill') ?>
+                <i class="fas fa-cash-register"></i> <?= te('bill_at_till') ?>
             </button>
+            <?php if ($waOn && !$isSeatBill && !empty($order['customer_phone'])): ?>
+                <!-- Only for a guest who left a number -->
+                <button class="btn btn-success" onclick="billSeat(null, true)">
+                    <i class="fab fa-whatsapp"></i> <?= te('bill_whatsapp') ?>
+                </button>
+            <?php endif; ?>
             <?php if ($isEditable): ?>
                 <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
                     <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
@@ -549,6 +593,39 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- A seat's guest: their own WhatsApp number -->
+<div class="modal-overlay" id="seatGuestModal">
+    <div class="modal" style="max-width: 480px;">
+        <div class="modal-header">
+            <h3><i class="fab fa-whatsapp" style="color:#25d366;"></i> <span id="seatGuestTitle"></span></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('seat_phone_hint') ?></p>
+            <div class="form-group">
+                <label class="form-label"><?= te('cust_name') ?> <small class="text-muted"><?= te('cust_optional') ?></small></label>
+                <input type="text" id="sgName" class="form-control" maxlength="120" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label"><?= te('cust_phone') ?></label>
+                <div class="d-flex gap-sm">
+                    <select id="sgCountry" class="form-control flag-font" style="max-width: 11.5rem;">
+                        <?php foreach ($countries as $c): ?>
+                            <option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= htmlspecialchars($c['name']) ?> <?= $c['dial'] ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="tel" id="sgPhone" class="form-control" maxlength="20" inputmode="tel" autocomplete="off" placeholder="333 123 4567">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" id="sgRemove" style="margin-right:auto;color:var(--danger);" onclick="saveSeatGuest(true)"><?= te('seat_phone_remove') ?></button>
+            <button class="btn btn-outline" onclick="closeModal('seatGuestModal')"><?= te('cancel') ?></button>
+            <button class="btn btn-primary" onclick="saveSeatGuest(false)"><i class="fas fa-save"></i> <?= te('cust_save') ?></button>
+        </div>
+    </div>
+</div>
+
 <!-- Move a dish to another seat -->
 <div class="modal-overlay" id="seatMoveModal">
     <div class="modal" style="max-width: 420px;">
@@ -644,7 +721,7 @@ function editCustomer(on) {
 async function saveCustomer(e) {
     e.preventDefault();
     try {
-        await apiCall('/api/orders.php', 'POST', {
+        const r = await apiCall('/api/orders.php', 'POST', {
             action: 'set_customer',
             order_id: orderId,
             name: document.getElementById('custName').value,
@@ -652,8 +729,9 @@ async function saveCustomer(e) {
             country: document.getElementById('custCountry').value,
             phone: document.getElementById('custPhone').value,
         });
-        showToast(<?= json_encode(t('cust_saved')) ?>, 'success');
-        setTimeout(() => location.reload(), 300);
+        // A new number: the table link is on its way to the guest's WhatsApp.
+        showToast(r.link_queued ? <?= json_encode(t('toast_wa_link')) ?> : <?= json_encode(t('cust_saved')) ?>, 'success');
+        setTimeout(() => location.reload(), r.link_queued ? 1200 : 300);
     } catch (err) { /* apiCall already showed the reason */ }
 }
 
@@ -687,10 +765,37 @@ function setActiveSeat(seat) {
 setActiveSeat(activeSeat);
 
 // seat = null → the whole table's bill; a number → just that seat.
-let pendingBillSeat = null;
-function billSeat(seat) {
+// whatsapp = also send the guest the bill on WhatsApp (their number is on file).
+let pendingBillSeat = null, pendingBillWhatsapp = false;
+function billSeat(seat, whatsapp = false) {
     pendingBillSeat = seat;
+    pendingBillWhatsapp = whatsapp;
     if (HAS_TILLS) openModal('tillPickModal'); else requestBillAction();
+}
+
+/* ---- A seat's guest: own WhatsApp number ---- */
+let seatGuestSeat = null;
+function openSeatGuest(seat, g) {
+    seatGuestSeat = seat;
+    document.getElementById('seatGuestTitle').textContent = <?= json_encode(t('seat_phone_title')) ?>.replace('{seat}', seat);
+    document.getElementById('sgName').value = g.name || '';
+    document.getElementById('sgCountry').value = g.country || 'IT';
+    document.getElementById('sgPhone').value = g.phone || '';
+    document.getElementById('sgRemove').hidden = !g.phone;
+    openModal('seatGuestModal');
+    setTimeout(() => document.getElementById('sgPhone').focus(), 50);
+}
+async function saveSeatGuest(remove) {
+    try {
+        const r = await apiCall('/api/orders.php', 'POST', {
+            action: 'set_seat_guest', order_id: orderId, seat: seatGuestSeat,
+            name: document.getElementById('sgName').value,
+            country: document.getElementById('sgCountry').value,
+            phone: remove ? '' : document.getElementById('sgPhone').value,
+        });
+        showToast(r.link_queued ? <?= json_encode(t('toast_wa_link')) ?> : <?= json_encode(t('cust_saved')) ?>, 'success');
+        setTimeout(() => location.reload(), r.link_queued ? 1200 : 300);
+    } catch (e) { /* apiCall already showed the reason */ }
 }
 
 let seatMoveItemId = null;
@@ -924,21 +1029,18 @@ async function sendOrderToKitchen() {
 }
 
 async function requestBillAction(tillId = null) {
-    const seat = pendingBillSeat;
-    pendingBillSeat = null;
+    const seat = pendingBillSeat, whatsapp = pendingBillWhatsapp;
+    pendingBillSeat = null; pendingBillWhatsapp = false;
     try {
-        if (seat) {
-            const body = { action: 'request_seat_bill', order_id: orderId, seat };
-            if (tillId) body.till_id = tillId;
-            await apiCall('/api/orders.php', 'POST', body);
-            showToast(T.seatBill, 'success');
-            location.reload();
-            return;
-        }
-        const result = await requestBill(orderId, tillId);
+        const body = seat
+            ? { action: 'request_seat_bill', order_id: orderId, seat }
+            : { action: 'request_bill', order_id: orderId };
+        if (tillId) body.till_id = tillId;
+        if (whatsapp) body.whatsapp = true;
+        const result = await apiCall('/api/orders.php', 'POST', body);
         if (result.success) {
-            showToast(T.billRequested, 'success');
-            location.reload();
+            showToast(whatsapp ? <?= json_encode(t('toast_wa_bill')) ?> : (seat ? T.seatBill : T.billRequested), 'success');
+            setTimeout(() => location.reload(), whatsapp ? 1200 : 300);
         }
     } catch (error) {
         showToast(T.billFailed, 'error');

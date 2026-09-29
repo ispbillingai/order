@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/kitchen_ticket.php';
+require_once __DIR__ . '/../includes/whatsapp_guest.php';
 
 header('Content-Type: application/json');
 
@@ -402,6 +403,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order ID required']);
             }
 
+            // "Bill on WhatsApp": the guest must have left a number.
+            $viaWhatsapp = !empty($input['whatsapp']);
+            if ($viaWhatsapp) {
+                $o = getOrderById($orderId);
+                if (empty($o['customer_phone']) || !guestWhatsappEnabled()) {
+                    jsonResponse(['success' => false, 'message' => t('wa_no_phone')]);
+                }
+            }
+
             // Update order status and stamp the chosen till.
             $stmt = $pdo->prepare("UPDATE orders SET status = 'bill_requested', till_id = ? WHERE id = ?");
             $stmt->execute([$tillId, $orderId]);
@@ -417,8 +427,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             notifyCashiersBill($pdo, (int) $orderId);
 
             logActivity('bill_requested', 'orders', $orderId);
-            
-            jsonResponse(['success' => true]);
+
+            // The bill copy on the guest's WhatsApp.
+            if ($viaWhatsapp) {
+                queueGuestWhatsapp((int) $orderId, null, 'bill', $o['customer_phone'], guestBillText((int) $orderId, guestLang($o['customer_country'])));
+                logActivity('bill_whatsapp_queued', 'orders', $orderId);
+            }
+
+            jsonResponse(['success' => true, 'whatsapp' => $viaWhatsapp]);
             break;
             
         case 'join_tables':
@@ -541,6 +557,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => t('seat_bill_pending')]);
             }
 
+            // That seat's guest (their own number, for a bill on WhatsApp).
+            $seatGuest   = orderSeatGuests($orderId)[$seat] ?? null;
+            $viaWhatsapp = !empty($input['whatsapp']);
+            if ($viaWhatsapp && (empty($seatGuest['customer_phone']) || !guestWhatsappEnabled())) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => t('wa_no_phone_seat')]);
+            }
+
             $order = getOrderById($orderId);
             $cover = (int) $parent['number_of_people'] > 0 ? 1 : 0;
             $label = mb_substr($order['table_number'] . ' · ' . t('seat') . ' ' . $seat, 0, 100);
@@ -555,6 +579,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cover, $parent['cover_charge_per_person'], $tillId ?? ($parent['till_id'] ?: null),
             ]);
             $seatOrderId = (int) $pdo->lastInsertId();
+            if ($seatGuest) {
+                $pdo->prepare("UPDATE orders SET customer_name = ?, customer_country = ?, customer_phone = ? WHERE id = ?")
+                    ->execute([$seatGuest['customer_name'], $seatGuest['customer_country'], $seatGuest['customer_phone'], $seatOrderId]);
+            }
 
             // The seat's dishes (cancelled ones too, so the history travels
             // with them) and their kitchen-display tickets move to the seat bill.
@@ -583,6 +611,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 notifyCashiersBill($pdo, $seatOrderId);
             }
             logActivity('seat_bill_requested', 'orders', $seatOrderId, ['table_order' => $orderId, 'seat' => $seat]);
+            if ($viaWhatsapp) {
+                queueGuestWhatsapp($seatOrderId, $seat, 'bill', $seatGuest['customer_phone'], guestBillText($seatOrderId, guestLang($seatGuest['customer_country'])));
+            }
 
             jsonResponse(['success' => true, 'order_id' => $seatOrderId, 'order_number' => $seatOrderNumber, 'table_label' => $label]);
             break;
@@ -609,7 +640,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE orders SET customer_name = ?, customer_city = ?, customer_country = ?, customer_phone = ? WHERE id = ?")
                 ->execute([$name ?: null, $city ?: null, isset(PHONE_COUNTRIES[$country]) ? $country : null, $phone, $orderId]);
             logActivity('order_customer_saved', 'orders', $orderId);
-            jsonResponse(['success' => true, 'phone' => $phone]);
+
+            // The guest gave a number: send them the table's QR link (once per number).
+            $linkQueued = $phone ? sendTableLinkOnce(getOrderById($orderId), null, $phone, $country) : null;
+            jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
+            break;
+
+        case 'set_seat_guest':
+            // One guest's own number for their seat (separate bill on WhatsApp).
+            // Empty phone removes it.
+            require_once __DIR__ . '/../includes/countries.php';
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $seat    = seatOrNull($input['seat'] ?? null);
+            if (!$orderId || !$seat || !orderIsEditable($pdo, $orderId)) {
+                jsonResponse(['success' => false, 'message' => 'Order is closed']);
+            }
+            $name    = mb_substr(trim((string) ($input['name'] ?? '')), 0, 120);
+            $country = strtoupper(trim((string) ($input['country'] ?? 'IT')));
+            $number  = trim((string) ($input['phone'] ?? ''));
+            if ($number === '') {
+                $pdo->prepare("DELETE FROM order_seat_guests WHERE order_id = ? AND seat = ?")->execute([$orderId, $seat]);
+                jsonResponse(['success' => true, 'phone' => null]);
+            }
+            $phone = internationalPhone($country, $number);
+            if ($phone === null) {
+                jsonResponse(['success' => false, 'message' => t('cust_bad_phone')]);
+            }
+            $pdo->prepare("
+                INSERT INTO order_seat_guests (order_id, seat, customer_name, customer_country, customer_phone) VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE customer_name = VALUES(customer_name), customer_country = VALUES(customer_country), customer_phone = VALUES(customer_phone)
+            ")->execute([$orderId, $seat, $name ?: null, $country, $phone]);
+            logActivity('seat_guest_saved', 'orders', $orderId, ['seat' => $seat]);
+            $linkQueued = sendTableLinkOnce(getOrderById($orderId), $seat, $phone, $country);
+            jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
             break;
 
         case 'cancel_order':
