@@ -86,7 +86,7 @@ include __DIR__ . '/../includes/header.php';
         <?php $guests = $order ? ($occupancy[$table['id']]['guests'] ?? 0) : null; ?>
         <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>"
              onclick="selectTable(<?= $table['id'] ?>, '<?= $status ?>', <?= $order ? $order['id'] : 'null' ?>)"
-             data-table-id="<?= $table['id'] ?>">
+             data-table-id="<?= $table['id'] ?>" data-table-number="<?= htmlspecialchars($table['table_number']) ?>">
             <?php if (!empty($tableAsks[$table['id']])): ?>
                 <span class="badge badge-danger tv-bell" title="<?= te('req_waiting_table') ?>"><i class="fas fa-bell"></i> <?= (int) $tableAsks[$table['id']] ?></span>
             <?php endif; ?>
@@ -156,7 +156,7 @@ function selectTable(tableId, status, orderId) {
     if (status === 'free') {
         // Show new order modal
         document.getElementById('modalTableNumber').textContent = 
-            document.querySelector(`[data-table-id="${tableId}"] .table-number`).textContent;
+            document.querySelector(`[data-table-id="${tableId}"]`).dataset.tableNumber;
         document.getElementById('numberOfPeople').value = 1;
         openModal('newOrderModal');
     } else {
