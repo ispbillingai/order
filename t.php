@@ -33,6 +33,7 @@ $L = [
     'swap'         => t('guest_req_swap'),
     'note_opt'     => t('guest_note_optional'),
     'change_what'  => t('guest_change_what'),
+    'wa_sent'      => t('guest_wa_sent'),
 ];
 header('Cache-Control: no-store');
 ?>
@@ -48,6 +49,7 @@ header('Cache-Control: no-store');
 <style>
 :root { --p: #e8590c; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --bg: #f7f5f2; --ok: #16a34a; }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--ink); padding: env(safe-area-inset-top) 0 calc(120px + env(safe-area-inset-bottom)); }
 header { background: var(--ink); color: #fff; padding: 18px 18px 22px; }
 header .brand { font-size: .85rem; opacity: .75; letter-spacing: .04em; text-transform: uppercase; }
@@ -77,6 +79,8 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .actions button i { font-size: 1.3rem; }
 .actions button:disabled { opacity: .45; }
 .a-bill { background: var(--ok); } .a-waiter { background: #2563eb; } .a-change { background: var(--p); }
+.a-wa { background: #25d366; }
+.actions.has-wa { grid-template-columns: repeat(2, 1fr); }
 .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-end; z-index: 10; }
 .sheet-bg.on { display: flex; }
 .sheet { background: #fff; width: 100%; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); max-height: 85vh; overflow-y: auto; }
@@ -127,9 +131,19 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 </main>
 
 <div class="actions">
-    <button class="a-bill" id="btnBill" onclick="ask('bill')"><i class="fas fa-receipt"></i><?= te('guest_btn_bill') ?></button>
+    <button class="a-bill" id="btnBill" onclick="ask('bill')"><i class="fas fa-cash-register"></i><?= te('guest_btn_bill_till') ?></button>
+    <button class="a-wa" id="btnBillWa" onclick="billWhatsapp()" hidden><i class="fab fa-whatsapp"></i><?= te('guest_btn_bill_wa') ?></button>
     <button class="a-waiter" onclick="ask('waiter')"><i class="fas fa-hand"></i><?= te('guest_btn_waiter') ?></button>
     <button class="a-change" id="btnChange" onclick="openChange()"><i class="fas fa-pen"></i><?= te('guest_btn_change') ?></button>
+</div>
+
+<!-- Bill on WhatsApp: to whom (when more guests left a number) -->
+<div class="sheet-bg" id="waSheet" onclick="if (event.target === this) this.classList.remove('on')">
+    <div class="sheet">
+        <h3><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= te('guest_wa_pick') ?></h3>
+        <div id="waPicks"></div>
+        <div class="row"><button class="btn-no" onclick="$('waSheet').classList.remove('on')"><?= te('cancel') ?></button></div>
+    </div>
 </div>
 
 <div class="sheet-bg" id="changeSheet" onclick="if (event.target === this) closeChange()">
@@ -184,6 +198,10 @@ function render(s) {
     $('totalRow').hidden = !s.has_order;
     $('total').textContent = s.total_fmt;
     $('btnBill').disabled = !s.has_order;
+    // Two bill buttons only when a guest here left a WhatsApp number.
+    const wa = (s.wa_targets || []).length > 0;
+    $('btnBillWa').hidden = !wa;
+    document.querySelector('.actions').classList.toggle('has-wa', wa);
     $('btnChange').disabled = !s.items.some(i => i.changeable);
 
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
@@ -216,6 +234,20 @@ async function send(body) {
 
 async function ask(type) {
     if (await send({ type })) toast(type === 'bill' ? L.bill_sent : L.waiter_sent);
+}
+
+// Bill on WhatsApp: straight away with one number, otherwise pick the guest.
+function billWhatsapp() {
+    const targets = state?.wa_targets || [];
+    if (targets.length === 1) return sendBillWhatsapp(targets[0]);
+    $('waPicks').innerHTML = targets.map((t, i) => `
+        <button class="pick" style="width:100%;background:#fff;font:inherit;text-align:left;" onclick="sendBillWhatsapp(state.wa_targets[${i}])">
+            <i class="fab fa-whatsapp" style="color:#25d366;"></i> <span>${esc(t.label)}</span></button>`).join('');
+    $('waSheet').classList.add('on');
+}
+async function sendBillWhatsapp(target) {
+    $('waSheet').classList.remove('on');
+    if (await send({ type: 'bill', whatsapp: target.key })) toast(L.wa_sent.replace('{who}', target.label));
 }
 
 function openChange() {

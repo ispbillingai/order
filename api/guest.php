@@ -11,6 +11,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/table_requests.php';
+require_once __DIR__ . '/../includes/whatsapp_guest.php';
 i18n_prefer_browser('it');
 
 header('Content-Type: application/json');
@@ -56,8 +57,12 @@ function guestState(array $table): array
     ");
     $stmt->execute([$table['id']]);
 
+    // Bill on WhatsApp: only for guests who left a number (names/last digits only).
+    $waTargets = $order ? array_map(fn($t) => ['key' => $t['key'], 'label' => $t['label']], guestWhatsappTargets($order)) : [];
+
     return [
         'success'  => true,
+        'wa_targets' => $waTargets,
         'table'    => $order ? $order['table_number'] : $table['table_number'],
         'has_order'=> (bool) $order,
         'items'    => $items,
@@ -68,6 +73,20 @@ function guestState(array $table): array
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // "Bill on WhatsApp": the bill request as usual, plus the receipt copy
+    // sent straight away to the chosen guest's number.
+    $waTarget = null;
+    if (($input['type'] ?? '') === 'bill' && !empty($input['whatsapp'])) {
+        $order = tableCurrentOrder($table);
+        foreach ($order ? guestWhatsappTargets($order) : [] as $t) {
+            if ($t['key'] === (string) $input['whatsapp']) $waTarget = $t;
+        }
+        if (!$waTarget) {
+            jsonResponse(['success' => false, 'message' => t('guest_err_no_wa')]);
+        }
+        $input['message'] = 'WhatsApp → ' . $waTarget['label'];
+    }
+
     $res = createTableRequest(
         $table,
         (string) ($input['type'] ?? ''),
@@ -78,7 +97,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$res['ok']) {
         jsonResponse(['success' => false, 'message' => t('guest_err_' . $res['error'])]);
     }
-    jsonResponse(guestState($table) + ['request_id' => $res['id']]);
+
+    if ($waTarget) {
+        // Tapping twice doesn't send two receipts: once every 3 minutes per number.
+        $stmt = getDBConnection()->prepare("
+            SELECT 1 FROM whatsapp_outbox WHERE kind = 'bill' AND phone = ? AND status <> 'failed'
+              AND created_at > NOW() - INTERVAL 3 MINUTE LIMIT 1
+        ");
+        $stmt->execute([$waTarget['phone']]);
+        if (!$stmt->fetchColumn()) {
+            $lang = guestLang($waTarget['country']);
+            $body = $waTarget['seat'] ? guestSeatBillText((int) $order['id'], $waTarget['seat'], $lang)
+                                      : guestBillText((int) $order['id'], $lang);
+            queueGuestWhatsapp((int) $order['id'], $waTarget['seat'], 'bill', $waTarget['phone'], $body);
+        }
+    }
+    jsonResponse(guestState($table) + ['request_id' => $res['id'], 'wa_sent_to' => $waTarget['label'] ?? null]);
 }
 
 // The menu, for swapping a dish for another one.

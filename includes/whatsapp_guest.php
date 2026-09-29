@@ -56,11 +56,11 @@ function guestTableLinkText(array $order, string $lang): string
 /**
  * The bill as WhatsApp text: header, then a monospaced block with the lines
  * exactly as on the cashier's bill (dishes, cover, subtotal, discount, total).
+ * $bill: table, order_number, items [[qty, name, total]], people, cover_per,
+ *        subtotal, discount, total, seat (optional).
  */
-function guestBillText(int $orderId, string $lang): string
+function renderGuestBill(array $bill, string $lang): string
 {
-    calculateOrderTotals($orderId);
-    $order = getOrderById($orderId);
     $W     = 30;
     $money = fn($v) => formatCurrency($v);
     $line  = function (string $left, string $right) use ($W): array {
@@ -75,33 +75,111 @@ function guestBillText(int $orderId, string $lang): string
     };
 
     $rows = [];
-    foreach (getOrderItems($orderId) as $it) {
-        if ($it['status'] === 'cancelled') continue;
-        $rows = array_merge($rows, $line((int) $it['quantity'] . 'x ' . $it['item_name'], $money($it['total_price'])));
+    foreach ($bill['items'] as [$qty, $name, $total]) {
+        $rows = array_merge($rows, $line((int) $qty . 'x ' . $name, $money($total)));
     }
-    $people = (int) $order['number_of_people'];
-    if ($people > 0 && (float) $order['cover_charge_per_person'] > 0) {
-        $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_cover') . ' (' . $people . ')', $money($people * $order['cover_charge_per_person'])));
+    if ($bill['people'] > 0 && $bill['cover_per'] > 0) {
+        $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_cover') . ' (' . $bill['people'] . ')', $money($bill['people'] * $bill['cover_per'])));
     }
-    $rule   = str_repeat('-', $W);
-    $rows[] = $rule;
-    $rows   = array_merge($rows, $line(tIn($lang, 'wa_bill_subtotal'), $money($order['subtotal'])));
-    if ((float) $order['discount_amount'] > 0) {
-        $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_discount'), '-' . $money($order['discount_amount'])));
+    $rows[] = str_repeat('-', $W);
+    $rows   = array_merge($rows, $line(tIn($lang, 'wa_bill_subtotal'), $money($bill['subtotal'])));
+    if ($bill['discount'] > 0) {
+        $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_discount'), '-' . $money($bill['discount'])));
     }
-    $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_total'), $money($order['total'])));
+    $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_total'), $money($bill['total'])));
 
+    $where = tIn($lang, 'wa_bill_table') . ' ' . $bill['table']
+           . (!empty($bill['seat']) ? ' · ' . tIn($lang, 'seat') . ' ' . $bill['seat'] : '')
+           . ' · ' . tIn($lang, 'wa_bill_order') . ' ' . $bill['order_number'];
     return implode("\n", [
         '*' . restaurantName() . '*',
         tIn($lang, 'wa_bill_title'),
-        tIn($lang, 'wa_bill_table') . ' ' . $order['table_number'] . ' · ' . tIn($lang, 'wa_bill_order') . ' ' . $order['order_number'],
+        $where,
         date('d/m/Y H:i'),
         '',
         "```\n" . implode("\n", $rows) . "\n```",
-        '*' . tIn($lang, 'wa_bill_total') . ': ' . $money($order['total']) . '*',
+        '*' . tIn($lang, 'wa_bill_total') . ': ' . $money($bill['total']) . '*',
         '',
         '_' . tIn($lang, 'wa_bill_note') . '_',
     ]);
+}
+
+/** The whole bill of an order (the table's, or a seat bill already split off). */
+function guestBillText(int $orderId, string $lang): string
+{
+    calculateOrderTotals($orderId);
+    $order = getOrderById($orderId);
+    $items = [];
+    foreach (getOrderItems($orderId) as $it) {
+        if ($it['status'] !== 'cancelled') $items[] = [$it['quantity'], $it['item_name'], $it['total_price']];
+    }
+    return renderGuestBill([
+        'table'        => $order['table_number'],
+        'order_number' => $order['order_number'],
+        'items'        => $items,
+        'people'       => (int) $order['number_of_people'],
+        'cover_per'    => (float) $order['cover_charge_per_person'],
+        'subtotal'     => (float) $order['subtotal'],
+        'discount'     => (float) $order['discount_amount'],
+        'total'        => (float) $order['total'],
+    ], $lang);
+}
+
+/**
+ * One seat's bill (its dishes + one cover), asked by the guest from the table
+ * QR: the seat bill if the seat was already split off, otherwise what that
+ * seat would pay — the same amounts "Bill seat" produces at the till.
+ */
+function guestSeatBillText(int $tableOrderId, int $seat, string $lang): string
+{
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT id FROM orders WHERE parent_order_id = ? AND seat = ? AND status NOT IN ('paid', 'cancelled') ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$tableOrderId, $seat]);
+    if ($seatOrderId = $stmt->fetchColumn()) {
+        return guestBillText((int) $seatOrderId, $lang);
+    }
+    $order = getOrderById($tableOrderId);
+    $items = []; $sum = 0.0;
+    foreach (getOrderItems($tableOrderId) as $it) {
+        if ($it['status'] === 'cancelled' || (int) $it['seat'] !== $seat) continue;
+        $items[] = [$it['quantity'], $it['item_name'], $it['total_price']];
+        $sum += (float) $it['total_price'];
+    }
+    $people   = (int) $order['number_of_people'] > 0 ? 1 : 0;
+    $coverPer = (float) $order['cover_charge_per_person'];
+    $total    = $sum + $people * $coverPer;
+    return renderGuestBill([
+        'table' => $order['table_number'], 'order_number' => $order['order_number'], 'seat' => $seat,
+        'items' => $items, 'people' => $people, 'cover_per' => $coverPer,
+        'subtotal' => $total, 'discount' => 0.0, 'total' => $total,
+    ], $lang);
+}
+
+/**
+ * Who at this table can get the bill on WhatsApp: the table's guest and every
+ * seat guest who left a number. Labels show the name or only the last digits,
+ * since anyone at the table can open the QR page.
+ * @return array [['key' => 'table'|'seat:N', 'label' => ..., 'phone' => ..., 'country' => ..., 'seat' => ?int]]
+ */
+function guestWhatsappTargets(array $order): array
+{
+    if (!guestWhatsappEnabled()) return [];
+    $label   = fn($name, $phone) => trim((string) $name) !== '' ? trim($name) : '•••• ' . substr((string) $phone, -4);
+    $targets = [];
+    if (!empty($order['customer_phone'])) {
+        $targets[] = ['key' => 'table', 'label' => $label($order['customer_name'], $order['customer_phone']),
+                      'phone' => $order['customer_phone'], 'country' => $order['customer_country'], 'seat' => null];
+    }
+    $pdo  = getDBConnection();
+    $paid = $pdo->prepare("SELECT 1 FROM orders WHERE parent_order_id = ? AND seat = ? AND status = 'paid' LIMIT 1");
+    foreach (orderSeatGuests((int) $order['id']) as $seat => $g) {
+        if (empty($g['customer_phone'])) continue;
+        $paid->execute([$order['id'], $seat]);
+        if ($paid->fetchColumn()) continue; // that guest has already paid
+        $targets[] = ['key' => 'seat:' . $seat, 'label' => $label($g['customer_name'], $g['customer_phone']) . ' · ' . t('seat') . ' ' . $seat,
+                      'phone' => $g['customer_phone'], 'country' => $g['customer_country'], 'seat' => (int) $seat];
+    }
+    return $targets;
 }
 
 /** Queue a WhatsApp and make sure the background sender is running. */
