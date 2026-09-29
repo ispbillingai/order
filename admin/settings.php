@@ -5,6 +5,8 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/settings.php';
+require_once __DIR__ . '/../includes/TextMeBot.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -32,7 +34,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /admin/settings.php?success=saved');
         exit;
     }
+
+    // WhatsApp gateway (TextMeBot). The API key is write-only: blank keeps the
+    // saved one, the checkbox removes it. Never logged.
+    if ($action === 'update_textmebot') {
+        $old = (array) getSetting('textmebot', []);
+        $key = trim($_POST['tmb_api_key'] ?? '');
+        if (!empty($_POST['tmb_clear_key'])) {
+            $key = '';
+        } elseif ($key === '') {
+            $key = (string) ($old['api_key'] ?? '');
+        }
+        setSetting('textmebot', [
+            'api_key'         => $key,
+            'endpoint'        => trim($_POST['tmb_endpoint'] ?? '') ?: TextMeBot::DEFAULT_ENDPOINT,
+            'min_gap_seconds' => max(5, min(60, (int) ($_POST['tmb_gap'] ?? 8))),
+        ]);
+        logActivity('textmebot_settings_saved', 'settings', null, ['key_set' => $key !== '']);
+        header('Location: /admin/settings.php?success=saved#whatsapp');
+        exit;
+    }
+
+    if ($action === 'test_textmebot') {
+        $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
+        logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
+        $_SESSION['tmb_test'] = $res['ok']
+            ? ['ok' => true, 'msg' => t('tmb_test_ok')]
+            : ['ok' => false, 'msg' => t('tmb_test_fail') . ': ' . (
+                $res['error'] === 'not_configured' ? t('tmb_not_configured')
+                : ($res['error'] === 'bad_phone' ? t('tmb_bad_phone') : TextMeBot::failureReason($res)))];
+        header('Location: /admin/settings.php#whatsapp');
+        exit;
+    }
 }
+
+$tmb      = (array) getSetting('textmebot', []);
+$tmbKeyOn = trim((string) ($tmb['api_key'] ?? '')) !== '';
+$tmbTest  = $_SESSION['tmb_test'] ?? null;
+unset($_SESSION['tmb_test']);
 
 $pageTitle = t('settings');
 
@@ -79,6 +118,58 @@ include __DIR__ . '/../includes/header.php';
         </form>
     </div>
     
+    <!-- WhatsApp gateway (TextMeBot), as in the CRM -->
+    <div class="card" id="whatsapp">
+        <div class="card-header">
+            <h2><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= te('tmb_title') ?></h2>
+            <span class="badge badge-<?= $tmbKeyOn ? 'success' : 'warning' ?>"><?= $tmbKeyOn ? te('tmb_active') : te('tmb_inactive') ?></span>
+        </div>
+        <form method="POST">
+            <div class="card-body">
+                <input type="hidden" name="action" value="update_textmebot">
+                <div class="form-group">
+                    <label class="form-label"><?= te('tmb_api_key') ?></label>
+                    <input type="password" name="tmb_api_key" class="form-control" autocomplete="new-password"
+                           placeholder="<?= $tmbKeyOn ? te('tmb_key_set') : '' ?>">
+                    <small class="text-muted"><?= te('tmb_api_key_hint') ?></small>
+                    <?php if ($tmbKeyOn): ?>
+                        <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:.85rem;">
+                            <input type="checkbox" name="tmb_clear_key" value="1"> <?= te('tmb_clear_key') ?>
+                        </label>
+                    <?php endif; ?>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?= te('tmb_endpoint') ?></label>
+                    <input type="url" name="tmb_endpoint" class="form-control"
+                           value="<?= htmlspecialchars($tmb['endpoint'] ?? TextMeBot::DEFAULT_ENDPOINT) ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?= te('tmb_gap') ?></label>
+                    <input type="number" name="tmb_gap" class="form-control" min="5" max="60"
+                           value="<?= (int) ($tmb['min_gap_seconds'] ?? 8) ?>">
+                    <small class="text-muted"><?= te('tmb_gap_hint') ?></small>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+            </div>
+        </form>
+        <form method="POST" class="card-body" style="border-top:1px solid var(--border-color);">
+            <input type="hidden" name="action" value="test_textmebot">
+            <label class="form-label"><?= te('tmb_test_title') ?></label>
+            <?php if ($tmbTest): ?>
+                <div class="alert alert-<?= $tmbTest['ok'] ? 'success' : 'danger' ?>" style="padding:10px 14px;border-radius:8px;margin-bottom:10px;background:<?= $tmbTest['ok'] ? 'rgba(39,174,96,.1)' : 'rgba(231,76,60,.1)' ?>;color:var(--<?= $tmbTest['ok'] ? 'success' : 'danger' ?>);">
+                    <?= htmlspecialchars($tmbTest['msg']) ?>
+                </div>
+            <?php endif; ?>
+            <div class="d-flex gap-sm">
+                <input type="tel" name="tmb_test_to" class="form-control" required placeholder="<?= te('tmb_test_ph') ?>" <?= $tmbKeyOn ? '' : 'disabled' ?>>
+                <button type="submit" class="btn btn-success" <?= $tmbKeyOn ? '' : 'disabled' ?> style="white-space:nowrap;"><i class="fab fa-whatsapp"></i> <?= te('tmb_test_btn') ?></button>
+            </div>
+            <small class="text-muted"><?= te('tmb_test_hint') ?></small>
+        </form>
+    </div>
+
     <!-- System Info -->
     <div class="card">
         <div class="card-header">
