@@ -35,6 +35,10 @@ while (time() - $started < 600) {
 
     if ($res['ok']) {
         $pdo->prepare("UPDATE whatsapp_outbox SET status = 'sent', sent_at = NOW(), error = NULL WHERE id = ?")->execute([$msg['id']]);
+        // A password-reset code must not stay readable in the outbox once delivered.
+        if ($msg['kind'] === 'otp') {
+            $pdo->prepare("UPDATE whatsapp_outbox SET body = '[code removed]' WHERE id = ?")->execute([$msg['id']]);
+        }
         continue;
     }
     $reason = $res['error'] === 'not_configured' ? 'TextMeBot not configured' : TextMeBot::failureReason($res);

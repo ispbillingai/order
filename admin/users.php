@@ -5,7 +5,24 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/countries.php';
 requireRole(['admin']);
+
+/**
+ * A user's WhatsApp number from the form (prefix country + number), or null
+ * when empty. Redirects back with an error when it isn't a valid number.
+ */
+function userPhoneFromPost(): ?string
+{
+    $number = trim($_POST['phone'] ?? '');
+    if ($number === '') return null;
+    $phone = internationalPhone($_POST['phone_country'] ?? 'IT', $number);
+    if ($phone === null) {
+        header('Location: /admin/users.php?error=bad_phone');
+        exit;
+    }
+    return $phone;
+}
 
 $pdo = getDBConnection();
 
@@ -15,19 +32,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'add_user') {
         $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, role, email, phone) VALUES (?, ?, ?, ?, ?, ?)");
+        $phone    = userPhoneFromPost();
+        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, role, email, phone, phone_country) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['username'],
             $password,
             $_POST['full_name'],
             $_POST['role'],
-            $_POST['email'] ?? null,
-            $_POST['phone'] ?? null
+            trim($_POST['email'] ?? '') ?: null,
+            $phone,
+            $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null,
         ]);
         header('Location: /admin/users.php?success=user_added');
         exit;
     }
     
+    // Name, email and WhatsApp number (needed for the password reset).
+    if ($action === 'edit_contacts') {
+        $email = trim($_POST['email'] ?? '');
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            header('Location: /admin/users.php?error=bad_email');
+            exit;
+        }
+        $phone = userPhoneFromPost();
+        $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ?, phone_country = ? WHERE id = ?")
+            ->execute([trim($_POST['full_name'] ?? '') ?: $_POST['username_fallback'], $email ?: null, $phone,
+                       $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null, (int) $_POST['user_id']]);
+        logActivity('user_contacts_updated', 'users', (int) $_POST['user_id']);
+        header('Location: /admin/users.php?success=contacts_updated');
+        exit;
+    }
+
     if ($action === 'toggle_status') {
         $stmt = $pdo->prepare("UPDATE users SET active = NOT active WHERE id = ? AND id != ?");
         $stmt->execute([$_POST['user_id'], $_SESSION['user_id']]);
@@ -73,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get all users
 $stmt = $pdo->query("SELECT * FROM users ORDER BY role, full_name");
 $users = $stmt->fetchAll();
+$countries = phoneCountryOptions();
 
 $pageTitle = t('user_management');
 
@@ -95,8 +131,15 @@ include __DIR__ . '/../includes/header.php';
             case 'status_updated': echo te('msg_status_updated'); break;
             case 'password_reset': echo te('msg_password_reset'); break;
             case 'user_deleted': echo te('msg_user_deleted'); break;
+            case 'contacts_updated': echo te('msg_contacts_updated'); break;
         }
         ?>
+    </div>
+<?php endif; ?>
+
+<?php if (in_array($_GET['error'] ?? '', ['bad_phone', 'bad_email'], true)): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te($_GET['error'] === 'bad_phone' ? 'cust_bad_phone' : 'err_bad_email') ?>
     </div>
 <?php endif; ?>
 
@@ -144,7 +187,10 @@ include __DIR__ . '/../includes/header.php';
                             <div><i class="fas fa-envelope text-muted"></i> <?= htmlspecialchars($user['email']) ?></div>
                         <?php endif; ?>
                         <?php if ($user['phone']): ?>
-                            <div><i class="fas fa-phone text-muted"></i> <?= htmlspecialchars($user['phone']) ?></div>
+                            <div class="flag-font"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= countryFlag($user['phone_country'] ?: 'IT') ?> <?= htmlspecialchars($user['phone']) ?></div>
+                        <?php endif; ?>
+                        <?php if (!$user['email'] || !$user['phone']): ?>
+                            <div class="text-muted" style="font-size:.75rem;"><i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> <?= te('user_no_reset') ?></div>
                         <?php endif; ?>
                     </td>
                     <td>
@@ -156,6 +202,12 @@ include __DIR__ . '/../includes/header.php';
                     </td>
                     <td>
                         <div class="d-flex gap-sm">
+                            <button class="btn btn-sm btn-outline" onclick='openContacts(<?= htmlspecialchars(json_encode([
+                                "id" => (int) $user["id"], "username" => $user["username"], "full_name" => $user["full_name"],
+                                "email" => $user["email"] ?? "", "country" => $user["phone_country"] ?: "IT",
+                                "phone" => $user["phone"] ? nationalPhone($user["phone_country"] ?: "IT", $user["phone"]) : ""]), ENT_QUOTES) ?>)' title="<?= te('user_contacts') ?>">
+                                <i class="fas fa-address-card"></i> <?= te('user_contacts') ?>
+                            </button>
                             <button class="btn btn-sm btn-outline" onclick="openResetModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" title="<?= te('reset_password') ?>">
                                 <i class="fas fa-key"></i> <?= te('reset_password') ?>
                             </button>
@@ -227,14 +279,58 @@ include __DIR__ . '/../includes/header.php';
                         <input type="email" name="email" class="form-control">
                     </div>
                     <div class="form-group">
-                        <label class="form-label"><?= te('phone_optional') ?></label>
-                        <input type="text" name="phone" class="form-control">
+                        <label class="form-label"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= te('user_whatsapp') ?></label>
+                        <div class="d-flex gap-sm">
+                            <select name="phone_country" class="form-control flag-font" style="max-width:8.5rem;">
+                                <?php foreach ($countries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= $c['dial'] ?></option><?php endforeach; ?>
+                            </select>
+                            <input type="tel" name="phone" class="form-control" placeholder="333 123 4567">
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')"><?= te('cancel') ?></button>
                 <button type="submit" class="btn btn-primary"><?= te('add_user') ?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Contacts: name, email, WhatsApp (the password reset needs email + WhatsApp) -->
+<div class="modal-overlay" id="contactsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-address-card"></i> <?= te('user_contacts') ?> — <span id="ctUsername"></span></h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <form method="POST">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="edit_contacts">
+                <input type="hidden" name="user_id" id="ctId">
+                <input type="hidden" name="username_fallback" id="ctFallback">
+                <p class="text-muted" style="margin-top:0;font-size:.85rem;"><?= te('user_contacts_hint') ?></p>
+                <div class="form-group">
+                    <label class="form-label"><?= te('full_name') ?></label>
+                    <input type="text" name="full_name" id="ctName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?= te('email_optional') ?></label>
+                    <input type="email" name="email" id="ctEmail" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= te('user_whatsapp') ?></label>
+                    <div class="d-flex gap-sm">
+                        <select name="phone_country" id="ctCountry" class="form-control flag-font" style="max-width:11.5rem;">
+                            <?php foreach ($countries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= htmlspecialchars($c['name']) ?> <?= $c['dial'] ?></option><?php endforeach; ?>
+                        </select>
+                        <input type="tel" name="phone" id="ctPhone" class="form-control" placeholder="333 123 4567">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('contactsModal')"><?= te('cancel') ?></button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save') ?></button>
             </div>
         </form>
     </div>
@@ -267,6 +363,18 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script>
+function openContacts(u) {
+    document.getElementById('ctId').value = u.id;
+    document.getElementById('ctUsername').textContent = u.username;
+    document.getElementById('ctFallback').value = u.full_name;
+    document.getElementById('ctName').value = u.full_name;
+    document.getElementById('ctEmail').value = u.email;
+    document.getElementById('ctCountry').value = u.country || 'IT';
+    document.getElementById('ctPhone').value = u.phone;
+    openModal('contactsModal');
+}
+</script>
 <script>
 function openResetModal(userId, username) {
     document.getElementById('resetUserId').value = userId;

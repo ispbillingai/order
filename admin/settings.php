@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/TextMeBot.php';
+require_once __DIR__ . '/../includes/Mailer.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -55,6 +56,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Outgoing email (password reset links). SMTP password is write-only.
+    if ($action === 'update_mail') {
+        $old  = (array) getSetting('mail', []);
+        $pass = (string) ($_POST['smtp_pass'] ?? '');
+        if ($pass === '') $pass = (string) ($old['smtp']['pass'] ?? '');
+        $secure = in_array($_POST['smtp_secure'] ?? 'tls', ['tls', 'ssl', ''], true) ? $_POST['smtp_secure'] : 'tls';
+        setSetting('mail', [
+            'from_name'  => trim($_POST['from_name'] ?? ''),
+            'from_email' => trim($_POST['from_email'] ?? ''),
+            'smtp'       => [
+                'host'   => trim($_POST['smtp_host'] ?? ''),
+                'port'   => (int) ($_POST['smtp_port'] ?? 587) ?: 587,
+                'secure' => $secure,
+                'user'   => trim($_POST['smtp_user'] ?? ''),
+                'pass'   => $pass,
+            ],
+        ]);
+        logActivity('mail_settings_saved', 'settings', null, ['host' => trim($_POST['smtp_host'] ?? '')]);
+        header('Location: /admin/settings.php?success=saved#email');
+        exit;
+    }
+
+    if ($action === 'test_mail') {
+        $to  = trim($_POST['mail_test_to'] ?? '');
+        $res = (new Mailer())->send($to, t('mail_test_subject'), '<p>' . htmlspecialchars(($workspace['name'] ?? '') . ' — ' . t('mail_test_body')) . '</p>');
+        logActivity('mail_test', 'settings', null, ['ok' => $res['ok']]);
+        $_SESSION['mail_test'] = ['ok' => $res['ok'], 'msg' => $res['ok'] ? t('mail_test_ok') : t('mail_test_fail') . ': ' . $res['error']];
+        header('Location: /admin/settings.php#email');
+        exit;
+    }
+
     if ($action === 'test_textmebot') {
         $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
         logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
@@ -67,6 +99,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+
+$mail     = (array) getSetting('mail', []);
+$smtp     = (array) ($mail['smtp'] ?? []);
+$smtpOn   = trim((string) ($smtp['host'] ?? '')) !== '';
+$mailTest = $_SESSION['mail_test'] ?? null;
+unset($_SESSION['mail_test']);
 
 $tmb      = (array) getSetting('textmebot', []);
 $tmbKeyOn = trim((string) ($tmb['api_key'] ?? '')) !== '';
@@ -167,6 +205,61 @@ include __DIR__ . '/../includes/header.php';
                 <button type="submit" class="btn btn-success" <?= $tmbKeyOn ? '' : 'disabled' ?> style="white-space:nowrap;"><i class="fab fa-whatsapp"></i> <?= te('tmb_test_btn') ?></button>
             </div>
             <small class="text-muted"><?= te('tmb_test_hint') ?></small>
+        </form>
+    </div>
+
+    <!-- Outgoing email (SMTP): password-reset links -->
+    <div class="card" id="email">
+        <div class="card-header">
+            <h2><i class="fas fa-envelope"></i> <?= te('mail_title') ?></h2>
+            <span class="badge badge-<?= $smtpOn ? 'success' : 'warning' ?>"><?= $smtpOn ? te('tmb_active') : te('tmb_inactive') ?></span>
+        </div>
+        <form method="POST">
+            <div class="card-body">
+                <input type="hidden" name="action" value="update_mail">
+                <p class="text-muted" style="margin-top:0;font-size:.85rem;"><?= te('mail_intro') ?></p>
+                <div class="d-flex gap-sm">
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_from_name') ?></label>
+                        <input type="text" name="from_name" class="form-control" value="<?= htmlspecialchars($mail['from_name'] ?? ($workspace['name'] ?? '')) ?>"></div>
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_from_email') ?></label>
+                        <input type="email" name="from_email" class="form-control" value="<?= htmlspecialchars($mail['from_email'] ?? '') ?>" placeholder="noreply@…"></div>
+                </div>
+                <div class="d-flex gap-sm">
+                    <div class="form-group" style="flex:2;"><label class="form-label"><?= te('mail_smtp_host') ?></label>
+                        <input type="text" name="smtp_host" class="form-control" value="<?= htmlspecialchars($smtp['host'] ?? '') ?>" placeholder="smtps.aruba.it"></div>
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_smtp_port') ?></label>
+                        <input type="number" name="smtp_port" class="form-control" value="<?= (int) ($smtp['port'] ?? 587) ?>"></div>
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_smtp_secure') ?></label>
+                        <select name="smtp_secure" class="form-control">
+                            <?php foreach (['tls' => 'STARTTLS', 'ssl' => 'SSL', '' => '—'] as $v => $l): ?>
+                                <option value="<?= $v ?>" <?= ($smtp['secure'] ?? 'tls') === $v ? 'selected' : '' ?>><?= $l ?></option>
+                            <?php endforeach; ?>
+                        </select></div>
+                </div>
+                <div class="d-flex gap-sm">
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_smtp_user') ?></label>
+                        <input type="text" name="smtp_user" class="form-control" value="<?= htmlspecialchars($smtp['user'] ?? '') ?>" autocomplete="off"></div>
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('mail_smtp_pass') ?></label>
+                        <input type="password" name="smtp_pass" class="form-control" autocomplete="new-password"
+                               placeholder="<?= !empty($smtp['pass']) ? te('tmb_key_set') : '' ?>"></div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+            </div>
+        </form>
+        <form method="POST" class="card-body" style="border-top:1px solid var(--border-color);">
+            <input type="hidden" name="action" value="test_mail">
+            <label class="form-label"><?= te('mail_test_title') ?></label>
+            <?php if ($mailTest): ?>
+                <div style="padding:10px 14px;border-radius:8px;margin-bottom:10px;background:<?= $mailTest['ok'] ? 'rgba(39,174,96,.1)' : 'rgba(231,76,60,.1)' ?>;color:var(--<?= $mailTest['ok'] ? 'success' : 'danger' ?>);">
+                    <?= htmlspecialchars($mailTest['msg']) ?>
+                </div>
+            <?php endif; ?>
+            <div class="d-flex gap-sm">
+                <input type="email" name="mail_test_to" class="form-control" required placeholder="nome@esempio.it" <?= $smtpOn ? '' : 'disabled' ?>>
+                <button type="submit" class="btn btn-success" <?= $smtpOn ? '' : 'disabled' ?> style="white-space:nowrap;"><i class="fas fa-paper-plane"></i> <?= te('mail_test_btn') ?></button>
+            </div>
         </form>
     </div>
 

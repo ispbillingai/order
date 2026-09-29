@@ -88,7 +88,7 @@ function redirectToRole($role) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=<?= @filemtime(__DIR__ . '/assets/css/style.css') ?>">
 </head>
 <body class="login-page">
     <div class="login-container">
@@ -105,6 +105,10 @@ function redirectToRole($role) {
             <p class="text-muted"><?= te('login_subtitle') ?></p>
         </div>
         
+        <?php if (($_GET['reset'] ?? '') === 'done' && !$error): ?>
+            <div class="pwr-ok"><i class="fas fa-check-circle"></i> <?= te('pwr_done') ?></div>
+        <?php endif; ?>
+
         <?php if ($error): ?>
             <div class="login-error">
                 <i class="fas fa-exclamation-circle"></i>
@@ -130,12 +134,8 @@ function redirectToRole($role) {
             </button>
         </form>
 
-        <div class="mt-lg text-center text-muted" style="font-size: 0.85rem;">
-            <p><strong><?= te('demo_credentials') ?></strong></p>
-            <p>Admin: admin / password</p>
-            <p>Waiter: waiter1 / password</p>
-            <p>Cashier: cashier1 / password</p>
-            <p>Kitchen: kitchen1 / password</p>
+        <div class="mt-lg text-center">
+            <a href="/forgot-password.php" class="pwr-back"><i class="fas fa-key"></i> <?= te('pwr_forgot') ?></a>
         </div>
     </div>
 </body>

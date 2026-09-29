@@ -1482,3 +1482,10 @@ textarea.form-control {
     font-display: swap;
 }
 .flag-font { font-family: 'Twemoji Country Flags', var(--font-main), sans-serif; }
+
+/* Password reset pages (login style) */
+.pwr-ok { background: rgba(39, 174, 96, .1); color: var(--success, #16a34a); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .92rem; }
+.pwr-note { font-size: .9rem; color: var(--text-secondary); margin: 0 0 14px; }
+.pwr-note .fa-whatsapp { color: #25d366; }
+.pwr-back, .pwr-link-btn { color: var(--primary); font-weight: 600; font-size: .9rem; text-decoration: none; background: none; border: 0; cursor: pointer; font-family: inherit; }
+.pwr-back:hover, .pwr-link-btn:hover { text-decoration: underline; }
