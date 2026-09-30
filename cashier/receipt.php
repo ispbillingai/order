@@ -146,6 +146,14 @@ $workspace = $stmt->fetch();
 <body>
     <div class="header">
         <h1><?= htmlspecialchars($workspace['name'] ?? 'Restaurant') ?></h1>
+        <?php require_once __DIR__ . '/../includes/restaurant.php'; ?>
+        <?php if ($addr = restaurantAddressLine()): ?><p><?= htmlspecialchars($addr) ?></p><?php endif; ?>
+        <?php if (!empty($workspace['phone']) || !empty($workspace['website'])): ?>
+            <p><?= htmlspecialchars(implode(' · ', array_filter([
+                !empty($workspace['phone']) ? t('rs_phone_short') . ' ' . $workspace['phone'] : '',
+                preg_replace('~^https?://(www\.)?~i', '', rtrim((string) $workspace['website'], '/')),
+            ]))) ?></p>
+        <?php endif; ?>
         <p><?= te('thank_dining') ?></p>
     </div>
 

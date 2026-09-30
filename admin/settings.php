@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/loyalty.php';
 require_once __DIR__ . '/../includes/consent.php';
 require_once __DIR__ . '/../includes/ready_notify.php';
 require_once __DIR__ . '/../includes/thanks.php';
+require_once __DIR__ . '/../includes/restaurant.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -25,18 +26,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'update_workspace') {
-        $stmt = $pdo->prepare("
-            UPDATE workspaces 
-            SET name = ?, cover_charge = ?
+        // Web links: "www.x.it" is fine (https:// added); anything else is refused.
+        $links = [];
+        $bad   = [];
+        foreach (array_merge(['website' => [t('rs_website')]], RESTAURANT_SOCIALS) as $col => [$label]) {
+            $raw = trim((string) ($_POST[$col] ?? ''));
+            $links[$col] = normalizeWebUrl($raw);
+            if ($raw !== '' && $links[$col] === null) $bad[] = $label;
+        }
+        if ($bad) {
+            $_SESSION['ws_error'] = t('rs_bad_links', ['fields' => implode(', ', $bad)]);
+            $_SESSION['ws_form']  = $_POST;
+            header('Location: /admin/settings.php#restaurant');
+            exit;
+        }
+        $txt = fn($k, $max) => mb_substr(trim((string) ($_POST[$k] ?? '')), 0, $max) ?: null;
+        $pdo->prepare("
+            UPDATE workspaces
+            SET name = ?, cover_charge = ?, address_street = ?, address_number = ?, postal_code = ?, city = ?, phone = ?,
+                website = ?, social_facebook = ?, social_instagram = ?, social_tiktok = ?, social_tripadvisor = ?, social_google = ?
             WHERE id = ?
-        ");
-        $stmt->execute([
+        ")->execute([
             $_POST['name'],
             $_POST['cover_charge'],
+            $txt('address_street', 150), $txt('address_number', 20), $txt('postal_code', 10), $txt('city', 100), $txt('phone', 30),
+            $links['website'], $links['social_facebook'], $links['social_instagram'], $links['social_tiktok'],
+            $links['social_tripadvisor'], $links['social_google'],
             $workspace['id']
         ]);
-        
-        header('Location: /admin/settings.php?success=saved');
+        logActivity('restaurant_details_saved', 'settings');
+
+        header('Location: /admin/settings.php?success=saved#restaurant');
         exit;
     }
 
@@ -184,6 +204,11 @@ $mailTest = $_SESSION['mail_test'] ?? null;
 unset($_SESSION['mail_test']);
 
 $loyRules = loyaltyRules();
+// A refused save comes back with what was typed.
+$wsError = $_SESSION['ws_error'] ?? null;
+$wsForm  = $_SESSION['ws_form'] ?? null;
+unset($_SESSION['ws_error'], $_SESSION['ws_form']);
+$wsVal = fn($k) => htmlspecialchars((string) ($wsForm[$k] ?? $workspace[$k] ?? ''));
 $readyRule  = readyNotifyRule();
 $readyStaff = readyNotifyStaff();
 $consentSet    = (array) getSetting('consent_texts', []);
@@ -201,6 +226,11 @@ include __DIR__ . '/../includes/header.php';
 <div class="page-header">
     <h1><i class="fas fa-cog"></i> <?= te('settings') ?></h1>
 </div>
+<style>
+.rs-section { font-size: .95rem; margin: 20px 0 10px; padding-top: 14px; border-top: 1px solid var(--border-color); color: var(--text-secondary); }
+.rs-grid { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 0 12px; }
+.rs-social .form-label i { width: 18px; text-align: center; }
+</style>
 
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 16px; border-radius: 8px;">
@@ -210,7 +240,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--space-lg);">
     <!-- Workspace Settings -->
-    <div class="card">
+    <div class="card" id="restaurant">
         <div class="card-header">
             <h2><i class="fas fa-building"></i> <?= te('restaurant_settings') ?></h2>
         </div>
@@ -229,6 +259,50 @@ include __DIR__ . '/../includes/header.php';
                     <input type="number" name="cover_charge" class="form-control"
                            step="0.01" value="<?= $workspace['cover_charge'] ?>" required>
                 </div>
+
+                <?php if ($wsError): ?>
+                    <p style="color:var(--danger);"><i class="fas fa-triangle-exclamation"></i> <?= htmlspecialchars($wsError) ?></p>
+                <?php endif; ?>
+
+                <!-- Address and contacts: on the receipt, the order PDF and the guests' page -->
+                <h3 class="rs-section"><i class="fas fa-location-dot"></i> <?= te('rs_address') ?></h3>
+                <div class="rs-grid">
+                    <div class="form-group">
+                        <label class="form-label"><?= te('rs_street') ?></label>
+                        <input type="text" name="address_street" class="form-control" maxlength="150" value="<?= $wsVal('address_street') ?>" placeholder="<?= te('rs_street_ph') ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('rs_number') ?></label>
+                        <input type="text" name="address_number" class="form-control" maxlength="20" value="<?= $wsVal('address_number') ?>" placeholder="12">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('rs_city') ?></label>
+                        <input type="text" name="city" class="form-control" maxlength="100" value="<?= $wsVal('city') ?>" placeholder="<?= te('rs_city_ph') ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('rs_postal_code') ?></label>
+                        <input type="text" name="postal_code" class="form-control" maxlength="10" inputmode="numeric" value="<?= $wsVal('postal_code') ?>" placeholder="00100">
+                    </div>
+                </div>
+
+                <h3 class="rs-section"><i class="fas fa-phone"></i> <?= te('rs_contacts') ?></h3>
+                <div class="form-group">
+                    <label class="form-label"><?= te('rs_phone') ?></label>
+                    <input type="tel" name="phone" class="form-control" maxlength="30" value="<?= $wsVal('phone') ?>" placeholder="+39 06 1234567">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?= te('rs_website') ?></label>
+                    <input type="text" name="website" class="form-control" maxlength="255" value="<?= $wsVal('website') ?>" placeholder="www.ristorante.it">
+                </div>
+
+                <h3 class="rs-section"><i class="fas fa-share-nodes"></i> <?= te('rs_socials') ?></h3>
+                <?php foreach (RESTAURANT_SOCIALS as $col => [$label, $icon]): ?>
+                    <div class="form-group rs-social">
+                        <label class="form-label"><i class="<?= $icon ?>"></i> <?= $label ?></label>
+                        <input type="text" name="<?= $col ?>" class="form-control" maxlength="255" value="<?= $wsVal($col) ?>" placeholder="<?= te('rs_social_ph') ?>">
+                    </div>
+                <?php endforeach; ?>
+                <p class="text-muted" style="font-size:.8rem;margin:0;"><?= te('rs_hint') ?></p>
             </div>
             <div class="card-footer">
                 <button type="submit" class="btn btn-primary">

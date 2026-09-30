@@ -69,6 +69,16 @@ function renderOrderPdf(int $orderId): string
     $pdf->SetTextColor(232, 89, 12);
     $pdf->SetFont('Helvetica', 'B', 18);
     $pdf->Cell(0, 9, pdfText($brand), 0, 1);
+    // Address and contacts, when set in Settings.
+    require_once __DIR__ . '/restaurant.php';
+    $w       = restaurantInfo();
+    $contact = implode(' · ', array_filter([restaurantAddressLine(), !empty($w['phone']) ? t('rs_phone_short') . ' ' . $w['phone'] : '',
+                                            preg_replace('~^https?://(www\.)?~i', '', rtrim((string) ($w['website'] ?? ''), '/'))]));
+    if ($contact !== '') {
+        $pdf->SetTextColor(107, 114, 128);
+        $pdf->SetFont('Helvetica', '', 9);
+        $pdf->Cell(0, 5, pdfText($contact), 0, 1);
+    }
     $pdf->SetTextColor(31, 41, 55);
     $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell(0, 8, pdfText(t('pdf_order_title') . ' ' . $order['order_number']), 0, 1);

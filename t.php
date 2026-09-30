@@ -8,6 +8,7 @@
 
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/table_requests.php';
+require_once __DIR__ . '/includes/restaurant.php';
 i18n_prefer_browser('it');
 
 $token = (string) ($_GET['k'] ?? '');
@@ -121,6 +122,12 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .consent-text { white-space: pre-wrap; font-size: .9rem; line-height: 1.5; color: #374151; margin: 0 0 12px; max-height: 40vh; overflow-y: auto; }
 .consent-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .consent-btns button { padding: 13px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.contacts { text-align: center; color: var(--muted); font-size: .88rem; padding: 6px 4px 0; }
+.contacts a { color: inherit; text-decoration: none; }
+.contacts .c-line { margin: 4px 0; }
+.contacts .c-line i { color: var(--p); margin-right: 5px; }
+.contacts .socials { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
+.contacts .socials a { width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: inline-flex; align-items: center; justify-content: center; font-size: 1.15rem; color: var(--ink); }
 .gate { text-align: center; padding: 28px 20px; }
 .gate-icon { font-size: 2.2rem; color: var(--p); margin-bottom: 8px; }
 .gate-text { color: var(--muted); margin: 6px 0 18px; }
@@ -144,6 +151,25 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     <main><div class="card bad"><i class="fas fa-qrcode" style="font-size:2.5rem;color:var(--muted);"></i><p><?= te('guest_bad_qr') ?></p></div></main>
 <?php else: ?>
 <!-- Access: the code the guest got on WhatsApp with the order -->
+<?php
+// The restaurant's address and links (Settings), under the page.
+$rsInfo = restaurantInfo();
+$rsAddr = restaurantAddressLine();
+$rsSoc  = restaurantSocialLinks();
+ob_start();
+if ($rsAddr || !empty($rsInfo['phone']) || !empty($rsInfo['website']) || $rsSoc): ?>
+    <div class="contacts">
+        <?php if ($rsAddr): ?><div class="c-line"><a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($brand . ', ' . $rsAddr) ?>" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><?= htmlspecialchars($rsAddr) ?></a></div><?php endif; ?>
+        <?php if (!empty($rsInfo['phone'])): ?><div class="c-line"><a href="tel:<?= htmlspecialchars(preg_replace('/[^\d+]/', '', $rsInfo['phone'])) ?>"><i class="fas fa-phone"></i><?= htmlspecialchars($rsInfo['phone']) ?></a></div><?php endif; ?>
+        <?php if (!empty($rsInfo['website'])): ?><div class="c-line"><a href="<?= htmlspecialchars($rsInfo['website']) ?>" target="_blank" rel="noopener"><i class="fas fa-globe"></i><?= htmlspecialchars(preg_replace('~^https?://(www\.)?~i', '', rtrim($rsInfo['website'], '/'))) ?></a></div><?php endif; ?>
+        <?php if ($rsSoc): ?>
+            <div class="socials">
+                <?php foreach ($rsSoc as $sl): ?><a href="<?= htmlspecialchars($sl['url']) ?>" target="_blank" rel="noopener" title="<?= $sl['label'] ?>" aria-label="<?= $sl['label'] ?>"><i class="<?= $sl['icon'] ?>"></i></a><?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+<?php endif;
+$contactsHtml = ob_get_clean(); ?>
 <main id="gate" hidden>
     <div class="card gate">
         <i class="fas fa-lock gate-icon"></i>
@@ -161,6 +187,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
             <p class="gate-text"><?= te('guest_need_phone') ?></p>
         </div>
     </div>
+    <?= $contactsHtml ?>
 </main>
 
 <main id="app" hidden>
@@ -185,6 +212,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
         <div class="total" id="totalRow" hidden><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
         <p class="bill-wait" id="billWait" hidden><i class="fas fa-hourglass-half"></i> <?= te('guest_bill_not_ready') ?></p>
     </div>
+    <?= $contactsHtml ?>
 </main>
 
 <div class="actions" id="actionsBar" hidden>
