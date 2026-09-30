@@ -293,6 +293,14 @@ function releaseOrderTables($orderId) {
 
     $pdo->prepare("UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE current_order_id = ?")
         ->execute([$rootId]);
+
+    // The meal is over and paid: loyalty coupons for guests who reached a rule.
+    $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+    $stmt->execute([$rootId]);
+    if ($stmt->fetchColumn() === 'paid') {
+        require_once __DIR__ . '/loyalty.php';
+        loyaltyAfterMeal($rootId);
+    }
 }
 
 function refreshOrderTableLabel($orderId) {

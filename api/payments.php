@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/whatsapp_guest.php';
+require_once __DIR__ . '/../includes/loyalty.php';
 
 header('Content-Type: application/json');
 
@@ -35,6 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // The total before, to know whether the bill really changed.
             $before = calculateOrderTotals($orderId);
 
+            // A loyalty coupon: check it and let it set the discount.
+            $coupon = null;
+            if (!empty($input['coupon'])) {
+                $coupon = checkCoupon((string) $input['coupon']);
+                if (isset($coupon['error'])) {
+                    jsonResponse(['success' => false, 'message' => t($coupon['error'])]);
+                }
+                $discountType  = $coupon['discount_type'];
+                $discountValue = $coupon['discount_value'];
+                $reason        = 'coupon ' . $coupon['code'];
+            } else {
+                releaseOrderCoupon((int) $orderId); // a discount set by hand replaces the coupon
+            }
+
             // Update order discount
             $stmt = $pdo->prepare("
                 UPDATE orders 
@@ -46,7 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $discountValue,
                 $orderId
             ]);
-            
+            if ($coupon) {
+                redeemCoupon((int) $orderId, $coupon);
+            }
+
             // Recalculate totals
             $totals = calculateOrderTotals($orderId);
             

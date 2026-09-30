@@ -25,6 +25,15 @@ $stmt = $pdoPay->prepare("SELECT id, order_number, seat, total FROM orders WHERE
 $stmt->execute([(int) $order['id']]);
 $openSeatBills = $stmt->fetchAll();
 
+// Loyalty coupon already on this order.
+require_once __DIR__ . '/../includes/loyalty.php';
+$appliedCoupon = null;
+if (!empty($order['coupon_id'])) {
+    $stmt = $pdoPay->prepare("SELECT * FROM coupons WHERE id = ?");
+    $stmt->execute([(int) $order['coupon_id']]);
+    $appliedCoupon = $stmt->fetch() ?: null;
+}
+
 // Split at the till: each seat the waiter put dishes on, with what that guest
 // owes (their dishes + one cover). Paying a seat splits it into a seat bill.
 $isSeatBill = !empty($order['parent_order_id']);
@@ -217,6 +226,21 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <button class="btn btn-secondary" onclick="applyDiscountAction()"><i class="fas fa-tag"></i> <?= te('apply_recalc') ?></button>
+
+                <!-- Loyalty coupon: its code applies its discount -->
+                <div style="border-top:1px dashed var(--border-color);margin-top:16px;padding-top:14px;">
+                    <label class="form-label"><i class="fas fa-ticket"></i> <?= te('loy_coupon') ?></label>
+                    <?php if ($appliedCoupon): ?>
+                        <div class="badge badge-success" style="font-size:.9rem;margin-bottom:8px;">
+                            <i class="fas fa-check"></i> <?= htmlspecialchars($appliedCoupon['code']) ?> · <?= htmlspecialchars(couponDiscountLabel($appliedCoupon)) ?>
+                        </div>
+                    <?php endif; ?>
+                    <div class="d-flex gap-sm">
+                        <input type="text" id="couponCode" class="form-control" placeholder="FID-XXXXXX" style="text-transform:uppercase;" autocomplete="off">
+                        <button class="btn btn-success" onclick="applyCouponAction()" style="white-space:nowrap;"><i class="fas fa-ticket"></i> <?= te('loy_apply_coupon') ?></button>
+                    </div>
+                    <p id="couponMsg" class="dev-err" style="margin:6px 0 0;"></p>
+                </div>
             </div>
         </div>
     </div>
@@ -556,6 +580,21 @@ async function applyDiscountAction() {
         location.reload();
     } catch (e) { alert(e.message); }
 }
+/* ---- Loyalty coupon ---- */
+async function applyCouponAction() {
+    const code = $('couponCode').value.trim();
+    const msg = $('couponMsg');
+    msg.style.color = ''; msg.textContent = '';
+    if (!code) return;
+    try {
+        const r = await post('/api/payments.php', { action: 'apply_discount', order_id: CFG.order_id, coupon: code });
+        if (!r.success) { msg.textContent = r.message || CFG.i18n.failed; return; }
+        if (r.wa_resent > 0) { try { sessionStorage.setItem('wa_resent_' + CFG.order_id, '1'); } catch (e) {} }
+        location.reload();
+    } catch (e) { msg.textContent = e.message; }
+}
+$('couponCode') && $('couponCode').addEventListener('keydown', e => { if (e.key === 'Enter') applyCouponAction(); });
+
 try {
     if (sessionStorage.getItem('wa_resent_' + CFG.order_id)) {
         sessionStorage.removeItem('wa_resent_' + CFG.order_id);

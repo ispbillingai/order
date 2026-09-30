@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/TextMeBot.php';
 require_once __DIR__ . '/../includes/Mailer.php';
+require_once __DIR__ . '/../includes/loyalty.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -87,6 +88,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Loyalty coupon rules (in priority order: the first one a guest reaches wins).
+    if ($action === 'update_loyalty') {
+        $rules = [];
+        foreach ((array) ($_POST['rules'] ?? []) as $r) {
+            if (trim((string) ($r['min_visits'] ?? '')) === '') continue;
+            $rules[] = [
+                'id'             => preg_match('/^[a-z0-9]{6,32}$/', $r['id'] ?? '') ? $r['id'] : bin2hex(random_bytes(6)),
+                'name'           => mb_substr(trim((string) ($r['name'] ?? '')), 0, 120),
+                'active'         => !empty($r['active']),
+                'period'         => isset(LOYALTY_PERIODS[$r['period'] ?? '']) ? $r['period'] : 'month',
+                'min_visits'     => max(1, (int) $r['min_visits']),
+                'discount_type'  => ($r['discount_type'] ?? '') === 'fixed' ? 'fixed' : 'percent',
+                'discount_value' => max(0, min(($r['discount_type'] ?? '') === 'fixed' ? 9999 : 100, (float) str_replace(',', '.', (string) ($r['discount_value'] ?? 0)))),
+                'valid_days'     => max(1, min(3650, (int) ($r['valid_days'] ?? 60))),
+                'message_it'     => mb_substr(trim((string) ($r['message_it'] ?? '')), 0, 1000),
+                'message_en'     => mb_substr(trim((string) ($r['message_en'] ?? '')), 0, 1000),
+            ];
+        }
+        setSetting('loyalty_rules', $rules);
+        logActivity('loyalty_rules_saved', 'settings', null, ['rules' => count($rules)]);
+        header('Location: /admin/settings.php?success=saved#loyalty');
+        exit;
+    }
+
     if ($action === 'test_textmebot') {
         $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
         logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
@@ -106,6 +131,7 @@ $smtpOn   = trim((string) ($smtp['host'] ?? '')) !== '';
 $mailTest = $_SESSION['mail_test'] ?? null;
 unset($_SESSION['mail_test']);
 
+$loyRules = loyaltyRules();
 $tmb      = (array) getSetting('textmebot', []);
 $tmbKeyOn = trim((string) ($tmb['api_key'] ?? '')) !== '';
 $tmbTest  = $_SESSION['tmb_test'] ?? null;
@@ -366,5 +392,62 @@ include __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<!-- Loyalty coupons: "N visits in a week / month / year" -> a WhatsApp coupon -->
+<style>
+.loy-rule { border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; background: #fff; }
+.loy-rule.off { opacity: .6; }
+.loy-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; font-size: .95rem; }
+.loy-line .form-control { width: auto; display: inline-block; }
+.loy-line input[type=number] { width: 90px; }
+.loy-head { display: flex; align-items: center; gap: 10px; }
+.loy-head input[type=text] { flex: 1; }
+.loy-msgs summary { cursor: pointer; font-size: .85rem; color: var(--primary); font-weight: 600; margin-top: 6px; }
+.loy-msgs textarea { width: 100%; min-height: 110px; font-family: inherit; }
+.loy-prio { font-weight: 800; color: var(--text-secondary); width: 22px; }
+</style>
+<div class="card" id="loyalty" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-ticket"></i> <?= te('loy_title') ?></h2>
+        <span class="badge badge-<?= array_filter($loyRules, fn($r) => $r['active']) ? 'success' : 'warning' ?>"><?= array_filter($loyRules, fn($r) => $r['active']) ? te('tmb_active') : te('tmb_inactive') ?></span>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_loyalty">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('loy_intro') ?></p>
+            <?php if (!$tmbKeyOn): ?>
+                <p style="color:var(--danger);font-size:.9rem;"><i class="fas fa-triangle-exclamation"></i> <?= te('loy_needs_whatsapp') ?></p>
+            <?php endif; ?>
+            <div id="loyRules">
+                <?php foreach ($loyRules as $i => $r): ?>
+                    <?php include __DIR__ . '/partials/loyalty_rule.php'; ?>
+                <?php endforeach; ?>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="addLoyaltyRule()"><i class="fas fa-plus"></i> <?= te('loy_add') ?></button>
+            <p class="text-muted" style="font-size:.8rem;margin:12px 0 0;"><?= te('loy_placeholders') ?></p>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
+
+<template id="loyRuleTpl">
+    <?php $i = '__N__'; $r = ['id' => '', 'name' => '', 'active' => true, 'period' => 'month', 'min_visits' => 3,
+          'discount_type' => 'percent', 'discount_value' => 10, 'valid_days' => 60, 'message_it' => '', 'message_en' => ''];
+    include __DIR__ . '/partials/loyalty_rule.php'; ?>
+</template>
+<script>
+let loyN = <?= count($loyRules) ?>;
+function addLoyaltyRule() {
+    const html = document.getElementById('loyRuleTpl').innerHTML.replaceAll('__N__', loyN++);
+    document.getElementById('loyRules').insertAdjacentHTML('beforeend', html);
+    renumberLoyalty();
+}
+function removeLoyaltyRule(btn) { btn.closest('.loy-rule').remove(); renumberLoyalty(); }
+function renumberLoyalty() {
+    document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
+}
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

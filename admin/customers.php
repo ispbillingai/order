@@ -8,9 +8,28 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/countries.php';
+require_once __DIR__ . '/../includes/loyalty.php';
 requireRole(['admin']);
 
 $pdo  = getDBConnection();
+$view = ($_GET['view'] ?? '') === 'loyalty' ? 'loyalty' : 'visits';
+
+// Send a coupon by hand (Loyalty tab), from one of the rules.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_coupon') {
+    $phone = (string) ($_POST['phone'] ?? '');
+    $rule  = null;
+    foreach (loyaltyRules() as $r) { if ($r['id'] === ($_POST['rule_id'] ?? '')) $rule = $r; }
+    $ok = $rule && preg_match('/^\+\d{8,15}$/', $phone) && guestWhatsappEnabled();
+    if ($ok) {
+        issueCoupon($rule, $phone, trim((string) ($_POST['name'] ?? '')) ?: null, customerVisits($phone, LOYALTY_PERIODS[$rule['period']]), (int) getCurrentUser()['id']);
+    }
+    header('Location: /admin/customers.php?view=loyalty&' . ($ok ? 'sent=1' : 'error=1'));
+    exit;
+}
+if ($view === 'loyalty') {
+    require __DIR__ . '/partials/customers_loyalty.php';
+    exit;
+}
 $q    = trim($_GET['q'] ?? '');
 $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from'] : '';
 $to   = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to'] ?? '') ? $_GET['to'] : '';
@@ -100,6 +119,8 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
     <h1><i class="fas fa-address-book"></i> <?= te('customers_title') ?></h1>
     <a class="btn btn-outline" href="<?= htmlspecialchars($qs(['export' => 'csv'])) ?>"><i class="fas fa-file-csv"></i> <?= te('export_csv') ?></a>
 </div>
+
+<?php $tab = 'visits'; include __DIR__ . '/partials/customers_tabs.php'; ?>
 
 <form method="GET" class="card mb-lg" style="padding:14px 18px;">
     <div class="d-flex gap-sm align-center" style="flex-wrap:wrap;">
