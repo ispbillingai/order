@@ -8,12 +8,14 @@
  * POST {k, action: 'unlock', code}                 → check the code, let this browser in
  * GET  ?k=<token>                                  → the table's order + open requests
  * GET  ?k=<token>&menu=1                          → the menu (to swap a dish)
+ * POST {k, action: 'consent', target, accept}      → the guest's own marketing consent (see consent.php)
  * POST {k, type: bill|waiter|change, order_item_id?, replacement_menu_item_id?, message?} → new request
  */
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/table_requests.php';
 require_once __DIR__ . '/../includes/whatsapp_guest.php';
+require_once __DIR__ . '/../includes/consent.php';
 i18n_prefer_browser('it');
 
 header('Content-Type: application/json');
@@ -110,8 +112,16 @@ function guestState(array $table): array
     // Bill on WhatsApp: only for guests who left a number (names/last digits only).
     $waTargets = $order ? array_map(fn($t) => ['key' => $t['key'], 'label' => $t['label']], guestWhatsappTargets($order)) : [];
 
+    // Marketing consent: asked to each guest number that hasn't decided yet.
+    $consentTargets = $order ? consentPromptTargets($order) : [];
+    $consent = $consentTargets ? [
+        'text'    => consentText('prompt', currentLang()),
+        'targets' => array_map(fn($t) => ['key' => $t['key'], 'label' => $t['label']], $consentTargets),
+    ] : null;
+
     return [
         'success'  => true,
+        'consent'  => $consent,
         'bill_ready' => guestBillReady($items),
         'wa_targets' => $waTargets,
         'table'    => $order ? $order['table_number'] : $table['table_number'],
@@ -121,6 +131,23 @@ function guestState(array $table): array
         'total_fmt'=> formatCurrency($total),
         'requests' => $stmt->fetchAll(),
     ];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'consent') {
+    // The guest's own decision, with the exact text they read (proof of consent).
+    $target = null;
+    foreach ($order ? consentPromptTargets($order) : [] as $t) {
+        if ($t['key'] === (string) ($input['target'] ?? '')) $target = $t;
+    }
+    if (!$target) {
+        jsonResponse(['success' => false, 'message' => t('consent_err_target')]);
+    }
+    $accept = !empty($input['accept']);
+    $lang   = currentLang() === 'it' ? 'it' : 'en';
+    setConsent($target['phone'], $accept ? 'granted' : 'declined', 'guest_page', consentText('prompt', $lang), (int) $order['id'], $lang);
+    if ($accept) sendConsentConfirmation($target['phone']);
+    logActivity($accept ? 'marketing_consent_granted' : 'marketing_consent_declined', 'orders', (int) $order['id'], ['phone_end' => substr($target['phone'], -4)]);
+    jsonResponse(guestState($table) + ['consent_done' => $accept ? 'granted' : 'declined']);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') !== 'unlock') {

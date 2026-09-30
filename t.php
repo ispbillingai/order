@@ -36,6 +36,9 @@ $L = [
     'wa_sent'      => t('guest_wa_sent'),
     'ready_title'  => t('guest_ready_title'),
     'ready_body'   => t('guest_ready_body'),
+    'consent_yes'  => t('consent_thanks'),
+    'consent_no'   => t('consent_declined_toast'),
+    'consent_pick' => t('consent_pick_number'),
 ];
 header('Cache-Control: no-store');
 ?>
@@ -113,6 +116,11 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .ready-banner strong { display: block; font-size: 1.05rem; }
 .ready-banner button { margin-left: auto; background: rgba(255,255,255,.2); border: 0; color: #fff; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 700; }
 @keyframes readyIn { from { transform: translateY(-120%); } to { transform: none; } }
+.consent { border: 2px solid #fed7aa; }
+.consent h2 i { color: var(--p); }
+.consent-text { white-space: pre-wrap; font-size: .9rem; line-height: 1.5; color: #374151; margin: 0 0 12px; max-height: 40vh; overflow-y: auto; }
+.consent-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.consent-btns button { padding: 13px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .gate { text-align: center; padding: 28px 20px; }
 .gate-icon { font-size: 2.2rem; color: var(--p); margin-bottom: 8px; }
 .gate-text { color: var(--muted); margin: 6px 0 18px; }
@@ -157,6 +165,16 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 
 <main id="app" hidden>
     <button class="notify-btn" id="notifyBtn" hidden onclick="enableNotifications()"><i class="fas fa-bell"></i> <?= te('guest_notify_on') ?></button>
+    <!-- Marketing consent: the guest decides for their own number -->
+    <div class="card consent" id="consentCard" hidden>
+        <h2><i class="fas fa-bullhorn"></i> <?= te('consent_card_title') ?></h2>
+        <p class="consent-text" id="consentText"></p>
+        <div id="consentPicks"></div>
+        <div class="consent-btns">
+            <button class="btn-no" onclick="giveConsent(false)"><?= te('consent_no') ?></button>
+            <button class="btn-go" onclick="giveConsent(true)"><i class="fas fa-check"></i> <?= te('consent_yes') ?></button>
+        </div>
+    </div>
     <div class="card" id="requestsCard" hidden>
         <h2><?= te('guest_your_requests') ?></h2>
         <div id="requestsList"></div>
@@ -274,6 +292,7 @@ function render(s) {
     $('btnBillWa').hidden = !wa;
     document.querySelector('.actions').classList.toggle('has-wa', wa);
     $('btnChange').disabled = !s.items.some(i => i.changeable);
+    renderConsent(s.consent);
 
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
     $('requestsCard').hidden = !s.requests.length;
@@ -302,6 +321,27 @@ async function send(body) {
         render(s);
         return true;
     } catch (e) { toast(L.failed); return false; }
+}
+
+// Marketing consent: one card per undecided number; rebuilt only when the
+// numbers change, so a poll doesn't undo the guest's pick.
+function renderConsent(c) {
+    const box = $('consentCard');
+    box.hidden = !c;
+    if (!c) { renderConsent.sig = ''; return; }
+    const sig = c.targets.map(t => t.key).join('|') + c.text;
+    if (sig === renderConsent.sig) return;
+    renderConsent.sig = sig;
+    $('consentText').textContent = c.text;
+    $('consentPicks').innerHTML = c.targets.length < 2 ? '' :
+        `<div class="step" style="margin-top:0;">${esc(L.consent_pick)}</div>` + c.targets.map((t, i) => `
+        <label class="pick"><input type="radio" name="consentTarget" value="${esc(t.key)}" ${i === 0 ? 'checked' : ''}> ${esc(t.label)}</label>`).join('');
+    renderConsent.single = c.targets.length === 1 ? c.targets[0].key : null;
+}
+async function giveConsent(accept) {
+    const target = renderConsent.single || document.querySelector('input[name=consentTarget]:checked')?.value;
+    if (!target) return;
+    if (await send({ action: 'consent', target, accept })) toast(accept ? L.consent_yes : L.consent_no);
 }
 
 async function ask(type) {

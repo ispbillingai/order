@@ -129,7 +129,7 @@ $sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 
             <?php foreach ($guests as $g): $cs = $cStats[$g['phone']] ?? null; ?>
                 <tr>
                     <td><strong><?= htmlspecialchars($g['name'] ?: '—') ?></strong></td>
-                    <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($g['country'] ?: 'IT') ?> <?= htmlspecialchars($g['phone']) ?></td>
+                    <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($g['country'] ?: 'IT') ?> <?= htmlspecialchars($g['phone']) ?><br><?= consentBadgeHtml($g['phone']) ?></td>
                     <td><?= htmlspecialchars($g['city'] ?: '—') ?></td>
                     <td class="num <?= $g['w'] >= 2 ? 'hot' : '' ?>"><?= $g['w'] ?></td>
                     <td class="num <?= $g['m'] >= 3 ? 'hot' : '' ?>"><?= $g['m'] ?></td>

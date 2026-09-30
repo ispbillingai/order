@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/countries.php';
 require_once __DIR__ . '/../includes/whatsapp_guest.php';
+require_once __DIR__ . '/../includes/consent.php';
 requireRole(['admin', 'waiter']);
 
 $orderId = $_GET['order'] ?? null;
@@ -182,8 +183,6 @@ include __DIR__ . '/../includes/header.php';
 .cust-phone select { flex: 0 0 11.5rem; max-width: 11.5rem; }
 .cust-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .cust-box [hidden] { display: none !important; }
-.cust-consent { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--text-secondary); cursor: pointer; }
-.cust-consent input { width: 18px; height: 18px; }
 .item-qty .item-del { margin-left: 6px; color: var(--danger, #dc2626); background: rgba(220, 38, 38, .08); border-color: transparent; }
 .item-qty .item-del:hover { background: var(--danger, #dc2626); color: #fff; }
 .seat-phone-btn { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -244,7 +243,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="cust-summary" id="custSummary" <?= $hasCustomer ? '' : 'hidden' ?>>
         <strong><i class="fas fa-user"></i> <?= htmlspecialchars($order['customer_name'] ?: t('cust_no_name')) ?></strong>
         <?php if ($order['customer_city']): ?><span class="muted"><i class="fas fa-location-dot"></i> <?= htmlspecialchars($order['customer_city']) ?></span><?php endif; ?>
-        <?php if (!empty($order['marketing_consent'])): ?><span class="badge badge-success" title="<?= te('cust_consent') ?>"><i class="fas fa-bullhorn"></i> <?= te('cust_consent_short') ?></span><?php endif; ?>
+        <?php if ($order['customer_phone'] && ($cs = consentBadge($order['customer_phone']))): ?><span class="badge badge-<?= $cs['cls'] ?>" title="<?= te('consent_badge_title') ?>"><i class="fas fa-bullhorn"></i> <?= htmlspecialchars($cs['text']) ?></span><?php endif; ?>
         <?php if ($order['customer_phone']): ?><span class="flag-font"><?= countryFlag($custCountry) ?> <?= htmlspecialchars($order['customer_phone']) ?></span><?php endif; ?>
         <?php if ($isEditable): ?>
             <button type="button" class="btn btn-sm btn-outline" onclick="editCustomer(true)"><i class="fas fa-pen"></i> <?= te('edit') ?></button>
@@ -283,10 +282,6 @@ include __DIR__ . '/../includes/header.php';
                            value="<?= htmlspecialchars($order['customer_phone'] ? nationalPhone($custCountry, $order['customer_phone']) : '') ?>" placeholder="333 123 4567">
                 </div>
             </div>
-            <label class="cust-consent">
-                <input type="checkbox" id="custConsent" <?= !empty($order['marketing_consent']) ? 'checked' : '' ?>>
-                <span><i class="fas fa-bullhorn"></i> <?= te('cust_consent') ?></span>
-            </label>
             <div class="cust-actions d-flex gap-sm">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('cust_save') ?></button>
                 <?php if ($hasCustomer): ?><button type="button" class="btn btn-outline" onclick="editCustomer(false)"><?= te('cancel') ?></button><?php endif; ?>
@@ -386,8 +381,7 @@ include __DIR__ . '/../includes/header.php';
                                 <button type="button" class="btn btn-sm btn-outline seat-phone-btn flag-font"
                                         onclick='openSeatGuest(<?= (int) $seatNo ?>, <?= htmlspecialchars(json_encode([
                                             "name" => $sg["customer_name"] ?? "", "country" => $sg["customer_country"] ?? "IT",
-                                            "phone" => $sg ? nationalPhone($sg["customer_country"] ?: "IT", $sg["customer_phone"]) : "",
-                                            "consent" => !empty($sg["marketing_consent"])]), ENT_QUOTES) ?>)'>
+                                            "phone" => $sg ? nationalPhone($sg["customer_country"] ?: "IT", $sg["customer_phone"]) : ""]), ENT_QUOTES) ?>)'>
                                     <?php if ($sg): ?>
                                         <?= countryFlag($sg['customer_country'] ?: 'IT') ?> <?= htmlspecialchars($sg['customer_name'] ?: $sg['customer_phone']) ?>
                                     <?php else: ?>
@@ -640,9 +634,7 @@ include __DIR__ . '/../includes/header.php';
                     <input type="tel" id="sgPhone" class="form-control" maxlength="20" inputmode="tel" autocomplete="off" placeholder="333 123 4567">
                 </div>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--text-secondary);cursor:pointer;">
-                <input type="checkbox" id="sgConsent" style="width:18px;height:18px;"> <span><i class="fas fa-bullhorn"></i> <?= te('cust_consent') ?></span>
-            </label>
+            <p class="text-muted" style="font-size:.85rem;margin:0;"><i class="fas fa-bullhorn"></i> <?= te('consent_waiter_note') ?></p>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline" id="sgRemove" style="margin-right:auto;color:var(--danger);" onclick="saveSeatGuest(true)"><?= te('seat_phone_remove') ?></button>
@@ -763,7 +755,6 @@ async function saveCustomer(e) {
             city: document.getElementById('custCity').value,
             country: document.getElementById('custCountry').value,
             phone: document.getElementById('custPhone').value,
-            consent: document.getElementById('custConsent').checked,
         });
         // A new number: the table link is on its way to the guest's WhatsApp.
         showToast(r.link_queued ? <?= json_encode(t('toast_wa_link')) ?> : <?= json_encode(t('cust_saved')) ?>, 'success');
@@ -817,7 +808,6 @@ function openSeatGuest(seat, g) {
     document.getElementById('sgName').value = g.name || '';
     document.getElementById('sgCountry').value = g.country || 'IT';
     document.getElementById('sgPhone').value = g.phone || '';
-    document.getElementById('sgConsent').checked = !!g.consent;
     document.getElementById('sgRemove').hidden = !g.phone;
     openModal('seatGuestModal');
     setTimeout(() => document.getElementById('sgPhone').focus(), 50);
@@ -829,7 +819,6 @@ async function saveSeatGuest(remove) {
             name: document.getElementById('sgName').value,
             country: document.getElementById('sgCountry').value,
             phone: remove ? '' : document.getElementById('sgPhone').value,
-            consent: document.getElementById('sgConsent').checked,
         });
         showToast(r.link_queued ? <?= json_encode(t('toast_wa_link')) ?> : <?= json_encode(t('cust_saved')) ?>, 'success');
         setTimeout(() => location.reload(), r.link_queued ? 1200 : 300);

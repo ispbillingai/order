@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/countries.php';
 require_once __DIR__ . '/../includes/loyalty.php';
+require_once __DIR__ . '/../includes/consent.php';
 requireRole(['admin']);
 
 $pdo  = getDBConnection();
@@ -101,10 +102,11 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="clienti_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
-    fputcsv($out, [t('cust_arrival'), t('cust_name'), t('cust_phone'), t('cust_city'), t('table'), t('seat'), t('total'), t('cust_visits')], ';');
+    fputcsv($out, [t('cust_arrival'), t('cust_name'), t('cust_phone'), t('cust_city'), t('table'), t('seat'), t('total'), t('cust_visits'), t('consent_col')], ';');
     foreach ($rows as $r) {
         fputcsv($out, [date('d/m/Y H:i', strtotime($r['arrived_at'])), $r['name'], $r['phone'], $r['city'], $r['table_number'],
-                       $r['seat'], number_format((float) $r['meal_total'], 2, ',', ''), $r['visits']], ';');
+                       $r['seat'], number_format((float) $r['meal_total'], 2, ',', ''), $r['visits'],
+                       $r['phone'] ? t('consent_st_' . (consentMap()[$r['phone']]['status'] ?? 'pending')) : ''], ';');
     }
     exit;
 }
@@ -158,7 +160,7 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
                     <td><?= htmlspecialchars($r['name'] ?: '—') ?>
                         <?php if ((int) $r['visits'] > 1): ?><span class="badge badge-info" title="<?= te('cust_visits') ?>"><i class="fas fa-rotate"></i> <?= (int) $r['visits'] ?></span><?php endif; ?></td>
                     <td class="flag-font" style="white-space:nowrap;">
-                        <?php if ($r['phone']): ?><?= countryFlag($r['country'] ?: 'IT') ?> <?= htmlspecialchars($r['phone']) ?><?php else: ?>—<?php endif; ?></td>
+                        <?php if ($r['phone']): ?><?= countryFlag($r['country'] ?: 'IT') ?> <?= htmlspecialchars($r['phone']) ?><br><?= consentBadgeHtml($r['phone']) ?><?php else: ?>—<?php endif; ?></td>
                     <td><?= htmlspecialchars($r['city'] ?: '—') ?></td>
                     <td style="white-space:nowrap;"><?= htmlspecialchars($r['table_number']) ?><?= $r['seat'] !== null ? ' · ' . te('seat') . ' ' . (int) $r['seat'] : '' ?>
                         <span class="text-muted" style="font-size:.8rem;"><?= htmlspecialchars($r['room_name']) ?></span></td>

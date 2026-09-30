@@ -2,61 +2,24 @@
 /**
  * Advertising campaigns: WhatsApp invitations to events / initiatives.
  *
- * Only guests who agreed to receive them (the "marketing" box when the waiter
- * saved their number) and never numbers that unsubscribed. Every invitation
- * ends with a personal unsubscribe link (signed, so nobody can unsubscribe
- * someone else). Messages are queued with a low priority: service messages
- * (access codes, bills, password codes) always go first.
+ * Only guests who gave their marketing consent themselves (in their table page,
+ * see consent.php) and haven't revoked it. Every invitation ends with the
+ * personal revoke link (signed, so nobody can revoke for someone else).
+ * Messages are queued with a low priority: service messages (access codes,
+ * bills, password codes) always go first.
  */
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/whatsapp_guest.php';
 require_once __DIR__ . '/loyalty.php';
+require_once __DIR__ . '/consent.php';
 
 const CAMPAIGN_PRIORITY = 0;
 
-/** Secret used to sign unsubscribe links, created once. */
-function appSecret(): string
-{
-    // Kept for the whole request: getSetting() caches the value it read, so
-    // after creating the secret it would still answer '' and make a new one
-    // for every link.
-    static $s = null;
-    if ($s !== null) return $s;
-    $s = (string) getSetting('app_secret', '');
-    if ($s === '') {
-        $s = bin2hex(random_bytes(32));
-        setSetting('app_secret', $s);
-    }
-    return $s;
-}
-
-function unsubscribeToken(string $phone): string
-{
-    $sig = substr(hash_hmac('sha256', $phone, appSecret()), 0, 20);
-    return rtrim(strtr(base64_encode($phone), '+/', '-_'), '=') . '.' . $sig;
-}
-
-/** The phone a token was made for, or null if it isn't genuine. */
-function phoneFromUnsubscribeToken(string $token): ?string
-{
-    [$b64, $sig] = array_pad(explode('.', $token, 2), 2, '');
-    $phone = base64_decode(strtr($b64, '-_', '+/'), true);
-    if (!$phone || !preg_match('/^\+\d{8,15}$/', $phone)) return null;
-    return hash_equals(substr(hash_hmac('sha256', $phone, appSecret()), 0, 20), $sig) ? $phone : null;
-}
-
-function unsubscribeUrl(string $phone): string
-{
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-    return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/unsubscribe.php?t=' . unsubscribeToken($phone);
-}
-
+/** Not (or no longer) a campaign recipient. */
 function isOptedOut(string $phone): bool
 {
-    $stmt = getDBConnection()->prepare("SELECT 1 FROM marketing_optouts WHERE phone = ?");
-    $stmt->execute([$phone]);
-    return (bool) $stmt->fetchColumn();
+    return !hasMarketingConsent($phone);
 }
 
 /**
@@ -65,17 +28,13 @@ function isOptedOut(string $phone): bool
  *   min       at least N visits
  *   lang      'it' | 'foreign' | '' (by phone prefix)
  *   city      city contains
- * Consent given at least once, and not unsubscribed.
+ * Only guests whose own marketing consent is in force.
  */
 function campaignAudience(array $f): array
 {
     $pdo = getDBConnection();
-    // Everyone who ever gave consent (as the table's guest or a seat guest).
-    $consent = array_flip($pdo->query("
-        SELECT customer_phone FROM orders WHERE marketing_consent = 1 AND customer_phone IS NOT NULL
-        UNION SELECT customer_phone FROM order_seat_guests WHERE marketing_consent = 1 AND customer_phone IS NOT NULL
-    ")->fetchAll(PDO::FETCH_COLUMN));
-    $optout = array_flip($pdo->query("SELECT phone FROM marketing_optouts")->fetchAll(PDO::FETCH_COLUMN));
+    // Guests whose own consent is in force (given in their table page, not revoked).
+    $consent = array_flip($pdo->query("SELECT phone FROM marketing_consents WHERE status = 'granted'")->fetchAll(PDO::FETCH_COLUMN));
 
     // Latest details and visits per phone (any visit that wasn't cancelled).
     $rows = $pdo->query("
@@ -91,7 +50,7 @@ function campaignAudience(array $f): array
 
     $people = [];
     foreach ($rows as $r) {
-        if (!isset($consent[$r['phone']]) || isset($optout[$r['phone']])) continue;
+        if (!isset($consent[$r['phone']])) continue;
         $p = &$people[$r['phone']];
         $p ??= ['phone' => $r['phone'], 'name' => null, 'city' => null, 'country' => null, 'last' => $r['at'], 'visits' => []];
         $p['name']    ??= $r['name'] ?: null;

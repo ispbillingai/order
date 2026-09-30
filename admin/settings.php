@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/TextMeBot.php';
 require_once __DIR__ . '/../includes/Mailer.php';
 require_once __DIR__ . '/../includes/loyalty.php';
+require_once __DIR__ . '/../includes/consent.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -112,6 +113,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Marketing consent texts: what the guest accepts, the WhatsApp
+    // confirmation (with the revoke link) and the revoke page.
+    if ($action === 'update_consent') {
+        $texts = [];
+        foreach (['it', 'en'] as $lang) {
+            foreach (CONSENT_TEXT_KINDS as $kind) {
+                $v = trim(str_replace("\r\n", "\n", (string) ($_POST['consent'][$lang][$kind] ?? '')));
+                // Same as the default: keep following the default.
+                $texts[$lang][$kind] = $v === tIn($lang, 'consent_default_' . $kind) ? '' : mb_substr($v, 0, 3000);
+            }
+        }
+        setSetting('consent_texts', $texts);
+        logActivity('consent_texts_saved', 'settings');
+        header('Location: /admin/settings.php?success=saved#consent');
+        exit;
+    }
+
     if ($action === 'test_textmebot') {
         $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
         logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
@@ -132,6 +150,8 @@ $mailTest = $_SESSION['mail_test'] ?? null;
 unset($_SESSION['mail_test']);
 
 $loyRules = loyaltyRules();
+$consentSet    = (array) getSetting('consent_texts', []);
+$consentCounts = $pdo->query("SELECT status, COUNT(*) FROM marketing_consents GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
 $tmb      = (array) getSetting('textmebot', []);
 $tmbKeyOn = trim((string) ($tmb['api_key'] ?? '')) !== '';
 $tmbTest  = $_SESSION['tmb_test'] ?? null;
@@ -449,5 +469,37 @@ function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }
 </script>
+
+<!-- Marketing consent: the texts the guest reads, gets and uses to revoke -->
+<div class="card" id="consent" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-bullhorn"></i> <?= te('consent_settings_title') ?></h2>
+        <span class="text-muted" style="font-size:.9rem;">
+            <span class="badge badge-success"><?= (int) ($consentCounts['granted'] ?? 0) ?> <?= te('consent_st_granted') ?></span>
+            <span class="badge badge-light"><?= (int) ($consentCounts['declined'] ?? 0) ?> <?= te('consent_st_declined') ?></span>
+            <span class="badge badge-danger"><?= (int) ($consentCounts['revoked'] ?? 0) ?> <?= te('consent_st_revoked') ?></span>
+        </span>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_consent">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('consent_settings_intro') ?></p>
+            <?php foreach (['it' => 'Italiano', 'en' => 'English'] as $lang => $langName): ?>
+                <h3 style="font-size:1rem;margin:18px 0 8px;"><?= $lang === 'it' ? '🇮🇹' : '🇬🇧' ?> <?= $langName ?></h3>
+                <?php foreach (CONSENT_TEXT_KINDS as $kind):
+                    $val = trim((string) ($consentSet[$lang][$kind] ?? '')) ?: tIn($lang, 'consent_default_' . $kind); ?>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('consent_field_' . $kind) ?></label>
+                        <textarea name="consent[<?= $lang ?>][<?= $kind ?>]" class="form-control" rows="<?= $kind === 'confirm' ? 4 : 6 ?>" style="font-family:inherit;"><?= htmlspecialchars($val) ?></textarea>
+                    </div>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+            <p class="text-muted" style="font-size:.8rem;margin:4px 0 0;"><?= te('consent_placeholders') ?></p>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
