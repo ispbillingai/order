@@ -260,14 +260,16 @@ function guestWhatsappTargets(array $order): array
 }
 
 /** Queue a WhatsApp and make sure the background sender is running. */
-function queueGuestWhatsapp(?int $orderId, ?int $seat, string $kind, string $phone, string $body): int
+function queueGuestWhatsapp(?int $orderId, ?int $seat, string $kind, string $phone, string $body,
+                            ?string $mediaUrl = null, ?int $campaignId = null, int $priority = 10, bool $start = true): int
 {
     $pdo  = getDBConnection();
     $user = getCurrentUser();
-    $pdo->prepare("INSERT INTO whatsapp_outbox (order_id, seat, kind, phone, body, created_by) VALUES (?, ?, ?, ?, ?, ?)")
-        ->execute([$orderId, $seat, $kind, $phone, $body, $user['id'] ?? null]);
+    $pdo->prepare("INSERT INTO whatsapp_outbox (order_id, seat, kind, phone, body, media_url, campaign_id, priority, created_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        ->execute([$orderId, $seat, $kind, $phone, $body, $mediaUrl, $campaignId, $priority, $user['id'] ?? null]);
     $id = (int) $pdo->lastInsertId();
-    startWhatsappWorker();
+    if ($start) startWhatsappWorker();
     return $id;
 }
 

@@ -7,6 +7,7 @@ config/devices.php
 # Uploaded menu photos (user content; created on the server at runtime)
 assets/uploads/menu/*
 !assets/uploads/menu/.gitkeep
+assets/uploads/campaigns/*
 
 # OS / editor cruft
 .DS_Store

@@ -645,8 +645,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     jsonResponse(['success' => false, 'message' => t('cust_bad_phone')]);
                 }
             }
-            $pdo->prepare("UPDATE orders SET customer_name = ?, customer_city = ?, customer_country = ?, customer_phone = ? WHERE id = ?")
-                ->execute([$name ?: null, $city ?: null, isset(PHONE_COUNTRIES[$country]) ? $country : null, $phone, $orderId]);
+            // Marketing consent: invitations / offers on WhatsApp (campaigns).
+            $consent = $phone ? (!empty($input['consent']) ? 1 : 0) : null;
+            $pdo->prepare("UPDATE orders SET customer_name = ?, customer_city = ?, customer_country = ?, customer_phone = ?, marketing_consent = ? WHERE id = ?")
+                ->execute([$name ?: null, $city ?: null, isset(PHONE_COUNTRIES[$country]) ? $country : null, $phone, $consent, $orderId]);
             logActivity('order_customer_saved', 'orders', $orderId);
 
             // The guest gave a number: send them the table's QR link (once per number).
@@ -675,9 +677,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => t('cust_bad_phone')]);
             }
             $pdo->prepare("
-                INSERT INTO order_seat_guests (order_id, seat, customer_name, customer_country, customer_phone) VALUES (?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE customer_name = VALUES(customer_name), customer_country = VALUES(customer_country), customer_phone = VALUES(customer_phone)
-            ")->execute([$orderId, $seat, $name ?: null, $country, $phone]);
+                INSERT INTO order_seat_guests (order_id, seat, customer_name, customer_country, customer_phone, marketing_consent) VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE customer_name = VALUES(customer_name), customer_country = VALUES(customer_country),
+                                        customer_phone = VALUES(customer_phone), marketing_consent = VALUES(marketing_consent)
+            ")->execute([$orderId, $seat, $name ?: null, $country, $phone, !empty($input['consent']) ? 1 : 0]);
             logActivity('seat_guest_saved', 'orders', $orderId, ['seat' => $seat]);
             $linkQueued = sendTableLinkOnce(getOrderById($orderId), $seat, $phone, $country);
             jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);

@@ -27,11 +27,12 @@ $pdo->exec("UPDATE whatsapp_outbox SET status = 'queued' WHERE status = 'sending
 $tmb     = new TextMeBot();
 $started = time();
 while (time() - $started < 600) {
-    $msg = $pdo->query("SELECT * FROM whatsapp_outbox WHERE status = 'queued' ORDER BY id LIMIT 1")->fetch();
+    // Service messages (codes, bills, links) first; campaign invitations after.
+    $msg = $pdo->query("SELECT * FROM whatsapp_outbox WHERE status = 'queued' ORDER BY priority DESC, id LIMIT 1")->fetch();
     if (!$msg) break;
 
     $pdo->prepare("UPDATE whatsapp_outbox SET status = 'sending', attempts = attempts + 1 WHERE id = ?")->execute([$msg['id']]);
-    $res = $tmb->send($msg['phone'], $msg['body']);
+    $res = $tmb->send($msg['phone'], $msg['body'], $msg['media_url'] ?: null);
 
     if ($res['ok']) {
         $pdo->prepare("UPDATE whatsapp_outbox SET status = 'sent', sent_at = NOW(), error = NULL WHERE id = ?")->execute([$msg['id']]);
@@ -51,3 +52,9 @@ while (time() - $started < 600) {
 }
 
 $pdo->query("SELECT RELEASE_LOCK('ristorante_whatsapp_outbox')");
+
+// Time is up but a long campaign is still queued: hand over to a fresh worker.
+if ($pdo->query("SELECT 1 FROM whatsapp_outbox WHERE status = 'queued' LIMIT 1")->fetchColumn()) {
+    require_once __DIR__ . '/../includes/whatsapp_guest.php';
+    startWhatsappWorker();
+}
