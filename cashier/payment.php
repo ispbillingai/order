@@ -550,9 +550,20 @@ async function applyDiscountAction() {
     const value = parseFloat($('discountValue').value) || 0;
     try {
         const r = await post('/api/payments.php', { action:'apply_discount', order_id: CFG.order_id, discount_type: type, discount_value: value });
-        if (r.success) location.reload(); else alert(r.message || CFG.i18n.failed);
+        if (!r.success) { alert(r.message || CFG.i18n.failed); return; }
+        // The guest had the bill on WhatsApp: tell the cashier the new one went out.
+        if (r.wa_resent > 0) { try { sessionStorage.setItem('wa_resent_' + CFG.order_id, '1'); } catch (e) {} }
+        location.reload();
     } catch (e) { alert(e.message); }
 }
+try {
+    if (sessionStorage.getItem('wa_resent_' + CFG.order_id)) {
+        sessionStorage.removeItem('wa_resent_' + CFG.order_id);
+        const err = $('k-choose-err');
+        err.style.color = 'var(--success)';
+        err.textContent = <?= json_encode(t('wa_bill_resent_note')) ?>;
+    }
+} catch (e) {}
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

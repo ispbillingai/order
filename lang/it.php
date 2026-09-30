@@ -404,6 +404,8 @@ return [
     'guest_ready_title'     => 'Il tuo piatto è pronto! 🍽️',
     'guest_ready_body'      => '{dish}: sta arrivando al tavolo.',
     'guest_notify_on'       => 'Attiva suoni e notifiche: ti avvisiamo quando un piatto è pronto',
+    'wa_bill_updated'       => '🔄 *Conto aggiornato*: è stato applicato uno sconto. Ecco il nuovo conto.',
+    'wa_bill_resent_note'   => 'Il cliente aveva chiesto il conto su WhatsApp: gli è stato inviato il conto aggiornato.',
     'table_qr_intro'        => 'Stampali e metti ciascuno sul suo tavolo: il QR di un tavolo non cambia mai. Per entrare il cliente usa il codice che riceve su WhatsApp quando lascia il suo numero con l\'ordine; il codice vale solo per quell\'ordine.',
     'table_qr_hint'         => 'Scansiona e inserisci il codice ricevuto su WhatsApp per vedere il tuo ordine, chiamare il cameriere o chiedere il conto',
     'table_qr_open'         => 'Apri',

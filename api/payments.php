@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/whatsapp_guest.php';
 
 header('Content-Type: application/json');
 
@@ -31,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order ID required']);
             }
             
+            // The total before, to know whether the bill really changed.
+            $before = calculateOrderTotals($orderId);
+
             // Update order discount
             $stmt = $pdo->prepare("
                 UPDATE orders 
@@ -52,9 +56,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'reason' => $reason
             ]);
             
+            // The guest who got the bill on WhatsApp gets the updated one.
+            $waResent = 0;
+            if ($before && $totals && abs((float) $before['total'] - (float) $totals['total']) > 0.004) {
+                $waResent = resendUpdatedBill((int) $orderId);
+                if ($waResent) {
+                    logActivity('bill_whatsapp_resent', 'orders', $orderId, ['messages' => $waResent]);
+                }
+            }
+
             jsonResponse([
-                'success' => true, 
-                'totals' => $totals
+                'success' => true,
+                'totals' => $totals,
+                'wa_resent' => $waResent,
             ]);
             break;
             

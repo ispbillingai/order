@@ -404,6 +404,8 @@ return [
     'guest_ready_title'     => 'Your dish is ready! 🍽️',
     'guest_ready_body'      => '{dish}: on its way to your table.',
     'guest_notify_on'       => 'Turn on sound and notifications: we\'ll tell you when a dish is ready',
+    'wa_bill_updated'       => '🔄 *Bill updated*: a discount has been applied. Here is your new bill.',
+    'wa_bill_resent_note'   => 'The guest had asked for the bill on WhatsApp: the updated bill has been sent to them.',
     'table_qr_intro'        => 'Print them and put each on its table: a table\'s QR never changes. To get in, the guest uses the code they get on WhatsApp when they leave their number with the order; the code is valid for that order only.',
     'table_qr_hint'         => 'Scan and enter the code you got on WhatsApp to see your order, call the waiter or ask for the bill',
     'table_qr_open'         => 'Open',

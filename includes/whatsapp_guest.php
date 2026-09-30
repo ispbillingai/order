@@ -286,6 +286,33 @@ function sendTableLinkOnce(array $order, ?int $seat, string $phone, ?string $cou
     return queueGuestWhatsapp((int) $order['id'], $seat, 'table_link', $phone, guestTableLinkText($order, guestLang($country)));
 }
 
+/**
+ * The bill of this order changed at the till (discount applied, changed or
+ * removed): whoever already got it on WhatsApp gets the updated one, to the
+ * same number. On a table's order that is its own bill (not the per-seat
+ * previews); on a seat bill, that seat's guest. Returns how many were queued.
+ */
+function resendUpdatedBill(int $orderId): int
+{
+    if (!guestWhatsappEnabled()) return 0;
+    $order = getOrderById($orderId);
+    if (!$order) return 0;
+    $isSeatBill = !empty($order['parent_order_id']);
+    $stmt = getDBConnection()->prepare("
+        SELECT DISTINCT phone FROM whatsapp_outbox
+        WHERE order_id = ? AND kind = 'bill' AND status <> 'failed'" . ($isSeatBill ? '' : ' AND seat IS NULL')
+    );
+    $stmt->execute([$orderId]);
+    $sent = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $phone) {
+        $lang = str_starts_with($phone, '+39') ? 'it' : 'en';
+        $body = tIn($lang, 'wa_bill_updated') . "\n\n" . guestBillText($orderId, $lang);
+        queueGuestWhatsapp($orderId, $isSeatBill ? (int) $order['seat'] : null, 'bill', $phone, $body);
+        $sent++;
+    }
+    return $sent;
+}
+
 /** Start bin/whatsapp-worker.php in the background (it exits when the outbox is empty). */
 function startWhatsappWorker(): void
 {
