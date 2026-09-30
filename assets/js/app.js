@@ -571,11 +571,12 @@ function showReadyAlerts(alerts) {
     const L = window.REQ_I18N || {};
     fresh.reverse().forEach(a => {
         const el = document.createElement('div');
-        el.className = 'ready-alert';
+        el.className = 'ready-alert' + (a.type === 'table_free' ? ' table-free' : '');
         el.innerHTML = `
-            <i class="fas fa-bell-concierge"></i>
+            <i class="fas ${a.type === 'table_free' ? 'fa-broom' : 'fa-bell-concierge'}"></i>
             <div class="ra-text"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.message)}</span></div>
             ${a.order_id ? `<a class="btn btn-sm" href="/waiter/order.php?order=${a.order_id}">${escapeHtml(L.open_order || 'Open')}</a>` : ''}
+            ${a.type === 'table_free' ? `<a class="btn btn-sm" href="/waiter/index.php">${escapeHtml(L.tables || 'Tables')}</a>` : ''}
             <button class="btn btn-sm" type="button">OK</button>`;
         const done = () => {
             fetch('/api/notifications.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },

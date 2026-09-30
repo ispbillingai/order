@@ -1133,4 +1133,6 @@ return [
     'menu_share_short' => 'Here is {restaurant}\'s menu 🍽️',
     'menu_pdf_title' => 'Menu',
     'menu_pdf_empty' => 'The menu will be available soon.',
+    'table_free_title' => 'Table free',
+    'table_free_msg' => 'Table {table} has paid and is free: clear it and lay it again.',
 ];

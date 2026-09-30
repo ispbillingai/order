@@ -290,10 +290,11 @@ function releaseOrderTables($orderId) {
     }
 
     // The guests' open QR requests (bill, waiter…) end with the meal.
-    $stmt = $pdo->prepare("SELECT id FROM tables_restaurant WHERE current_order_id = ? OR id = ?");
+    $stmt = $pdo->prepare("SELECT id, table_number FROM tables_restaurant WHERE current_order_id = ? OR id = ?");
     $stmt->execute([$rootId, (int) $root['table_id']]);
+    $freedTables = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);   // id => number (joined tables too)
     require_once __DIR__ . '/table_requests.php';
-    closeTableRequestsForTables($stmt->fetchAll(PDO::FETCH_COLUMN));
+    closeTableRequestsForTables(array_keys($freedTables));
 
     $pdo->prepare("UPDATE tables_restaurant SET status = 'free', current_order_id = NULL WHERE current_order_id = ?")
         ->execute([$rootId]);
@@ -303,6 +304,11 @@ function releaseOrderTables($orderId) {
     $stmt->execute([$rootId]);
     if ($stmt->fetchColumn() === 'paid') {
         thankGuestsForPaidOrder($rootId); // table closed by its last seat bill
+        // The waiters: the table is free, to be cleared and laid again.
+        if (($root['channel'] ?? 'dine_in') === 'dine_in') {
+            require_once __DIR__ . '/ready_notify.php';
+            notifyTableFreed($rootId, array_values($freedTables));
+        }
         require_once __DIR__ . '/loyalty.php';
         loyaltyAfterMeal($rootId);
     }

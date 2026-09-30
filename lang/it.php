@@ -1133,4 +1133,6 @@ return [
     'menu_share_short' => 'Ecco il menù di {restaurant} 🍽️',
     'menu_pdf_title' => 'Menù',
     'menu_pdf_empty' => 'Il menù sarà disponibile a breve.',
+    'table_free_title' => 'Tavolo libero',
+    'table_free_msg' => 'Il tavolo {table} ha pagato ed è libero: da sparecchiare e riordinare.',
 ];

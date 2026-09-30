@@ -103,11 +103,36 @@ function readyNotifText(array $i): array
     return [t($what === null ? 'ready_notif_title_all' : 'ready_notif_title'), $msg];
 }
 
+/** "Table 5 is free" in the reader's language: ['tables' => [numbers]]. */
+function tableFreedText(array $i): array
+{
+    $tables = implode(' + ', (array) ($i['tables'] ?? []));
+    return [t('table_free_title'), t('table_free_msg', ['table' => $tables])];
+}
+
 /** A notification row with title/message in the reader's language (when it can be). */
 function localizeNotification(array $n): array
 {
     $p = json_decode((string) ($n['payload'] ?? ''), true);
     if (is_array($p) && isset($p['ready'])) [$n['title'], $n['message']] = readyNotifText($p['ready']);
+    if (is_array($p) && isset($p['freed'])) [$n['title'], $n['message']] = tableFreedText($p['freed']);
+    return $n;
+}
+
+/**
+ * The bill is paid and the table is free: every active waiter is told, with
+ * the pop-up and sound, so someone clears it and lays it again.
+ */
+function notifyTableFreed(int $rootOrderId, array $tableNumbers): int
+{
+    if (!$tableNumbers) return 0;
+    $info = ['tables' => array_map('strval', $tableNumbers)];
+    [$title, $msg] = tableFreedText($info);
+    $n = 0;
+    foreach (allWaiterIds() as $userId) {
+        createNotification($userId, 'table_free', $title, $msg, null, ['order_id' => $rootOrderId, 'freed' => $info]);
+        $n++;
+    }
     return $n;
 }
 
@@ -133,18 +158,19 @@ function notifyDishReady(int $orderId, ?string $what, ?int $seat = null, ?int $o
     return $n;
 }
 
-/** Unread "ready" notifications of the last minutes, for the pop-up + sound. */
+/** Unread "dish ready" / "table free" notifications of the last minutes, for the pop-up + sound. */
 function recentReadyAlerts(int $userId): array
 {
     $stmt = getDBConnection()->prepare("
-        SELECT id, title, message, payload FROM notifications
-        WHERE user_id = ? AND type = 'dish_ready' AND read_at IS NULL AND created_at > NOW() - INTERVAL 10 MINUTE
+        SELECT id, type, title, message, payload FROM notifications
+        WHERE user_id = ? AND type IN ('dish_ready', 'table_free') AND read_at IS NULL AND created_at > NOW() - INTERVAL 10 MINUTE
         ORDER BY id DESC LIMIT 5
     ");
     $stmt->execute([$userId]);
     return array_map(function ($r) {
         $r = localizeNotification($r);
         $p = json_decode((string) $r['payload'], true) ?: [];
-        return ['id' => (int) $r['id'], 'title' => $r['title'], 'message' => $r['message'], 'order_id' => (int) ($p['order_id'] ?? 0)];
+        return ['id' => (int) $r['id'], 'type' => $r['type'], 'title' => $r['title'], 'message' => $r['message'],
+                'order_id' => $r['type'] === 'dish_ready' ? (int) ($p['order_id'] ?? 0) : 0];
     }, $stmt->fetchAll());
 }

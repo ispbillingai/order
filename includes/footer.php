@@ -24,6 +24,7 @@
         'now'         => t('req_now'),
         'new_request' => t('req_new'),
         'open_order'  => t('ready_open_order'),
+        'tables'      => t('tables_btn'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?php endif; ?>
