@@ -34,6 +34,9 @@ $liveItems   = array_filter($orderItems, fn($i) => $i['status'] !== 'cancelled')
 $pendingCount = count(array_filter($liveItems, fn($i) => $i['status'] === 'pending'));
 $sentCount    = count($liveItems) - $pendingCount;
 $wasSent      = $order['status'] !== 'open';
+// Taking the order: dishes typed in but not sent yet. Until they are sent the
+// only action is "Send to kitchen" — no bill buttons.
+$takingOrder  = $isEditable && $pendingCount > 0;
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
 
@@ -179,6 +182,8 @@ include __DIR__ . '/../includes/header.php';
 .cust-phone select { flex: 0 0 11.5rem; max-width: 11.5rem; }
 .cust-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .cust-box [hidden] { display: none !important; }
+.item-qty .item-del { margin-left: 6px; color: var(--danger, #dc2626); background: rgba(220, 38, 38, .08); border-color: transparent; }
+.item-qty .item-del:hover { background: var(--danger, #dc2626); color: #fff; }
 .seat-phone-btn { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat-group-head > strong { white-space: nowrap; }
 .seat-group-head > span { flex-wrap: wrap; justify-content: flex-end; }
@@ -382,7 +387,7 @@ include __DIR__ . '/../includes/header.php';
                                     <?php endif; ?>
                                 </button>
                             <?php endif; ?>
-                            <?php if ($seatNo && $isEditable && !empty($seatTotals[$seatNo])): ?>
+                            <?php if ($seatNo && $isEditable && !$takingOrder && !empty($seatTotals[$seatNo])): ?>
                                 <button type="button" class="btn btn-sm btn-warning" onclick="billSeat(<?= (int) $seatNo ?>)" title="<?= te('bill_at_till') ?>">
                                     <i class="fas fa-cash-register"></i> <?= te('seat_bill_btn') ?>
                                 </button>
@@ -434,6 +439,7 @@ include __DIR__ . '/../includes/header.php';
                                 <button onclick="changeQuantity(<?= $item['id'] ?>, -1, <?= $isSentItem ? 'true' : 'false' ?>)">−</button>
                                 <span><?= $item['quantity'] ?></span>
                                 <button onclick="changeQuantity(<?= $item['id'] ?>, 1, <?= $isSentItem ? 'true' : 'false' ?>)">+</button>
+                                <button class="item-del" onclick="deleteItem(<?= $item['id'] ?>, <?= $isSentItem ? 'true' : 'false' ?>)" title="<?= te('delete') ?>" aria-label="<?= te('delete') ?>"><i class="fas fa-trash"></i></button>
                             <?php else: ?>
                                 <span><?= $item['quantity'] ?>x</span>
                             <?php endif; ?>
@@ -489,19 +495,21 @@ include __DIR__ . '/../includes/header.php';
                     <span class="badge badge-light"><?= $pendingCount ?></span>
                 </button>
             <?php endif; ?>
-            <button class="btn btn-warning" onclick="billSeat(null)">
-                <i class="fas fa-cash-register"></i> <?= te('bill_at_till') ?>
-            </button>
-            <?php if ($waOn && !$isSeatBill && !empty($order['customer_phone'])): ?>
-                <!-- Only for a guest who left a number -->
-                <button class="btn btn-success" onclick="billSeat(null, true)">
-                    <i class="fab fa-whatsapp"></i> <?= te('bill_whatsapp') ?>
+            <?php if (!$takingOrder): ?>
+                <button class="btn btn-warning" onclick="billSeat(null)">
+                    <i class="fas fa-cash-register"></i> <?= te('bill_at_till') ?>
                 </button>
-            <?php endif; ?>
-            <?php if ($isEditable): ?>
-                <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
-                    <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
-                </button>
+                <?php if ($waOn && !$isSeatBill && !empty($order['customer_phone'])): ?>
+                    <!-- Only for a guest who left a number -->
+                    <button class="btn btn-success" onclick="billSeat(null, true)">
+                        <i class="fab fa-whatsapp"></i> <?= te('bill_whatsapp') ?>
+                    </button>
+                <?php endif; ?>
+                <?php if ($isEditable): ?>
+                    <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
+                        <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
+                    </button>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -1014,6 +1022,24 @@ async function changeQuantity(orderItemId, delta, isSent = false) {
                       result.printed ? 'success' : 'error');
         } else {
             showToast(newQty === 0 ? T.removed : T.qtyUpdated, newQty === 0 ? 'info' : 'success');
+        }
+        setTimeout(() => location.reload(), result.reprinted ? 1400 : 300);
+    } catch (error) {
+        showToast(T.updateFailed, 'error');
+    }
+}
+
+/* Delete a dish: one not sent yet just disappears; one already at its work
+ * point is cancelled there (a void slip prints). */
+async function deleteItem(orderItemId, isSent) {
+    if (!await confirmAction(isSent ? T.confirmVoidSent : T.confirmRemove)) return;
+    try {
+        const result = await removeItem(orderItemId);
+        if (!result.success) { showToast(result.message || T.updateFailed, 'error'); return; }
+        if (result.reprinted) {
+            showToast(result.printed ? T.workPointNotified : T.workPointPrintFailed, result.printed ? 'success' : 'error');
+        } else {
+            showToast(T.removed, 'info');
         }
         setTimeout(() => location.reload(), result.reprinted ? 1400 : 300);
     } catch (error) {

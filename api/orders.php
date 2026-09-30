@@ -296,6 +296,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $wasSent = $item['status'] !== 'pending';
 
+            // Never sent to a work point (just typed in by mistake): nothing to
+            // undo anywhere, so the dish simply goes away.
+            if (!$wasSent) {
+                $pdo->prepare("DELETE FROM order_items WHERE id = ?")->execute([$orderItemId]);
+                calculateOrderTotals($item['order_id']);
+                jsonResponse(['success' => true, 'deleted' => true, 'reprinted' => false]);
+            }
+
             // Cancel the dish at its work point BEFORE the row is marked
             // cancelled, so the slip can still name the dish.
             $print = null;
