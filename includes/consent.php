@@ -13,6 +13,8 @@ require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/whatsapp_guest.php';
 
 const CONSENT_TEXT_KINDS = ['prompt', 'confirm', 'revoke'];
+const CONSENT_STATUSES = ['granted', 'declined', 'revoked', 'pending'];
+const CONSENT_BADGE    = ['granted' => 'success', 'declined' => 'warning', 'revoked' => 'danger', 'pending' => 'light'];
 
 /** Secret used to sign the personal revoke links, created once. */
 function appSecret(): string
@@ -84,8 +86,7 @@ function hasMarketingConsent(string $phone): bool
 function consentBadge(string $phone): array
 {
     $st = consentStatus($phone)['status'] ?? 'pending';
-    $cls = ['granted' => 'success', 'declined' => 'light', 'revoked' => 'danger', 'pending' => 'light'][$st];
-    return ['cls' => $cls, 'status' => $st, 'text' => t('consent_st_' . $st)];
+    return ['cls' => CONSENT_BADGE[$st], 'status' => $st, 'text' => t('consent_st_' . $st)];
 }
 
 /** Every phone's decision, for lists: phone => ['status', 'decided_at']. */
@@ -101,15 +102,46 @@ function consentMap(): array
     return $map;
 }
 
-/** Small consent badge for admin lists (the date of the decision on hover). */
-function consentBadgeHtml(string $phone): string
+/** A phone's decision for lists: granted | declined | revoked | pending (never asked). */
+function consentStatusOf(?string $phone): string
 {
-    $c   = consentMap()[$phone] ?? null;
-    $st  = $c['status'] ?? 'pending';
-    $cls = ['granted' => 'success', 'declined' => 'light', 'revoked' => 'danger', 'pending' => 'light'][$st];
-    $tip = $c ? date('d/m/Y H:i', strtotime($c['decided_at'])) : t('consent_st_pending');
-    return '<span class="badge badge-' . $cls . '" title="' . htmlspecialchars($tip) . '" style="font-size:.72rem;"><i class="fas fa-bullhorn"></i> '
-         . htmlspecialchars(t('consent_st_' . $st)) . '</span>';
+    return $phone ? (consentMap()[$phone]['status'] ?? 'pending') : 'pending';
+}
+
+/** Consent cell for admin lists: the status and, once decided, when. */
+function consentCellHtml(string $phone): string
+{
+    $c  = consentMap()[$phone] ?? null;
+    $st = $c['status'] ?? 'pending';
+    $html = '<span class="badge badge-' . CONSENT_BADGE[$st] . '" style="white-space:nowrap;"><i class="fas ' . ($st === 'granted' ? 'fa-check' : ($st === 'pending' ? 'fa-hourglass-half' : 'fa-xmark'))
+          . '"></i>&nbsp;' . htmlspecialchars(t('consent_st_' . $st)) . '</span>';
+    if ($c) {
+        $html .= '<div class="text-muted" style="font-size:.75rem;margin-top:3px;white-space:nowrap;">' . date('d/m/Y H:i', strtotime($c['decided_at'])) . '</div>';
+    }
+    return $html;
+}
+
+/** Filter select for admin lists (value '' = all). */
+function consentFilterSelect(string $current): string
+{
+    $html = '<select name="consent" class="form-control" style="max-width:220px;" title="' . htmlspecialchars(t('consent_col')) . '">'
+          . '<option value="">' . htmlspecialchars(t('consent_filter_all')) . '</option>';
+    foreach (CONSENT_STATUSES as $st) {
+        $html .= '<option value="' . $st . '"' . ($st === $current ? ' selected' : '') . '>' . htmlspecialchars(t('consent_st_' . $st)) . '</option>';
+    }
+    return $html . '</select>';
+}
+
+/** "Marketing consent: 3 accepted · 1 declined · …" for a list of phones. */
+function consentSummaryHtml(array $phones): string
+{
+    $n = array_fill_keys(CONSENT_STATUSES, 0);
+    foreach (array_unique(array_filter($phones)) as $p) $n[consentStatusOf($p)]++;
+    $parts = [];
+    foreach ($n as $st => $count) {
+        $parts[] = '<span class="badge badge-' . CONSENT_BADGE[$st] . '">' . $count . ' ' . htmlspecialchars(t('consent_st_' . $st)) . '</span>';
+    }
+    return '<i class="fas fa-bullhorn"></i> <strong>' . htmlspecialchars(t('consent_col')) . ':</strong> ' . implode(' ', $parts);
 }
 
 /** Record a decision (current state + history). */

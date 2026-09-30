@@ -54,6 +54,10 @@ foreach ($pdo->query("SELECT phone, COUNT(*) AS issued, SUM(used_at IS NOT NULL)
 
 $sort = in_array($_GET['sort'] ?? '', ['w', 'm', 'y', 'all', 'spent', 'last'], true) ? $_GET['sort'] : 'all';
 $q    = trim($_GET['q'] ?? '');
+$consent = in_array($_GET['consent'] ?? '', CONSENT_STATUSES, true) ? $_GET['consent'] : '';
+if ($consent !== '') {
+    $guests = array_filter($guests, fn($g) => consentStatusOf($g['phone']) === $consent);
+}
 if ($q !== '') {
     $digits = preg_replace('/\D/', '', $q);
     $guests = array_filter($guests, fn($g) => stripos((string) $g['name'], $q) !== false || stripos((string) $g['city'], $q) !== false
@@ -70,7 +74,7 @@ $usedCount     = count(array_filter($recentCoupons, fn($c) => $c['used_at']));
 
 $pageTitle = t('customers_title');
 include __DIR__ . '/../../includes/header.php';
-$sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 'sort' => $k, 'q' => $q]));
+$sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 'sort' => $k, 'q' => $q, 'consent' => $consent]));
 ?>
 <style>
 .stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -108,15 +112,17 @@ $sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 
 <form method="GET" class="card mb-lg" style="padding:12px 16px;">
     <input type="hidden" name="view" value="loyalty"><input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
     <div class="d-flex gap-sm"><input type="search" name="q" class="form-control" value="<?= htmlspecialchars($q) ?>" placeholder="<?= te('customers_search') ?>">
+        <?= consentFilterSelect($consent) ?>
         <button class="btn btn-primary"><i class="fas fa-search"></i></button></div>
 </form>
+<p style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><?= consentSummaryHtml(array_column($guests, 'phone')) ?></p>
 
 <div class="card mb-lg">
     <div class="card-header"><h2><?= te('loy_visits_title') ?></h2><span class="text-muted" style="font-size:.85rem;"><?= te('loy_paid_only') ?></span></div>
     <div style="overflow-x:auto;">
     <table class="data-table loy-table">
         <thead><tr>
-            <th><?= te('cust_name') ?></th><th><?= te('cust_phone') ?></th><th><?= te('cust_city') ?></th>
+            <th><?= te('cust_name') ?></th><th><?= te('cust_phone') ?></th><th><?= te('consent_col') ?></th><th><?= te('cust_city') ?></th>
             <?php foreach (['w' => 'loy_col_week', 'm' => 'loy_col_month', 'y' => 'loy_col_year', 'all' => 'loy_col_all'] as $k => $l): ?>
                 <th class="num"><a href="<?= $sortLink($k) ?>" class="<?= $sort === $k ? 'on' : '' ?>"><?= te($l) ?><?= $sort === $k ? ' ↓' : '' ?></a></th>
             <?php endforeach; ?>
@@ -129,7 +135,8 @@ $sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 
             <?php foreach ($guests as $g): $cs = $cStats[$g['phone']] ?? null; ?>
                 <tr>
                     <td><strong><?= htmlspecialchars($g['name'] ?: '—') ?></strong></td>
-                    <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($g['country'] ?: 'IT') ?> <?= htmlspecialchars($g['phone']) ?><br><?= consentBadgeHtml($g['phone']) ?></td>
+                    <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($g['country'] ?: 'IT') ?> <?= htmlspecialchars($g['phone']) ?></td>
+                    <td><?= consentCellHtml($g['phone']) ?></td>
                     <td><?= htmlspecialchars($g['city'] ?: '—') ?></td>
                     <td class="num <?= $g['w'] >= 2 ? 'hot' : '' ?>"><?= $g['w'] ?></td>
                     <td class="num <?= $g['m'] >= 3 ? 'hot' : '' ?>"><?= $g['m'] ?></td>
@@ -153,7 +160,7 @@ $sortLink = fn($k) => '?' . http_build_query(array_filter(['view' => 'loyalty', 
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$guests): ?><tr><td colspan="12" class="text-center text-muted" style="padding:40px;"><?= te('loy_none') ?></td></tr><?php endif; ?>
+            <?php if (!$guests): ?><tr><td colspan="13" class="text-center text-muted" style="padding:40px;"><?= te('loy_none') ?></td></tr><?php endif; ?>
         </tbody>
     </table>
     </div>

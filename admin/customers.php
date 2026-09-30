@@ -34,6 +34,7 @@ if ($view === 'loyalty') {
 $q    = trim($_GET['q'] ?? '');
 $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from'] : '';
 $to   = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to'] ?? '') ? $_GET['to'] : '';
+$consent = in_array($_GET['consent'] ?? '', CONSENT_STATUSES, true) ? $_GET['consent'] : '';
 
 // One row per guest per visit. The table's guest comes from the order; a seat
 // guest from order_seat_guests (no city is asked for a seat guest).
@@ -95,6 +96,10 @@ foreach ($rows as &$r) {
     }
 }
 unset($r);
+// Marketing consent filter (a visit without a phone counts as never asked).
+if ($consent !== '') {
+    $rows = array_values(array_filter($rows, fn($r) => consentStatusOf($r['phone']) === $consent));
+}
 
 // CSV export of what is on screen.
 if (($_GET['export'] ?? '') === 'csv') {
@@ -114,7 +119,7 @@ if (($_GET['export'] ?? '') === 'csv') {
 $uniquePhones = count(array_unique(array_filter(array_column($rows, 'phone'))));
 $pageTitle    = t('customers_title');
 include __DIR__ . '/../includes/header.php';
-$qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from' => $from, 'to' => $to] + $extra, fn($v) => $v !== ''));
+$qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from' => $from, 'to' => $to, 'consent' => $consent] + $extra, fn($v) => $v !== ''));
 ?>
 
 <div class="page-header">
@@ -131,12 +136,14 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
         <input type="date" name="from" class="form-control" style="max-width:170px;" value="<?= htmlspecialchars($from) ?>">
         <label class="text-muted" style="font-size:.85rem;"><?= te('to') ?></label>
         <input type="date" name="to" class="form-control" style="max-width:170px;" value="<?= htmlspecialchars($to) ?>">
+        <?= consentFilterSelect($consent) ?>
         <button class="btn btn-primary"><i class="fas fa-filter"></i> <?= te('filter') ?></button>
-        <?php if ($q !== '' || $from !== '' || $to !== ''): ?><a class="btn btn-outline" href="/admin/customers.php"><?= te('reset') ?></a><?php endif; ?>
+        <?php if ($q !== '' || $from !== '' || $to !== '' || $consent !== ''): ?><a class="btn btn-outline" href="/admin/customers.php"><?= te('reset') ?></a><?php endif; ?>
     </div>
 </form>
 
 <p class="text-muted"><?= te('customers_count', ['visits' => count($rows), 'contacts' => $uniquePhones]) ?></p>
+<p style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><?= consentSummaryHtml(array_column($rows, 'phone')) ?></p>
 
 <div class="card">
     <div style="overflow-x:auto;">
@@ -146,6 +153,7 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
                 <th><?= te('cust_arrival') ?></th>
                 <th><?= te('cust_name') ?></th>
                 <th><?= te('cust_phone') ?></th>
+                <th><?= te('consent_col') ?></th>
                 <th><?= te('cust_city') ?></th>
                 <th><?= te('table') ?></th>
                 <th style="text-align:right;"><?= te('total') ?></th>
@@ -160,7 +168,8 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
                     <td><?= htmlspecialchars($r['name'] ?: '—') ?>
                         <?php if ((int) $r['visits'] > 1): ?><span class="badge badge-info" title="<?= te('cust_visits') ?>"><i class="fas fa-rotate"></i> <?= (int) $r['visits'] ?></span><?php endif; ?></td>
                     <td class="flag-font" style="white-space:nowrap;">
-                        <?php if ($r['phone']): ?><?= countryFlag($r['country'] ?: 'IT') ?> <?= htmlspecialchars($r['phone']) ?><br><?= consentBadgeHtml($r['phone']) ?><?php else: ?>—<?php endif; ?></td>
+                        <?php if ($r['phone']): ?><?= countryFlag($r['country'] ?: 'IT') ?> <?= htmlspecialchars($r['phone']) ?><?php else: ?>—<?php endif; ?></td>
+                    <td><?= $r['phone'] ? consentCellHtml($r['phone']) : '<span class="text-muted">—</span>' ?></td>
                     <td><?= htmlspecialchars($r['city'] ?: '—') ?></td>
                     <td style="white-space:nowrap;"><?= htmlspecialchars($r['table_number']) ?><?= $r['seat'] !== null ? ' · ' . te('seat') . ' ' . (int) $r['seat'] : '' ?>
                         <span class="text-muted" style="font-size:.8rem;"><?= htmlspecialchars($r['room_name']) ?></span></td>
@@ -169,7 +178,7 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['q' => $q, 'from'
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?>
-                <tr><td colspan="7" class="text-center text-muted" style="padding:40px;"><?= te('customers_none') ?></td></tr>
+                <tr><td colspan="8" class="text-center text-muted" style="padding:40px;"><?= te('customers_none') ?></td></tr>
             <?php endif; ?>
         </tbody>
     </table>
