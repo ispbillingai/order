@@ -1096,4 +1096,11 @@ return [
     'test_mode_title' => 'Test mode',
     'test_mode_label' => 'Show the "Virtual payment" button at the till',
     'test_mode_hint' => 'Closes the bill as paid without taking money and without a fiscal receipt; the payment is recorded with method "test". Turn it off when testing is over.',
+    // Ringraziamento dopo il pagamento
+    'thanks_default' => 'Dear {name}, thank you so much for choosing {restaurant}! 🙏'."\n".'It was a real pleasure having you as our guest, and we hope you enjoyed everything.'."\n".'We look forward to welcoming you again soon. See you soon! 😊',
+    'thanks_title' => 'Thank-you message',
+    'thanks_intro' => 'When the bill is paid, the guest who left their number gets this message on WhatsApp, in Italian or English by their number\'s country code. A guest who pays their own seat gets it when their bill is paid; once per meal.',
+    'thanks_enabled' => 'Send the thank-you after payment',
+    'thanks_placeholders' => '{name} = the guest\'s name · {restaurant} = the restaurant\'s name. An empty text uses the default one.',
+    'thanks_no_name' => 'guest',
 ];

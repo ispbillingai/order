@@ -268,6 +268,10 @@ function releaseOrderTables($orderId) {
     $rootId = (int) $stmt->fetchColumn();
     if (!$rootId) return;
 
+    // The guests of the bill just paid get a thank-you on WhatsApp.
+    require_once __DIR__ . '/thanks.php';
+    thankGuestsForPaidOrder((int) $orderId);
+
     $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
     $stmt->execute([$rootId]);
     $root = $stmt->fetch();
@@ -298,6 +302,7 @@ function releaseOrderTables($orderId) {
     $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
     $stmt->execute([$rootId]);
     if ($stmt->fetchColumn() === 'paid') {
+        thankGuestsForPaidOrder($rootId); // table closed by its last seat bill
         require_once __DIR__ . '/loyalty.php';
         loyaltyAfterMeal($rootId);
     }

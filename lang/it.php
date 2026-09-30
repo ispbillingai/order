@@ -1096,4 +1096,11 @@ return [
     'test_mode_title' => 'Modalità test',
     'test_mode_label' => 'Mostra il pulsante "Pagamento virtuale" in cassa',
     'test_mode_hint' => 'Chiude il conto come pagato senza incassare e senza scontrino fiscale; il pagamento viene registrato con metodo "test". Toglilo quando finisci i test.',
+    // Ringraziamento dopo il pagamento
+    'thanks_default' => 'Gentile {nome}, grazie di cuore per aver scelto {ristorante}! 🙏'."\n".'È stato un vero piacere averti nostro ospite: ci auguriamo che tutto sia stato di tuo gradimento.'."\n".'Ti aspettiamo presto per una nuova occasione insieme. A presto! 😊',
+    'thanks_title' => 'Messaggio di ringraziamento',
+    'thanks_intro' => 'Quando il conto viene pagato, il cliente che ha lasciato il numero riceve questo messaggio su WhatsApp, in italiano o in inglese secondo il prefisso del suo numero. Chi paga il proprio posto separatamente lo riceve al pagamento del suo conto; una sola volta per pasto.',
+    'thanks_enabled' => 'Invia il ringraziamento dopo il pagamento',
+    'thanks_placeholders' => '{nome} = nome del cliente · {ristorante} = nome del locale. Se lasci un testo vuoto viene usato quello predefinito.',
+    'thanks_no_name' => 'cliente',
 ];

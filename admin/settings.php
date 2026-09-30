@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/Mailer.php';
 require_once __DIR__ . '/../includes/loyalty.php';
 require_once __DIR__ . '/../includes/consent.php';
 require_once __DIR__ . '/../includes/ready_notify.php';
+require_once __DIR__ . '/../includes/thanks.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -128,6 +129,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('consent_texts', $texts);
         logActivity('consent_texts_saved', 'settings');
         header('Location: /admin/settings.php?success=saved#consent');
+        exit;
+    }
+
+    // Thank-you on WhatsApp once the bill is paid.
+    if ($action === 'update_thanks') {
+        $msg = ['enabled' => !empty($_POST['thanks_enabled'])];
+        foreach (['it', 'en'] as $lang) {
+            $v = trim(str_replace("\r\n", "\n", (string) ($_POST['thanks_' . $lang] ?? '')));
+            $msg[$lang] = $v === tIn($lang, 'thanks_default') ? '' : mb_substr($v, 0, 1500); // default: keep following it
+        }
+        setSetting('thanks_message', $msg);
+        logActivity('thanks_message_saved', 'settings', null, ['enabled' => $msg['enabled']]);
+        header('Location: /admin/settings.php?success=saved#thanks');
         exit;
     }
 
@@ -491,6 +505,35 @@ function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }
 </script>
+
+<!-- Thank-you on WhatsApp after the bill is paid -->
+<?php $thanks = thanksSettings(); ?>
+<div class="card" id="thanks" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-heart" style="color:#e11d48;"></i> <?= te('thanks_title') ?></h2>
+        <span class="badge badge-<?= $thanks['enabled'] ? 'success' : 'light' ?>"><?= $thanks['enabled'] ? te('tmb_active') : te('tmb_inactive') ?></span>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_thanks">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('thanks_intro') ?></p>
+            <label style="display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:14px;">
+                <input type="checkbox" name="thanks_enabled" value="1" <?= $thanks['enabled'] ? 'checked' : '' ?> style="width:20px;height:20px;">
+                <strong><?= te('thanks_enabled') ?></strong>
+            </label>
+            <?php foreach (['it' => '🇮🇹 Italiano', 'en' => '🇬🇧 English'] as $lang => $langName): ?>
+                <div class="form-group">
+                    <label class="form-label"><?= $langName ?></label>
+                    <textarea name="thanks_<?= $lang ?>" class="form-control" rows="5" style="font-family:inherit;"><?= htmlspecialchars(trim($thanks[$lang]) ?: tIn($lang, 'thanks_default')) ?></textarea>
+                </div>
+            <?php endforeach; ?>
+            <p class="text-muted" style="font-size:.8rem;margin:0;"><?= te('thanks_placeholders') ?></p>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
 
 <!-- Test mode: virtual payment at the till -->
 <div class="card" id="testmode" style="margin-top: var(--space-lg); border: 2px dashed #7c3aed;">
