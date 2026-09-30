@@ -28,6 +28,12 @@ function getSetting(string $key, $default = null)
     }
 }
 
+/** Test mode: the till shows "Virtual payment" (closes a bill without money). */
+function testPaymentsEnabled(): bool
+{
+    return (bool) getSetting('test_payments', true);
+}
+
 /** Write a setting (stored as JSON). Returns false on failure. */
 function setSetting(string $key, $value): bool
 {

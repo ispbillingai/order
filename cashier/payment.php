@@ -117,6 +117,8 @@ include __DIR__ . '/../includes/header.php';
 .btn-cash { background: var(--success); color: #fff; }
 .btn-card { background: var(--primary); color: #fff; }
 .btn-cancel { background: var(--bg-light); color: var(--text); }
+.btn-test { background: #fff; color: #7c3aed; border: 2px dashed #7c3aed !important; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.btn-test small { font-size: .75rem; font-weight: 600; opacity: .8; }
 .dev-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--border-color); }
 .hidden { display: none; }
 .dev-status { text-align: center; font-size: 1.1rem; margin: 12px 0; min-height: 1.4em; }
@@ -258,6 +260,10 @@ include __DIR__ . '/../includes/header.php';
                     <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> <?= te('pay_by_card') ?></button><?php endif; ?>
                     <?php if ($jsCfg['dojo']): ?><button class="btn-card" onclick="payDojo()"><i class="fas fa-credit-card"></i> <?= te('pay_by_dojo') ?></button><?php endif; ?>
                     <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> <?= te('mpesa_manual') ?></button>
+                    <?php if (testPaymentsEnabled()): ?>
+                        <!-- Test mode (Settings): close the bill without money -->
+                        <button class="btn-test" onclick="payVirtual(this)"><i class="fas fa-flask"></i> <?= te('test_pay_btn') ?><small><?= te('test_pay_hint') ?></small></button>
+                    <?php endif; ?>
                     <button class="btn-cancel" onclick="location.href='/cashier/index.php'"><?= te('cancel') ?></button>
                 </div>
                 <p id="k-choose-err" class="dev-err" style="margin-top:10px;text-align:center;"></p>
@@ -553,6 +559,17 @@ async function cancelCash() {
     if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     try { await post('/api/cashmatic-cancel.php'); } catch (e) {}
     showPanel('k-choose');
+}
+
+/* ---- Test mode: virtual payment (no money, no fiscal receipt) ---- */
+async function payVirtual(btn) {
+    if (!confirm(<?= json_encode(t('test_pay_confirm')) ?>)) return;
+    btn.disabled = true;
+    try {
+        const r = await post('/api/payments.php', { action: 'virtual_payment', order_id: CFG.order_id });
+        if (!r.success) { alert(r.message || CFG.i18n.payment_failed); btn.disabled = false; return; }
+        done(<?= json_encode(t('test_pay_done')) ?>);
+    } catch (e) { alert(e.message); btn.disabled = false; }
 }
 
 /* ---- Manual / M-Pesa (existing process_payment) ---- */

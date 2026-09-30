@@ -131,6 +131,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Test mode: "Virtual payment" at the till.
+    if ($action === 'update_test_mode') {
+        setSetting('test_payments', !empty($_POST['test_payments']));
+        logActivity('test_mode_saved', 'settings', null, ['virtual_payment' => !empty($_POST['test_payments'])]);
+        header('Location: /admin/settings.php?success=saved#testmode');
+        exit;
+    }
+
     // Who is told when the kitchen marks a dish ready.
     if ($action === 'update_ready_notify') {
         $mode  = in_array($_POST['ready_mode'] ?? '', READY_NOTIFY_MODES, true) ? $_POST['ready_mode'] : 'order_waiter';
@@ -483,6 +491,26 @@ function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }
 </script>
+
+<!-- Test mode: virtual payment at the till -->
+<div class="card" id="testmode" style="margin-top: var(--space-lg); border: 2px dashed #7c3aed;">
+    <div class="card-header">
+        <h2><i class="fas fa-flask" style="color:#7c3aed;"></i> <?= te('test_mode_title') ?></h2>
+        <span class="badge badge-<?= testPaymentsEnabled() ? 'warning' : 'light' ?>"><?= testPaymentsEnabled() ? te('tmb_active') : te('tmb_inactive') ?></span>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_test_mode">
+        <div class="card-body">
+            <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                <input type="checkbox" name="test_payments" value="1" <?= testPaymentsEnabled() ? 'checked' : '' ?> style="width:20px;height:20px;margin-top:3px;">
+                <span><strong><?= te('test_mode_label') ?></strong><br><small class="text-muted"><?= te('test_mode_hint') ?></small></span>
+            </label>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
 
 <!-- Dish ready: which waiters the kitchen's "ready" reaches -->
 <style>

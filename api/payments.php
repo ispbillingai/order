@@ -90,6 +90,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             break;
             
+        case 'virtual_payment':
+            // Test mode only: close the bill as paid without money and
+            // without a fiscal receipt (method 'test', easy to tell apart).
+            if (!testPaymentsEnabled()) {
+                jsonResponse(['success' => false, 'message' => t('test_pay_disabled')]);
+            }
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $order   = $orderId ? getOrderById($orderId) : null;
+            if (!$order || in_array($order['status'], ['paid', 'cancelled'], true)) {
+                jsonResponse(['success' => false, 'message' => t('test_pay_not_open')]);
+            }
+            $pdo->prepare("INSERT INTO payments (order_id, amount, method, reference, received_by) VALUES (?, ?, 'test', ?, ?)")
+                ->execute([$orderId, $order['total'], t('test_pay_reference'), $user['id']]);
+            $pdo->prepare("UPDATE orders SET status = 'paid', closed_at = NOW() WHERE id = ?")->execute([$orderId]);
+            releaseOrderTables($orderId);
+            createNotification($order['waiter_id'], 'table_paid', t('test_pay_notif_title'),
+                t('test_pay_notif', ['table' => $order['table_number'], 'amount' => formatCurrency($order['total'])]), null, ['order_id' => $orderId]);
+            logActivity('payment_virtual_test', 'orders', $orderId, ['amount' => $order['total']]);
+            jsonResponse(['success' => true]);
+            break;
+
         case 'process_payment':
             $orderId = $input['order_id'] ?? null;
             $method = $input['method'] ?? 'cash';

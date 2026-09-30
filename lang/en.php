@@ -1083,4 +1083,17 @@ return [
     'ready_short_waiters' => 'chosen waiters',
     'ready_short_none' => 'nobody',
     'mobile_view_order' => 'View order',
+    // Modalità test
+    'test_pay_btn' => 'Virtual payment',
+    'test_pay_hint' => 'testing only · no money taken',
+    'test_pay_confirm' => 'Mark the bill as paid without taking money? (testing only)',
+    'test_pay_done' => 'Virtual payment recorded (test): the bill is closed.',
+    'test_pay_reference' => 'VIRTUAL PAYMENT (TEST)',
+    'test_pay_notif_title' => 'Bill paid (test)',
+    'test_pay_notif' => 'Table {table}: virtual payment {amount}',
+    'test_pay_disabled' => 'Virtual payment is turned off (Settings > Test mode).',
+    'test_pay_not_open' => 'This bill is already closed.',
+    'test_mode_title' => 'Test mode',
+    'test_mode_label' => 'Show the "Virtual payment" button at the till',
+    'test_mode_hint' => 'Closes the bill as paid without taking money and without a fiscal receipt; the payment is recorded with method "test". Turn it off when testing is over.',
 ];

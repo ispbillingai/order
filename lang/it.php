@@ -1083,4 +1083,17 @@ return [
     'ready_short_waiters' => 'camerieri scelti',
     'ready_short_none' => 'nessuno',
     'mobile_view_order' => 'Vedi ordine',
+    // Modalità test
+    'test_pay_btn' => 'Pagamento virtuale',
+    'test_pay_hint' => 'solo per i test · nessun incasso',
+    'test_pay_confirm' => 'Segnare il conto come pagato senza incassare? (solo per i test)',
+    'test_pay_done' => 'Pagamento virtuale registrato (test): il conto è chiuso.',
+    'test_pay_reference' => 'PAGAMENTO VIRTUALE (TEST)',
+    'test_pay_notif_title' => 'Conto pagato (test)',
+    'test_pay_notif' => 'Tavolo {table}: pagamento virtuale {amount}',
+    'test_pay_disabled' => 'Il pagamento virtuale è disattivato (Impostazioni › Modalità test).',
+    'test_pay_not_open' => 'Questo conto è già chiuso.',
+    'test_mode_title' => 'Modalità test',
+    'test_mode_label' => 'Mostra il pulsante "Pagamento virtuale" in cassa',
+    'test_mode_hint' => 'Chiude il conto come pagato senza incassare e senza scontrino fiscale; il pagamento viene registrato con metodo "test". Toglilo quando finisci i test.',
 ];
