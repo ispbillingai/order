@@ -1103,4 +1103,8 @@ return [
     'thanks_enabled' => 'Send the thank-you after payment',
     'thanks_placeholders' => '{name} = the guest\'s name · {restaurant} = the restaurant\'s name. An empty text uses the default one.',
     'thanks_no_name' => 'guest',
+    'order_paid_banner' => 'Order paid',
+    'order_cancelled_banner' => 'Order cancelled',
+    'order_paid_details' => 'Paid at {time} · {amount}. No more dishes or bill requests can be made.',
+    'order_closed_hint' => 'The order is closed and can no longer be changed.',
 ];

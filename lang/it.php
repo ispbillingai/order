@@ -1103,4 +1103,8 @@ return [
     'thanks_enabled' => 'Invia il ringraziamento dopo il pagamento',
     'thanks_placeholders' => '{nome} = nome del cliente · {ristorante} = nome del locale. Se lasci un testo vuoto viene usato quello predefinito.',
     'thanks_no_name' => 'cliente',
+    'order_paid_banner' => 'Ordine pagato',
+    'order_cancelled_banner' => 'Ordine annullato',
+    'order_paid_details' => 'Pagato alle {time} · {amount}. Non si possono più aggiungere piatti né chiedere il conto.',
+    'order_closed_hint' => 'L\'ordine è chiuso: non si può più modificare.',
 ];

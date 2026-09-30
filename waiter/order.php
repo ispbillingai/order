@@ -39,6 +39,19 @@ $wasSent      = $order['status'] !== 'open';
 // Taking the order: dishes typed in but not sent yet. Until they are sent the
 // only action is "Send to kitchen" — no bill buttons.
 $takingOrder  = $isEditable && $pendingCount > 0;
+// Paid (or cancelled): the order is closed — everything is shown, nothing can be done.
+$isPaid   = $order['status'] === 'paid';
+$isClosed = !$isEditable;
+$paidInfo = null;
+if ($isPaid) {
+    // The whole meal: this bill and the seat bills split off it.
+    $stmt = getDBConnection()->prepare("
+        SELECT SUM(amount) AS amount, MAX(created_at) AS at FROM payments
+        WHERE order_id = ? OR order_id IN (SELECT id FROM orders WHERE parent_order_id = ?)
+    ");
+    $stmt->execute([$orderId, $orderId]);
+    $paidInfo = $stmt->fetch();
+}
 $selectedCategoryId = $_GET['category'] ?? ($categories[0]['id'] ?? null);
 $menuItems = $selectedCategoryId ? getMenuItemsByCategory($selectedCategoryId) : [];
 
@@ -211,6 +224,18 @@ include __DIR__ . '/../includes/header.php';
 @media (max-width: 1024px) { .cust-grid { grid-template-columns: 1fr 1fr; } .cust-grid .cust-phone-wrap, .cust-grid .cust-actions { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .cust-grid { grid-template-columns: 1fr; } .cust-phone select { flex-basis: 9rem; } }
 
+.order-closed-banner { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 14px; margin-bottom: var(--space-lg); color: #fff; box-shadow: var(--shadow-md); }
+.order-closed-banner.paid { background: var(--success, #16a34a); }
+.order-closed-banner.cancelled { background: #6b7280; }
+.order-closed-banner > i { font-size: 2rem; }
+.order-closed-banner strong { display: block; font-size: 1.3rem; letter-spacing: .02em; text-transform: uppercase; }
+.order-closed-banner span { opacity: .92; }
+.menu-grid.locked .menu-item { opacity: .45; cursor: not-allowed; pointer-events: none; }
+.order-actions .btn:disabled { opacity: .45; cursor: not-allowed; }
+.closed-stamp { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.closed-stamp.paid { background: rgba(22, 163, 74, .12); color: var(--success, #16a34a); }
+.closed-stamp.cancelled { background: rgba(107, 114, 128, .15); color: #4b5563; }
+
 .recall-note {
     display: flex;
     align-items: center;
@@ -238,6 +263,24 @@ include __DIR__ . '/../includes/header.php';
         </a>
     </div>
 </div>
+
+<?php if ($isClosed): ?>
+<!-- Closed order: say so plainly -->
+<div class="order-closed-banner <?= $isPaid ? 'paid' : 'cancelled' ?>">
+    <i class="fas <?= $isPaid ? 'fa-circle-check' : 'fa-ban' ?>"></i>
+    <div>
+        <strong><?= te($isPaid ? 'order_paid_banner' : 'order_cancelled_banner') ?></strong>
+        <?php if ($isPaid): ?>
+            <span><?= te('order_paid_details', [
+                'time'   => date('H:i', strtotime($paidInfo['at'] ?? $order['closed_at'] ?? 'now')),
+                'amount' => formatCurrency($paidInfo['amount'] ?? $order['total']),
+            ]) ?></span>
+        <?php else: ?>
+            <span><?= te('order_closed_hint') ?></span>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="order-info mb-lg" style="display: flex; gap: 24px; flex-wrap: wrap;">
     <div>
@@ -341,9 +384,9 @@ include __DIR__ . '/../includes/header.php';
         </div>
         
         <!-- Menu Items -->
-        <div class="menu-grid">
+        <div class="menu-grid<?= $isClosed ? ' locked' : '' ?>">
             <?php foreach ($menuItems as $item): ?>
-                <div class="menu-item" onclick="selectMenuItem(<?= htmlspecialchars(json_encode($item)) ?>, <?= $allowComposition ?>)">
+                <div class="menu-item" <?= $isClosed ? 'aria-disabled="true"' : 'onclick="selectMenuItem(' . htmlspecialchars(json_encode($item)) . ', ' . (int) $allowComposition . ')"' ?>>
                     <div class="item-name"><?= htmlspecialchars($item['name']) ?></div>
                     <?php if ($item['description']): ?>
                         <div class="item-desc"><?= htmlspecialchars($item['description']) ?></div>
@@ -531,7 +574,15 @@ include __DIR__ . '/../includes/header.php';
                     <span class="badge badge-light"><?= $pendingCount ?></span>
                 </button>
             <?php endif; ?>
-            <?php if (!$takingOrder): ?>
+            <?php if ($isClosed): ?>
+                <!-- Paid / cancelled: the buttons stay, switched off -->
+                <div class="closed-stamp <?= $isPaid ? 'paid' : 'cancelled' ?>"><i class="fas <?= $isPaid ? 'fa-circle-check' : 'fa-ban' ?>"></i> <?= te($isPaid ? 'order_paid_banner' : 'order_cancelled_banner') ?></div>
+                <button class="btn btn-warning" disabled><i class="fas fa-cash-register"></i> <?= te('bill_at_till') ?></button>
+                <?php if ($waOn && !$isSeatBill && !empty($order['customer_phone'])): ?>
+                    <button class="btn btn-success" disabled><i class="fab fa-whatsapp"></i> <?= te('bill_whatsapp') ?></button>
+                <?php endif; ?>
+                <button class="btn btn-outline" disabled style="color:var(--danger);border-color:var(--danger);"><i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?></button>
+            <?php elseif (!$takingOrder): ?>
                 <button class="btn btn-warning" onclick="billSeat(null)">
                     <i class="fas fa-cash-register"></i> <?= te('bill_at_till') ?>
                 </button>
@@ -555,9 +606,11 @@ include __DIR__ . '/../includes/header.php';
 <!-- Phone: the order summary stays at hand while picking dishes -->
 <div class="order-mobile-bar" id="orderMobileBar">
     <button type="button" class="omb-total" onclick="document.querySelector('.order-panel').scrollIntoView({ behavior: 'smooth' })">
-        <small><?= te('total') ?></small><strong><?= formatCurrency($order['total']) ?></strong>
+        <small><?= te('total') ?></small><strong><?= formatCurrency($isPaid ? ($paidInfo['amount'] ?? $order['total']) : $order['total']) ?></strong>
     </button>
-    <?php if ($isEditable && $pendingCount > 0): ?>
+    <?php if ($isClosed): ?>
+        <span class="closed-stamp <?= $isPaid ? 'paid' : 'cancelled' ?>" style="width:auto;flex:1;padding:10px;"><i class="fas <?= $isPaid ? 'fa-circle-check' : 'fa-ban' ?>"></i> <?= te($isPaid ? 'order_paid_banner' : 'order_cancelled_banner') ?></span>
+    <?php elseif ($pendingCount > 0): ?>
         <button type="button" class="btn btn-primary" onclick="sendOrderToKitchen()"><i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?> (<?= $pendingCount ?>)</button>
     <?php endif; ?>
     <button type="button" class="btn btn-outline" onclick="document.querySelector('.order-panel').scrollIntoView({ behavior: 'smooth' })"><i class="fas fa-receipt"></i> <?= te('mobile_view_order') ?></button>
@@ -797,6 +850,17 @@ function editCustomer(on) {
     document.getElementById('custSummary').hidden = on;
     if (on) document.getElementById('custName').focus();
 }
+// Paid at the till while this screen is open: reload to show it closed.
+<?php if (!$isClosed): ?>
+setInterval(async () => {
+    try {
+        const r = await fetch('/api/orders.php?action=status&order_id=' + orderId, { cache: 'no-store' });
+        const s = await r.json();
+        if (s.success && (s.status === 'paid' || s.status === 'cancelled')) location.reload();
+    } catch (e) { /* offline for a moment: next check */ }
+}, 8000);
+<?php endif; ?>
+
 async function setReadyNotify(sel) {
     try {
         await apiCall('/api/orders.php', 'POST', { action: 'set_ready_notify', order_id: orderId, value: sel.value });

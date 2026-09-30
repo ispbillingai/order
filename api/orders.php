@@ -57,6 +57,14 @@ function notifyCashiersBill(PDO $pdo, int $orderId): void
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
     
+    // Just the status (the waiter's order screen notices a payment at the till).
+    if ($action === 'status') {
+        $stmt = getDBConnection()->prepare("SELECT status FROM orders WHERE id = ?");
+        $stmt->execute([(int) ($_GET['order_id'] ?? 0)]);
+        $st = $stmt->fetchColumn();
+        jsonResponse($st ? ['success' => true, 'status' => $st] : ['success' => false, 'message' => 'Order not found']);
+    }
+
     if ($action === 'get') {
         $orderId = $_GET['order_id'] ?? null;
         if (!$orderId) {
