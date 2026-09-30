@@ -105,7 +105,9 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; z-index: 20; display: none; max-width: 90vw; text-align: center; }
 .bad { text-align: center; padding: 60px 20px; }
 .bill-wait { font-size: .85rem; color: var(--muted); margin: 10px 0 0; display: flex; gap: 8px; align-items: center; }
-.notify-btn { width: 100%; border: 1px dashed var(--line); background: #fff; border-radius: 12px; padding: 10px; font: inherit; font-weight: 600; color: var(--ink); margin-bottom: 14px; cursor: pointer; }
+.notify-btn { width: 100%; border: 0; background: #fff7ed; border-radius: 12px; padding: 12px; font: inherit; font-weight: 700; color: var(--p); margin-bottom: 14px; cursor: pointer; box-shadow: inset 0 0 0 2px #fed7aa; }
+.notify-btn i { margin-right: 6px; animation: bellRing 1.8s ease-in-out infinite; display: inline-block; }
+@keyframes bellRing { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
 .ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; animation: readyIn .35s ease-out; }
 .ready-banner i { font-size: 1.8rem; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
@@ -266,7 +268,7 @@ function render(s) {
     $('btnBillWa').disabled = !s.bill_ready;
     $('billWait').hidden = !s.items.length || s.bill_ready;
     notifyReady(s.items);
-    if ('Notification' in window && Notification.permission === 'default' && s.items.length) $('notifyBtn').hidden = false;
+    updateNotifyButton();
     // Two bill buttons only when a guest here left a WhatsApp number.
     const wa = (s.wa_targets || []).length > 0;
     $('btnBillWa').hidden = !wa;
@@ -396,30 +398,73 @@ function notifyReady(items) {
     $('readyBody').textContent = body;
     $('readyBanner').hidden = false;
     clearTimeout(notifyReady.h); notifyReady.h = setTimeout(() => { $('readyBanner').hidden = true; }, 12000);
-    try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {}
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        [0, 0.22, 0.44].forEach((d, n) => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.frequency.value = [660, 880, 1100][n]; o.connect(g); g.connect(ctx.destination);
-            g.gain.setValueAtTime(0.2, ctx.currentTime + d);
-            o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.18);
-        });
-    } catch (e) {}
+    try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+    playChime();
     showSystemNotification(L.ready_title, body);
+}
+
+/* ---- Sound. Phones keep web audio muted until the guest touches the page
+ * (and again after every reload), so the context is unlocked on the first
+ * touch/key, and the bell button offers it while it is still muted. ---- */
+let audioCtx = null;
+function audio() {
+    if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+    }
+    return audioCtx;
+}
+function soundOn() { return !!audioCtx && audioCtx.state === 'running'; }
+function unlockAudio() {
+    const ctx = audio();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    // A silent blip: iOS only really unlocks once something has played.
+    try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch (e) {}
+    setTimeout(updateNotifyButton, 300);
+}
+['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+
+/** "Ding-dong" chime: four rising bell notes, played twice. */
+function playChime() {
+    const ctx = audio();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    const notes = [784, 988, 1175, 1568]; // G5 B5 D6 G6
+    [0, 0.9].forEach(rep => notes.forEach((f, n) => {
+        const t = ctx.currentTime + rep + n * 0.16;
+        const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        o2.type = 'triangle'; o2.frequency.value = f * 2;   // a touch of shimmer
+        o.connect(g); o2.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+        o.start(t); o2.start(t); o.stop(t + 0.6); o2.stop(t + 0.6);
+    }));
 }
 
 let swReg = null;
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/guest-sw.js').then(r => { swReg = r; }).catch(() => {});
 }
+/** The bell button: shown while sound is muted or notifications not yet decided. */
+function updateNotifyButton() {
+    if (!state || !state.items || !state.items.length) { $('notifyBtn').hidden = true; return; }
+    const askNotif = 'Notification' in window && Notification.permission === 'default';
+    $('notifyBtn').hidden = soundOn() && !askNotif;
+}
 async function enableNotifications() {
-    $('notifyBtn').hidden = true;
-    try { await Notification.requestPermission(); } catch (e) {}
+    unlockAudio();
+    playChime(); // the guest hears what the "dish ready" alert sounds like
+    try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); } catch (e) {}
+    setTimeout(updateNotifyButton, 300);
 }
 function showSystemNotification(title, body) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const opts = { body, tag: 'dish-ready', renotify: true, vibrate: [250, 120, 250], data: { url: location.href } };
+    const opts = { body, tag: 'dish-ready', renotify: true, silent: false, requireInteraction: false,
+                   vibrate: [300, 150, 300, 150, 300], data: { url: location.href } };
     try {
         if (swReg && swReg.showNotification) swReg.showNotification(title, opts);
         else new Notification(title, opts);
