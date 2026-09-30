@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/glovo.php';
+require_once __DIR__ . '/../includes/ready_notify.php';
 
 header('Content-Type: application/json');
 
@@ -53,28 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE kitchen_tickets SET status = ? WHERE order_item_id = ?");
             $stmt->execute([$ticketStatus, $orderItemId]);
             
-            // If marked as ready, notify waiter
+            // If marked as ready, tell the waiters the rule says (see ready_notify.php).
             if ($status === 'ready') {
                 $stmt = $pdo->prepare("
-                    SELECT oi.*, o.waiter_id, mi.name as item_name, COALESCE(o.table_label, t.table_number) AS table_number
-                    FROM order_items oi
-                    JOIN orders o ON oi.order_id = o.id
-                    JOIN menu_items mi ON oi.menu_item_id = mi.id
-                    JOIN tables_restaurant t ON o.table_id = t.id
+                    SELECT oi.order_id, oi.seat, mi.name AS item_name
+                    FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
                     WHERE oi.id = ?
                 ");
                 $stmt->execute([$orderItemId]);
                 $item = $stmt->fetch();
-                
                 if ($item) {
-                    createNotification(
-                        $item['waiter_id'],
-                        'dish_ready',
-                        'Dish Ready!',
-                        "{$item['item_name']} is ready for Table {$item['table_number']}" . (!empty($item['seat']) ? " (seat {$item['seat']})" : ''),
-                        $orderItemId,
-                        ['order_id' => $item['order_id']]
-                    );
+                    notifyDishReady((int) $item['order_id'], $item['item_name'], $item['seat'] ? (int) $item['seat'] : null, (int) $orderItemId);
                 }
             }
             
@@ -107,26 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE kitchen_tickets SET status = 'ready' WHERE order_id = ?");
             $stmt->execute([$orderId]);
             
-            // Notify waiter
-            $stmt = $pdo->prepare("
-                SELECT o.waiter_id, COALESCE(o.table_label, t.table_number) AS table_number
-                FROM orders o
-                JOIN tables_restaurant t ON o.table_id = t.id
-                WHERE o.id = ?
-            ");
-            $stmt->execute([$orderId]);
-            $order = $stmt->fetch();
-            
-            if ($order) {
-                createNotification(
-                    $order['waiter_id'],
-                    'dish_ready',
-                    'Order Ready!',
-                    "All dishes for Table {$order['table_number']} are ready!",
-                    null,
-                    ['order_id' => $orderId]
-                );
-            }
+            // Tell the waiters the rule says.
+            notifyDishReady((int) $orderId, null);
             
             logActivity('all_items_ready', 'orders', $orderId);
             glovoAfterKitchenReady((int) $orderId);
@@ -156,25 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE kitchen_tickets SET status = 'ready' WHERE order_item_id IN ($in)");
             $stmt->execute($ids);
 
-            // Notify the waiter once for the whole course.
-            $stmt = $pdo->prepare("
-                SELECT o.id AS order_id, o.waiter_id, COALESCE(o.table_label, t.table_number) AS table_number
-                FROM order_items oi
-                JOIN orders o ON oi.order_id = o.id
-                JOIN tables_restaurant t ON o.table_id = t.id
-                WHERE oi.id = ? LIMIT 1
-            ");
+            // Tell the waiters the rule says, once for the whole course.
+            $stmt = $pdo->prepare("SELECT order_id FROM order_items WHERE id = ?");
             $stmt->execute([$ids[0]]);
             $info = $stmt->fetch();
             if ($info) {
-                createNotification(
-                    $info['waiter_id'],
-                    'dish_ready',
-                    'Course Ready!',
-                    ($course !== '' ? $course . ' — ' : '') . "ready for Table {$info['table_number']}",
-                    null,
-                    ['order_id' => $info['order_id'], 'course' => $course]
-                );
+                notifyDishReady((int) $info['order_id'], $course !== '' ? $course : null, null, null, ['course' => $course], $course !== '' ? null : 'ready_notif_course');
                 logActivity('course_ready', 'orders', (int) $info['order_id'], ['course' => $course, 'items' => count($ids)]);
             }
             glovoAfterItemsReady($ids);

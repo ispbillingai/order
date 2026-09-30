@@ -24,6 +24,10 @@ $data = [
 // Unread notifications
 $data['unread_notifications'] = getUnreadNotificationsCount($user['id']);
 
+// "Dish ready" just arrived: pop-up + sound on any page.
+require_once __DIR__ . '/../includes/ready_notify.php';
+$data['ready_alerts'] = recentReadyAlerts((int) $user['id']);
+
 // Guests' QR requests (bill / waiter / dish change) this role must answer.
 require_once __DIR__ . '/../includes/table_requests.php';
 try {

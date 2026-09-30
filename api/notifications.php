@@ -17,7 +17,8 @@ $user = getCurrentUser();
 
 // Handle GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $notifications = getRecentNotifications($user['id'], 20);
+    require_once __DIR__ . '/../includes/ready_notify.php';
+    $notifications = array_map('localizeNotification', getRecentNotifications($user['id'], 20));
     jsonResponse(['success' => true, 'notifications' => $notifications]);
 }
 

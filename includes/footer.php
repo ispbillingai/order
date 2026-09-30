@@ -23,6 +23,7 @@
         'taken_by'    => t('req_taken_by'),
         'now'         => t('req_now'),
         'new_request' => t('req_new'),
+        'open_order'  => t('ready_open_order'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?php endif; ?>

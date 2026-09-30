@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/countries.php';
 require_once __DIR__ . '/../includes/whatsapp_guest.php';
 require_once __DIR__ . '/../includes/consent.php';
+require_once __DIR__ . '/../includes/ready_notify.php';
 requireRole(['admin', 'waiter']);
 
 $orderId = $_GET['order'] ?? null;
@@ -235,6 +236,21 @@ include __DIR__ . '/../includes/header.php';
     <div><strong><?= te('room') ?>:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
     <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
+    <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true)): ?>
+        <div class="d-flex align-center gap-sm">
+            <strong><i class="fas fa-bell-concierge"></i> <?= te('ready_notify_label') ?>:</strong>
+            <select class="form-control form-control-sm" style="width:auto;max-width:340px;padding:4px 8px;" onchange="setReadyNotify(this)">
+                <option value=""><?= te('ready_opt_rule', ['rule' => readyNotifyRuleLabel()]) ?></option>
+                <option value="order_waiter" <?= ($order['ready_notify'] ?? '') === 'order_waiter' ? 'selected' : '' ?>><?= te('ready_opt_order_waiter', ['name' => $order['waiter_name']]) ?></option>
+                <option value="all" <?= ($order['ready_notify'] ?? '') === 'all' ? 'selected' : '' ?>><?= te('ready_mode_all') ?></option>
+                <optgroup label="<?= te('ready_opt_other') ?>">
+                    <?php foreach (readyNotifyStaff() as $uid => $uname): ?>
+                        <option value="user:<?= (int) $uid ?>" <?= ($order['ready_notify'] ?? '') === 'user:' . $uid ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
+                    <?php endforeach; ?>
+                </optgroup>
+            </select>
+        </div>
+    <?php endif; ?>
 </div>
 
 <?php if (!$isSeatBill && ($isEditable || $hasCustomer)): ?>
@@ -744,6 +760,12 @@ function editCustomer(on) {
     document.getElementById('custForm').hidden = !on;
     document.getElementById('custSummary').hidden = on;
     if (on) document.getElementById('custName').focus();
+}
+async function setReadyNotify(sel) {
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'set_ready_notify', order_id: orderId, value: sel.value });
+        showToast(<?= json_encode(t('ready_notify_saved')) ?>, 'success');
+    } catch (e) { /* apiCall already showed the reason */ }
 }
 async function saveCustomer(e) {
     e.preventDefault();

@@ -655,6 +655,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
             break;
 
+        case 'set_ready_notify':
+            // Who is told when this order's dishes are ready ('' = the general rule).
+            require_once __DIR__ . '/../includes/ready_notify.php';
+            $orderId = (int) ($input['order_id'] ?? 0);
+            $choice  = (string) ($input['value'] ?? '');
+            if (!$orderId || !validReadyNotifyChoice($choice)) {
+                jsonResponse(['success' => false, 'message' => 'Invalid choice']);
+            }
+            $pdo->prepare("UPDATE orders SET ready_notify = ? WHERE id = ?")->execute([$choice === '' ? null : $choice, $orderId]);
+            logActivity('order_ready_notify', 'orders', $orderId, ['to' => $choice ?: 'rule']);
+            jsonResponse(['success' => true]);
+            break;
+
         case 'set_seat_guest':
             // One guest's own number for their seat (separate bill on WhatsApp).
             // Empty phone removes it.

@@ -10,6 +10,7 @@ require_once __DIR__ . '/../includes/TextMeBot.php';
 require_once __DIR__ . '/../includes/Mailer.php';
 require_once __DIR__ . '/../includes/loyalty.php';
 require_once __DIR__ . '/../includes/consent.php';
+require_once __DIR__ . '/../includes/ready_notify.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -130,6 +131,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Who is told when the kitchen marks a dish ready.
+    if ($action === 'update_ready_notify') {
+        $mode  = in_array($_POST['ready_mode'] ?? '', READY_NOTIFY_MODES, true) ? $_POST['ready_mode'] : 'order_waiter';
+        $staff = readyNotifyStaff();
+        $ids   = array_values(array_filter(array_map('intval', (array) ($_POST['ready_waiters'] ?? [])), fn($id) => isset($staff[$id])));
+        setSetting('ready_notify', ['mode' => $mode, 'waiters' => $ids, 'with_order_waiter' => !empty($_POST['ready_with_order_waiter'])]);
+        logActivity('ready_notify_saved', 'settings', null, ['mode' => $mode, 'waiters' => count($ids)]);
+        header('Location: /admin/settings.php?success=saved#ready');
+        exit;
+    }
+
     if ($action === 'test_textmebot') {
         $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
         logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
@@ -150,6 +162,8 @@ $mailTest = $_SESSION['mail_test'] ?? null;
 unset($_SESSION['mail_test']);
 
 $loyRules = loyaltyRules();
+$readyRule  = readyNotifyRule();
+$readyStaff = readyNotifyStaff();
 $consentSet    = (array) getSetting('consent_texts', []);
 $consentCounts = $pdo->query("SELECT status, COUNT(*) FROM marketing_consents GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
 $tmb      = (array) getSetting('textmebot', []);
@@ -469,6 +483,51 @@ function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }
 </script>
+
+<!-- Dish ready: which waiters the kitchen's "ready" reaches -->
+<style>
+.ready-modes { display: grid; gap: 8px; }
+.ready-modes label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; }
+.ready-modes label:has(input:checked) { border-color: var(--primary); background: rgba(211, 84, 0, .05); }
+.ready-modes small { display: block; color: var(--text-secondary); }
+.ready-waiters { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0 30px; }
+.ready-waiters label { display: flex; gap: 6px; align-items: center; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 999px; font-size: .9rem; cursor: pointer; }
+</style>
+<div class="card" id="ready" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-bell-concierge"></i> <?= te('ready_settings_title') ?></h2>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_ready_notify">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('ready_settings_intro') ?></p>
+            <div class="ready-modes">
+                <?php foreach (READY_NOTIFY_MODES as $m): ?>
+                    <label>
+                        <input type="radio" name="ready_mode" value="<?= $m ?>" <?= $readyRule['mode'] === $m ? 'checked' : '' ?> onchange="document.getElementById('readyWaiters').hidden = this.value !== 'waiters'">
+                        <span><strong><?= te('ready_mode_' . $m) ?></strong><small><?= te('ready_mode_' . $m . '_hint') ?></small></span>
+                    </label>
+                    <?php if ($m === 'waiters'): ?>
+                        <div id="readyWaiters" <?= $readyRule['mode'] === 'waiters' ? '' : 'hidden' ?>>
+                            <div class="ready-waiters">
+                                <?php foreach ($readyStaff as $uid => $uname): ?>
+                                    <label><input type="checkbox" name="ready_waiters[]" value="<?= (int) $uid ?>" <?= in_array((int) $uid, $readyRule['waiters'], true) ? 'checked' : '' ?>> <?= htmlspecialchars($uname) ?></label>
+                                <?php endforeach; ?>
+                            </div>
+                            <label style="margin:10px 0 0 30px;border:0;padding:0;">
+                                <input type="checkbox" name="ready_with_order_waiter" value="1" <?= $readyRule['with_order_waiter'] ? 'checked' : '' ?>> <?= te('ready_with_order_waiter') ?>
+                            </label>
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+            <p class="text-muted" style="font-size:.85rem;margin:12px 0 0;"><i class="fas fa-circle-info"></i> <?= te('ready_settings_override') ?></p>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
 
 <!-- Marketing consent: the texts the guest reads, gets and uses to revoke -->
 <div class="card" id="consent" style="margin-top: var(--space-lg);">

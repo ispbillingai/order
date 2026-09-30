@@ -64,8 +64,11 @@ function renderNotifications(notifications) {
         return;
     }
     
+    // A notification about an order opens it.
+    const orderOf = n => { try { return (JSON.parse(n.payload || '{}') || {}).order_id || 0; } catch (e) { return 0; } };
     list.innerHTML = notifications.map(n => `
-        <div class="notification-item ${n.read_at ? '' : 'unread'}" data-id="${n.id}">
+        <div class="notification-item ${n.read_at ? '' : 'unread'}" data-id="${n.id}"
+             ${orderOf(n) && n.type === 'dish_ready' ? `style="cursor:pointer" onclick="location.href='/waiter/order.php?order=${parseInt(orderOf(n), 10)}'"` : ''}>
             <div class="title">${escapeHtml(n.title)}</div>
             <div class="message">${escapeHtml(n.message)}</div>
             <div class="time">${formatTimeAgo(n.created_at)}</div>
@@ -516,3 +519,75 @@ document.addEventListener('app:update', e => {
         card.classList.toggle('bill-alert', on.has(card.dataset.tableId));
     });
 });
+
+// ============================================
+// "Dish ready" alert for waiters: a banner at the top with a sound, on any
+// page, for each new ready notification (who gets it: Settings > Dish ready
+// alert, or the order's own choice). OK / Open mark it read.
+// ============================================
+let readyAudio = null;
+function readyChime() {
+    try {
+        readyAudio = readyAudio || new (window.AudioContext || window.webkitAudioContext)();
+        if (readyAudio.state === 'suspended') readyAudio.resume();
+        [0, 0.18, 0.36].forEach((t, i) => {
+            const o = readyAudio.createOscillator(), g = readyAudio.createGain();
+            o.type = 'sine';
+            o.frequency.value = [880, 1175, 1568][i];
+            g.gain.setValueAtTime(0.0001, readyAudio.currentTime + t);
+            g.gain.exponentialRampToValueAtTime(0.35, readyAudio.currentTime + t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, readyAudio.currentTime + t + 0.45);
+            o.connect(g).connect(readyAudio.destination);
+            o.start(readyAudio.currentTime + t);
+            o.stop(readyAudio.currentTime + t + 0.5);
+        });
+    } catch (e) { /* no audio on this device */ }
+}
+// Browsers only play sound after the user touched the page once.
+document.addEventListener('click', () => {
+    try {
+        readyAudio = readyAudio || new (window.AudioContext || window.webkitAudioContext)();
+        if (readyAudio.state === 'suspended') readyAudio.resume();
+    } catch (e) {}
+}, { once: true });
+
+function readyAlertSeen() {
+    try { return JSON.parse(sessionStorage.getItem('ready-alerts-seen') || '[]'); } catch (e) { return []; }
+}
+function showReadyAlerts(alerts) {
+    if (!Array.isArray(alerts) || !alerts.length) return;
+    const seen = readyAlertSeen();
+    const fresh = alerts.filter(a => !seen.includes(a.id));
+    if (!fresh.length) return;
+    try { sessionStorage.setItem('ready-alerts-seen', JSON.stringify(seen.concat(fresh.map(a => a.id)).slice(-50))); } catch (e) {}
+
+    let box = document.getElementById('readyAlerts');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'readyAlerts';
+        box.className = 'ready-alerts';
+        document.body.appendChild(box);
+    }
+    const L = window.REQ_I18N || {};
+    fresh.reverse().forEach(a => {
+        const el = document.createElement('div');
+        el.className = 'ready-alert';
+        el.innerHTML = `
+            <i class="fas fa-bell-concierge"></i>
+            <div class="ra-text"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.message)}</span></div>
+            ${a.order_id ? `<a class="btn btn-sm" href="/waiter/order.php?order=${a.order_id}">${escapeHtml(L.open_order || 'Open')}</a>` : ''}
+            <button class="btn btn-sm" type="button">OK</button>`;
+        const done = () => {
+            fetch('/api/notifications.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'mark_read', notification_id: a.id }) }).catch(() => {});
+            el.remove();
+        };
+        el.querySelector('button').addEventListener('click', done);
+        const link = el.querySelector('a');
+        if (link) link.addEventListener('click', done);
+        box.appendChild(el);
+    });
+    readyChime();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+document.addEventListener('app:update', e => showReadyAlerts(e.detail && e.detail.ready_alerts));
