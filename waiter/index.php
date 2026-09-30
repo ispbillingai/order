@@ -84,17 +84,24 @@ include __DIR__ . '/../includes/header.php';
         if ($status === 'open' || $status === 'sent_to_kitchen') $status = 'occupied';
     ?>
         <?php $guests = $order ? ($occupancy[$table['id']]['guests'] ?? 0) : null; ?>
-        <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>"
+        <?php $toLay = $status === 'free' && !empty($table['needs_reset_at']); ?>
+        <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?><?= $toLay ? ' needs-reset' : '' ?>"
              onclick="selectTable(<?= $table['id'] ?>, '<?= $status ?>', <?= $order ? $order['id'] : 'null' ?>)"
              data-table-id="<?= $table['id'] ?>" data-table-number="<?= htmlspecialchars($table['table_number']) ?>">
             <?php if (!empty($tableAsks[$table['id']])): ?>
                 <span class="badge badge-danger tv-bell" title="<?= te('req_waiting_table') ?>"><i class="fas fa-bell"></i> <?= (int) $tableAsks[$table['id']] ?></span>
             <?php endif; ?>
             <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
+            <?php if ($toLay): ?>
+                <span class="tv-reset" title="<?= te('table_to_lay_since', ['time' => date('H:i', strtotime($table['needs_reset_at']))]) ?>"><i class="fas fa-broom"></i> <?= te('table_to_lay') ?></span>
+            <?php endif; ?>
             <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
             <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>">
                 <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?>
             </div>
+            <?php if ($toLay): ?>
+                <button type="button" class="btn btn-sm btn-laid" onclick="event.stopPropagation(); tableLaid(<?= (int) $table['id'] ?>, this)"><i class="fas fa-check"></i> <?= te('table_laid_btn') ?></button>
+            <?php endif; ?>
             <div class="table-status">
                 <?php if ($status === 'free'): ?>
                     <?= te('available') ?>
@@ -180,9 +187,27 @@ async function startNewOrder() {
     }
 }
 
-// Listen for updates
+// The table was cleared and laid again.
+async function tableLaid(tableId, btn) {
+    btn.disabled = true;
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'table_laid', table_id: tableId });
+        const card = btn.closest('.table-card');
+        card.classList.remove('needs-reset');
+        card.querySelector('.tv-reset')?.remove();
+        btn.remove();
+        shownReset.delete(tableId);
+        showToast(<?= json_encode(t('table_laid_done')) ?>, 'success');
+    } catch (e) { btn.disabled = false; }
+}
+
+// A table paid (to lay) or laid by a colleague: show the floor plan as it is now.
+const shownReset = new Set(<?= json_encode(array_map('intval', array_column(array_filter($tables, fn($t) => !empty($t['needs_reset_at'])), 'id'))) ?>);
+const roomTables = new Set(<?= json_encode(array_map('intval', array_column($tables, 'id'))) ?>);
 document.addEventListener('app:update', function(e) {
-    // Could refresh table statuses here
+    const now = new Set(((e.detail && e.detail.reset_tables) || []).filter(id => roomTables.has(id)));
+    const changed = now.size !== shownReset.size || [...now].some(id => !shownReset.has(id));
+    if (changed && !document.querySelector('.modal-overlay.active')) location.reload();
 });
 </script>
 

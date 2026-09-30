@@ -39,6 +39,12 @@ try {
 // Tables asking for the bill: their drawing blinks on the floor plans.
 require_once __DIR__ . '/../includes/table_visual.php';
 $data['bill_tables'] = billAlertTables();
+// Paid tables still to be cleared and laid again.
+try {
+    $data['reset_tables'] = array_map('intval', $pdo->query("SELECT id FROM tables_restaurant WHERE needs_reset_at IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN));
+} catch (PDOException $e) {
+    $data['reset_tables'] = []; // migration 026 not applied yet
+}
 
 // Role-specific data
 switch ($user['role']) {

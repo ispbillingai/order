@@ -304,8 +304,11 @@ function releaseOrderTables($orderId) {
     $stmt->execute([$rootId]);
     if ($stmt->fetchColumn() === 'paid') {
         thankGuestsForPaidOrder($rootId); // table closed by its last seat bill
-        // The waiters: the table is free, to be cleared and laid again.
-        if (($root['channel'] ?? 'dine_in') === 'dine_in') {
+        // The waiters: the table is free, to be cleared and laid again. It shows
+        // "to lay" on the floor plan until someone taps "Laid".
+        if (($root['channel'] ?? 'dine_in') === 'dine_in' && $freedTables) {
+            $in = implode(',', array_fill(0, count($freedTables), '?'));
+            $pdo->prepare("UPDATE tables_restaurant SET needs_reset_at = NOW() WHERE id IN ($in)")->execute(array_keys($freedTables));
             require_once __DIR__ . '/ready_notify.php';
             notifyTableFreed($rootId, array_values($freedTables));
         }

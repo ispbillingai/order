@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderId = $pdo->lastInsertId();
             
             // Update table status
-            $stmt = $pdo->prepare("UPDATE tables_restaurant SET status = 'occupied', current_order_id = ? WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE tables_restaurant SET status = 'occupied', current_order_id = ?, needs_reset_at = NULL WHERE id = ?");
             $stmt->execute([$orderId, $tableId]);
             
             // Calculate initial totals (just cover charges)
@@ -661,6 +661,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // The guest gave a number: send them the table's QR link (once per number).
             $linkQueued = $phone ? sendTableLinkOnce(getOrderById($orderId), null, $phone, $country) : null;
             jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
+            break;
+
+        case 'table_laid':
+            // The waiter cleared the table and laid it again.
+            $tableId = (int) ($input['table_id'] ?? 0);
+            $pdo->prepare("UPDATE tables_restaurant SET needs_reset_at = NULL WHERE id = ?")->execute([$tableId]);
+            logActivity('table_laid', 'tables_restaurant', $tableId);
+            jsonResponse(['success' => true]);
             break;
 
         case 'set_ready_notify':

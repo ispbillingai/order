@@ -1135,4 +1135,8 @@ return [
     'menu_pdf_empty' => 'The menu will be available soon.',
     'table_free_title' => 'Table free',
     'table_free_msg' => 'Table {table} has paid and is free: clear it and lay it again.',
+    'table_to_lay' => 'To lay',
+    'table_to_lay_since' => 'Free since {time}: clear it and lay it again',
+    'table_laid_btn' => 'Laid',
+    'table_laid_done' => 'Table ready for the next guests',
 ];

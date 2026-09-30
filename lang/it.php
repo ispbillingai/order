@@ -1135,4 +1135,8 @@ return [
     'menu_pdf_empty' => 'Il menù sarà disponibile a breve.',
     'table_free_title' => 'Tavolo libero',
     'table_free_msg' => 'Il tavolo {table} ha pagato ed è libero: da sparecchiare e riordinare.',
+    'table_to_lay' => 'Da riordinare',
+    'table_to_lay_since' => 'Libero dalle {time}: da sparecchiare e riordinare',
+    'table_laid_btn' => 'Riordinato',
+    'table_laid_done' => 'Tavolo pronto per i prossimi clienti',
 ];
