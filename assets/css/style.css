@@ -1524,3 +1524,76 @@ textarea.form-control {
 .ready-alert .ra-text span { font-size: .9rem; }
 .ready-alert .btn { background: rgba(255, 255, 255, .2); color: #fff; border: 0; white-space: nowrap; }
 @keyframes readyDrop { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ============================================
+   Phones and small tablets
+   ============================================ */
+@media (max-width: 768px) {
+    /* Nothing wider than the screen: no sideways page scroll. */
+    html, body { overflow-x: hidden; }
+    .main-content { padding: 12px; min-width: 0; }
+
+    /* Compact header: brand + icons on one line, sections in a scrolling row. */
+    .main-nav { position: static; padding: 8px 12px; gap: 6px; }
+    .nav-brand { font-size: 1.05rem; }
+    .nav-brand i { font-size: 1.2rem; }
+    .nav-user { gap: 6px; margin-left: auto; }
+    .nav-user .lang-switch { margin-right: 0; }
+    .nav-user .lang-switch a { padding: 2px 7px; }
+    .user-info { max-width: 92px; }
+    .user-name { font-size: .8rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92px; }
+    .user-role { display: none; }
+    .nav-links { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; gap: 4px; padding-bottom: 2px; scrollbar-width: none; }
+    .nav-links::-webkit-scrollbar { display: none; }
+    .nav-links a { white-space: nowrap; padding: 6px 10px; font-size: .9rem; }
+
+    /* Admin sections: one scrolling row instead of a tall block. */
+    .admin-sidebar { flex-wrap: nowrap !important; overflow-x: auto; padding: 8px !important; gap: 4px; scrollbar-width: none; }
+    .admin-sidebar::-webkit-scrollbar { display: none; }
+    .admin-sidebar a { white-space: nowrap; margin-bottom: 0 !important; padding: 8px 12px !important; font-size: .88rem !important; }
+
+    /* Headings and toolbars. */
+    .page-header h1 { font-size: 1.35rem; }
+    .page-header .d-flex, .order-info { flex-wrap: wrap; justify-content: center; }
+    .card-header { flex-wrap: wrap; gap: 8px; }
+
+    /* Wide tables scroll inside themselves. */
+    .data-table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .card, .modal { max-width: 100%; }
+
+    /* Notifications panel fits the screen. */
+    .notifications-panel { width: calc(100vw - 24px) !important; right: 12px !important; }
+
+    /* Guests' requests: across the bottom, not over the header. */
+    .table-requests-bar { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; max-height: 45vh; }
+
+    /* Order screen: the order panel sits in the page (a bar at the bottom jumps to it). */
+    .order-page > * { min-width: 0; }
+    .order-panel { position: static; height: auto; max-height: none; border-radius: var(--radius-lg); z-index: auto; }
+    .order-panel .order-items { overflow: visible; }
+    .order-actions { flex-wrap: wrap; }
+    .order-actions .btn { flex: 1 1 45%; justify-content: center; }
+    .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .menu-item { padding: 12px; }
+    .category-btn { min-width: 84px; padding: 10px; }
+
+    /* Side-by-side pages (menu admin, payment) stack. */
+    .two-col-layout { grid-template-columns: minmax(0, 1fr) !important; }
+    .two-col-layout > * { min-width: 0; }
+
+    /* Filter bars: fields share the width, a row each when needed. */
+    form.card .d-flex, .card-body form .d-flex { flex-wrap: wrap; }
+    form.card .d-flex > .form-control, form.card .d-flex > select { flex: 1 1 140px !important; min-width: 0 !important; max-width: none !important; }
+
+    /* Dish rows in the order: tighter so the price stays on screen. */
+    .order-item { gap: 8px; padding: 10px 4px; }
+    .order-items { padding: 8px; }
+
+    /* Kitchen: title above, the three counters side by side. */
+    .kitchen-header { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 16px !important; }
+    .kitchen-header h1 { font-size: 1.35rem; text-align: center; }
+    .kitchen-stats { gap: 8px; width: 100%; }
+    .kitchen-stat { flex: 1 1 0; padding: 8px 6px !important; min-width: 0; }
+    .kitchen-stat .number { font-size: 1.5rem !important; }
+    .kitchen-stat .label { font-size: .68rem !important; }
+}

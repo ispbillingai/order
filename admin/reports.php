@@ -188,7 +188,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--space-lg);">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--space-lg);">
     <!-- Daily Revenue -->
     <div class="card">
         <div class="card-header">

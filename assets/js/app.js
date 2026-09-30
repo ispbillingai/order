@@ -591,3 +591,11 @@ function showReadyAlerts(alerts) {
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 }
 document.addEventListener('app:update', e => showReadyAlerts(e.detail && e.detail.ready_alerts));
+
+// Phones: the scrolling menu rows start at the page that is open.
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.admin-sidebar a.active, .nav-links a.active').forEach(a => {
+        const bar = a.parentElement;
+        if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = a.offsetLeft - bar.offsetLeft - (bar.clientWidth - a.offsetWidth) / 2;
+    });
+});

@@ -1082,4 +1082,5 @@ return [
     'ready_short_all' => 'everyone',
     'ready_short_waiters' => 'chosen waiters',
     'ready_short_none' => 'nobody',
+    'mobile_view_order' => 'View order',
 ];

@@ -128,7 +128,7 @@ $waState    = fn(?array $m, string $kind) => !$m ? null : [
     'err'  => $m['status'] === 'failed' ? (string) $m['error'] : '',
 ];
 
-$pageTitle = "Order #{$order['order_number']}";
+$pageTitle = t('pdf_order_title') . ' #' . $order['order_number'];
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -140,11 +140,29 @@ include __DIR__ . '/../includes/header.php';
     gap: var(--space-lg);
     align-items: start;
 }
+/* The categories row scrolls inside the menu column instead of widening it. */
+.order-page > * { min-width: 0; }
 
 @media (max-width: 1024px) {
     .order-page {
         grid-template-columns: 1fr;
     }
+}
+
+/* Phone: bar at the bottom with the total, send to kitchen and a jump to the order. */
+.order-mobile-bar { display: none; }
+@media (max-width: 768px) {
+    .order-mobile-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; gap: 8px; align-items: center;
+        background: #fff; border-top: 1px solid var(--border-color); box-shadow: 0 -6px 18px rgba(0,0,0,.08);
+        padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); transition: transform .2s; }
+    .order-mobile-bar.off { transform: translateY(110%); }
+    .order-mobile-bar .btn { flex: 1 1 auto; justify-content: center; padding: 10px 8px; font-size: .88rem; white-space: nowrap; }
+    .omb-total { border: 0; background: none; text-align: left; display: flex; flex-direction: column; line-height: 1.1; padding: 0 4px; font: inherit; }
+    .omb-total small { color: var(--text-secondary); font-size: .72rem; }
+    .omb-total strong { color: var(--primary); font-size: 1.05rem; }
+    .main-content { padding-bottom: 80px; }
+    .ready-notify-pick { flex-wrap: wrap; justify-content: center; width: 100%; }
+    .ready-notify-pick select { max-width: 100% !important; width: 100% !important; }
 }
 
 /* A cancelled dish stays visible (it may already have been cooked) but is
@@ -208,8 +226,8 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <h1>
-        <i class="fas fa-clipboard-list"></i> 
-        Order #<?= htmlspecialchars($order['order_number']) ?>
+        <i class="fas fa-clipboard-list"></i>
+        <?= te('pdf_order_title') ?> #<?= htmlspecialchars($order['order_number']) ?>
     </h1>
     <div class="d-flex gap-md align-center">
         <span class="badge badge-<?= $order['status'] === 'open' ? 'warning' : 'info' ?>">
@@ -237,7 +255,7 @@ include __DIR__ . '/../includes/header.php';
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
     <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
     <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true)): ?>
-        <div class="d-flex align-center gap-sm">
+        <div class="d-flex align-center gap-sm ready-notify-pick">
             <strong><i class="fas fa-bell-concierge"></i> <?= te('ready_notify_label') ?>:</strong>
             <select class="form-control form-control-sm" style="width:auto;max-width:340px;padding:4px 8px;" onchange="setReadyNotify(this)">
                 <option value=""><?= te('ready_opt_rule', ['rule' => readyNotifyRuleLabel()]) ?></option>
@@ -533,6 +551,24 @@ include __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<!-- Phone: the order summary stays at hand while picking dishes -->
+<div class="order-mobile-bar" id="orderMobileBar">
+    <button type="button" class="omb-total" onclick="document.querySelector('.order-panel').scrollIntoView({ behavior: 'smooth' })">
+        <small><?= te('total') ?></small><strong><?= formatCurrency($order['total']) ?></strong>
+    </button>
+    <?php if ($isEditable && $pendingCount > 0): ?>
+        <button type="button" class="btn btn-primary" onclick="sendOrderToKitchen()"><i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?> (<?= $pendingCount ?>)</button>
+    <?php endif; ?>
+    <button type="button" class="btn btn-outline" onclick="document.querySelector('.order-panel').scrollIntoView({ behavior: 'smooth' })"><i class="fas fa-receipt"></i> <?= te('mobile_view_order') ?></button>
+</div>
+<script>
+// Hide the bar while the order panel itself is on screen.
+if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([e]) => document.getElementById('orderMobileBar').classList.toggle('off', e.isIntersecting), { threshold: 0.15 })
+        .observe(document.querySelector('.order-panel'));
+}
+</script>
 
 <?php if (!empty($tills)): ?>
 <!-- Choose till to send the bill to -->

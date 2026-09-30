@@ -133,7 +133,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<div class="payment-layout" style="display:grid;grid-template-columns:1fr 420px;gap:24px;">
+<div class="payment-layout two-col-layout" style="display:grid;grid-template-columns:1fr 420px;gap:24px;">
     <!-- Bill + discount -->
     <div>
         <div class="card mb-lg">

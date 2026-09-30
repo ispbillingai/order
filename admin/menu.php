@@ -246,7 +246,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: 250px 1fr; gap: var(--space-lg);">
+<div class="two-col-layout" style="display: grid; grid-template-columns: 250px 1fr; gap: var(--space-lg);">
     <!-- Categories Sidebar -->
     <div class="card">
         <div class="card-header">
