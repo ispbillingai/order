@@ -106,6 +106,35 @@ function tableMealItems(int $orderId): array
  *
  * @return array{ok:bool, id?:int, duplicate?:bool, error?:string}
  */
+/**
+ * The bill was asked for (by the waiter, or by the guest from the table page):
+ * the order and its tables go to "bill requested", the table blinks on the
+ * floor plans and the cashiers are told (once). $tillId: the till the waiter
+ * routed it to (null = any / keep the current one when $keepTill).
+ */
+function markOrderBillRequested(int $orderId, ?int $tillId = null, bool $keepTill = false): void
+{
+    $pdo   = getDBConnection();
+    $order = getOrderById($orderId);
+    if (!$order || in_array($order['status'], ['paid', 'cancelled'], true)) return;
+    $already = $order['status'] === 'bill_requested';
+
+    if ($keepTill) {
+        $pdo->prepare("UPDATE orders SET status = 'bill_requested' WHERE id = ?")->execute([$orderId]);
+    } else {
+        $pdo->prepare("UPDATE orders SET status = 'bill_requested', till_id = ? WHERE id = ?")->execute([$tillId, $orderId]);
+    }
+    $pdo->prepare("UPDATE tables_restaurant SET status = 'bill_requested' WHERE current_order_id = ?")->execute([$orderId]);
+
+    if (!$already) {
+        foreach ($pdo->query("SELECT id FROM users WHERE role = 'cashier' AND active = 1")->fetchAll(PDO::FETCH_COLUMN) as $cashierId) {
+            createNotification((int) $cashierId, 'bill_requested', t('bill_req_notif_title'),
+                t('bill_req_notif', ['table' => $order['table_number']]), null, ['order_id' => $orderId]);
+        }
+    }
+    logActivity('bill_requested', 'orders', $orderId);
+}
+
 function createTableRequest(array $table, string $type, ?int $orderItemId = null, string $message = '', ?int $replacementId = null): array
 {
     if (!in_array($type, ['bill', 'waiter', 'change'], true)) {

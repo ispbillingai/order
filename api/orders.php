@@ -45,8 +45,8 @@ function notifyCashiersBill(PDO $pdo, int $orderId): void
         createNotification(
             $cashier['id'],
             'bill_requested',
-            'Bill Requested',
-            "Table {$order['table_number']} is ready to pay",
+            t('bill_req_notif_title'),
+            t('bill_req_notif', ['table' => $order['table_number']]),
             null,
             ['order_id' => $orderId]
         );
@@ -428,21 +428,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Update order status and stamp the chosen till.
-            $stmt = $pdo->prepare("UPDATE orders SET status = 'bill_requested', till_id = ? WHERE id = ?");
-            $stmt->execute([$tillId, $orderId]);
-            
-            // Update table status
-            $stmt = $pdo->prepare("
-                UPDATE tables_restaurant SET status = 'bill_requested' 
-                WHERE current_order_id = ?
-            ");
-            $stmt->execute([$orderId]);
-            
-            // Notify cashiers
-            notifyCashiersBill($pdo, (int) $orderId);
-
-            logActivity('bill_requested', 'orders', $orderId);
+            // Order + tables to "bill requested" (with the chosen till), cashiers told.
+            require_once __DIR__ . '/../includes/table_requests.php';
+            markOrderBillRequested((int) $orderId, $tillId);
 
             // The bill copy on the guest's WhatsApp.
             if ($viaWhatsapp) {

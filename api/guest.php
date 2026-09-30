@@ -181,6 +181,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') !== 'unloc
         jsonResponse(['success' => false, 'message' => t('guest_err_' . $res['error'])]);
     }
 
+    // The guest asked for the table's bill: the order shows "bill requested"
+    // everywhere, as when the waiter asks for it (a seat's own copy on
+    // WhatsApp stays a request for the staff to handle).
+    if (($input['type'] ?? '') === 'bill' && (!$waTarget || empty($waTarget['seat']))) {
+        $cur = tableCurrentOrder($table);
+        if ($cur) markOrderBillRequested((int) $cur['id'], null, true);
+    }
+
     if ($waTarget) {
         // Tapping twice doesn't send two receipts: once every 3 minutes per number.
         $stmt = getDBConnection()->prepare("

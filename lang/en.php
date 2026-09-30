@@ -1139,4 +1139,6 @@ return [
     'table_to_lay_since' => 'Free since {time}: clear it and lay it again',
     'table_laid_btn' => 'Laid',
     'table_laid_done' => 'Table ready for the next guests',
+    'bill_req_notif_title' => 'Bill requested',
+    'bill_req_notif' => 'Table {table} is ready to pay',
 ];

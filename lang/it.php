@@ -1139,4 +1139,6 @@ return [
     'table_to_lay_since' => 'Libero dalle {time}: da sparecchiare e riordinare',
     'table_laid_btn' => 'Riordinato',
     'table_laid_done' => 'Tavolo pronto per i prossimi clienti',
+    'bill_req_notif_title' => 'Conto richiesto',
+    'bill_req_notif' => 'Il tavolo {table} è pronto per pagare',
 ];
