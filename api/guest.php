@@ -65,6 +65,16 @@ if (!$granted) {
     jsonResponse(lockedState($table, $order));
 }
 
+/**
+ * The bill can be asked for once the kitchen is done: every dish still to pay
+ * is ready or served (and there is at least one).
+ */
+function guestBillReady(array $items): bool
+{
+    $toPay = array_filter($items, fn($i) => !$i['paid']);
+    return $toPay && !array_filter($toPay, fn($i) => !in_array($i['status'], ['ready', 'served'], true));
+}
+
 /** What the guest may see: dishes, their progress, the total — no staff data. */
 function guestState(array $table): array
 {
@@ -102,6 +112,7 @@ function guestState(array $table): array
 
     return [
         'success'  => true,
+        'bill_ready' => guestBillReady($items),
         'wa_targets' => $waTargets,
         'table'    => $order ? $order['table_number'] : $table['table_number'],
         'has_order'=> (bool) $order,
@@ -115,6 +126,11 @@ function guestState(array $table): array
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') !== 'unlock') {
     // "Bill on WhatsApp": the bill request as usual, plus the receipt copy
     // sent straight away to the chosen guest's number.
+    // No bill while dishes are still being prepared.
+    if (($input['type'] ?? '') === 'bill' && !guestState($table)['bill_ready']) {
+        jsonResponse(['success' => false, 'message' => t('guest_bill_not_ready')]);
+    }
+
     $waTarget = null;
     if (($input['type'] ?? '') === 'bill' && !empty($input['whatsapp'])) {
         $order = tableCurrentOrder($table);

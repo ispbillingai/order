@@ -34,6 +34,8 @@ $L = [
     'note_opt'     => t('guest_note_optional'),
     'change_what'  => t('guest_change_what'),
     'wa_sent'      => t('guest_wa_sent'),
+    'ready_title'  => t('guest_ready_title'),
+    'ready_body'   => t('guest_ready_body'),
 ];
 header('Cache-Control: no-store');
 ?>
@@ -102,6 +104,13 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 #menuPicks { max-height: 38vh; overflow-y: auto; }
 .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; z-index: 20; display: none; max-width: 90vw; text-align: center; }
 .bad { text-align: center; padding: 60px 20px; }
+.bill-wait { font-size: .85rem; color: var(--muted); margin: 10px 0 0; display: flex; gap: 8px; align-items: center; }
+.notify-btn { width: 100%; border: 1px dashed var(--line); background: #fff; border-radius: 12px; padding: 10px; font: inherit; font-weight: 600; color: var(--ink); margin-bottom: 14px; cursor: pointer; }
+.ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; animation: readyIn .35s ease-out; }
+.ready-banner i { font-size: 1.8rem; }
+.ready-banner strong { display: block; font-size: 1.05rem; }
+.ready-banner button { margin-left: auto; background: rgba(255,255,255,.2); border: 0; color: #fff; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 700; }
+@keyframes readyIn { from { transform: translateY(-120%); } to { transform: none; } }
 .gate { text-align: center; padding: 28px 20px; }
 .gate-icon { font-size: 2.2rem; color: var(--p); margin-bottom: 8px; }
 .gate-text { color: var(--muted); margin: 6px 0 18px; }
@@ -145,6 +154,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 </main>
 
 <main id="app" hidden>
+    <button class="notify-btn" id="notifyBtn" hidden onclick="enableNotifications()"><i class="fas fa-bell"></i> <?= te('guest_notify_on') ?></button>
     <div class="card" id="requestsCard" hidden>
         <h2><?= te('guest_your_requests') ?></h2>
         <div id="requestsList"></div>
@@ -153,6 +163,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
         <h2><?= te('guest_your_order') ?></h2>
         <div id="dishes"><div class="empty"><?= te('loading') ?></div></div>
         <div class="total" id="totalRow" hidden><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
+        <p class="bill-wait" id="billWait" hidden><i class="fas fa-hourglass-half"></i> <?= te('guest_bill_not_ready') ?></p>
     </div>
 </main>
 
@@ -198,6 +209,11 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="ready-banner" id="readyBanner" hidden>
+    <i class="fas fa-bell-concierge"></i>
+    <div><strong id="readyTitle"></strong><span id="readyBody"></span></div>
+    <button onclick="$('readyBanner').hidden = true">OK</button>
+</div>
 
 <script>
 const K = <?= json_encode($token) ?>;
@@ -245,7 +261,12 @@ function render(s) {
         : `<div class="empty"><?= te('guest_no_order') ?></div>`;
     $('totalRow').hidden = !s.has_order;
     $('total').textContent = s.total_fmt;
-    $('btnBill').disabled = !s.has_order;
+    // The bill only once the kitchen is done with every dish.
+    $('btnBill').disabled = !s.bill_ready;
+    $('btnBillWa').disabled = !s.bill_ready;
+    $('billWait').hidden = !s.items.length || s.bill_ready;
+    notifyReady(s.items);
+    if ('Notification' in window && Notification.permission === 'default' && s.items.length) $('notifyBtn').hidden = false;
     // Two bill buttons only when a guest here left a WhatsApp number.
     const wa = (s.wa_targets || []).length > 0;
     $('btnBillWa').hidden = !wa;
@@ -354,8 +375,59 @@ async function sendChange() {
     }
 }
 
+/* ---- "Your dish is ready": banner + sound + vibration, and a system
+ * notification when the guest allowed them. Each dish is announced once. */
+const SEEN_KEY = 'ready-' + K;
+let seenReady = null;
+function notifyReady(items) {
+    const readyIds = items.filter(i => i.status === 'ready' || i.status === 'served').map(i => i.id);
+    if (seenReady === null) {
+        // First look: what was already ready before this page opened isn't news.
+        try { seenReady = new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || 'null') || readyIds); } catch (e) { seenReady = new Set(readyIds); }
+    }
+    const fresh = items.filter(i => i.status === 'ready' && !seenReady.has(i.id));
+    readyIds.forEach(id => seenReady.add(id));
+    try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seenReady])); } catch (e) {}
+    if (!fresh.length) return;
+
+    const names = fresh.map(i => (i.quantity > 1 ? i.quantity + '× ' : '') + i.name).join(', ');
+    const body  = L.ready_body.replace('{dish}', names);
+    $('readyTitle').textContent = L.ready_title;
+    $('readyBody').textContent = body;
+    $('readyBanner').hidden = false;
+    clearTimeout(notifyReady.h); notifyReady.h = setTimeout(() => { $('readyBanner').hidden = true; }, 12000);
+    try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {}
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.22, 0.44].forEach((d, n) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = [660, 880, 1100][n]; o.connect(g); g.connect(ctx.destination);
+            g.gain.setValueAtTime(0.2, ctx.currentTime + d);
+            o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.18);
+        });
+    } catch (e) {}
+    showSystemNotification(L.ready_title, body);
+}
+
+let swReg = null;
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/guest-sw.js').then(r => { swReg = r; }).catch(() => {});
+}
+async function enableNotifications() {
+    $('notifyBtn').hidden = true;
+    try { await Notification.requestPermission(); } catch (e) {}
+}
+function showSystemNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const opts = { body, tag: 'dish-ready', renotify: true, vibrate: [250, 120, 250], data: { url: location.href } };
+    try {
+        if (swReg && swReg.showNotification) swReg.showNotification(title, opts);
+        else new Notification(title, opts);
+    } catch (e) {}
+}
+
 load();
-setInterval(load, 15000);
+setInterval(load, 10000);
 </script>
 <?php endif; ?>
 </body>
