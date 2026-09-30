@@ -505,11 +505,12 @@ include __DIR__ . '/../includes/header.php';
                         <i class="fab fa-whatsapp"></i> <?= te('bill_whatsapp') ?>
                     </button>
                 <?php endif; ?>
-                <?php if ($isEditable): ?>
-                    <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
-                        <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
-                    </button>
-                <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($isEditable): ?>
+                <!-- Always available, also while taking the order -->
+                <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger);" onclick="cancelWholeOrder()">
+                    <i class="fas fa-ban"></i> <?= te('cancel_order_btn') ?>
+                </button>
             <?php endif; ?>
         </div>
     </div>
