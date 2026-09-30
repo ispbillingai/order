@@ -652,7 +652,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case 'table_laid':
-            // The waiter cleared the table and laid it again.
+            // The waiter cleared the table and laid it again (waiters only).
+            if (!hasRole(['waiter'])) {
+                jsonResponse(['success' => false, 'message' => t('table_laid_waiters_only')], 403);
+            }
             $tableId = (int) ($input['table_id'] ?? 0);
             $pdo->prepare("UPDATE tables_restaurant SET needs_reset_at = NULL WHERE id = ?")->execute([$tableId]);
             logActivity('table_laid', 'tables_restaurant', $tableId);

@@ -74,10 +74,11 @@ function tableLayBadge(int $tableId): string
          . '<i class="fas fa-broom"></i> ' . htmlspecialchars(t('table_to_lay')) . '</span>';
 }
 
-/** "Laid" button under the table — '' when the table is ready. */
+/** "Laid" button under the table (waiters only) — '' when the table is ready. */
 function tableLaidButton(int $tableId): string
 {
-    if (!isset(tablesToLay()[$tableId])) return '';
+    // Only a waiter says the table is laid again (cashier / admin just see it).
+    if (!isset(tablesToLay()[$tableId]) || !hasRole(['waiter'])) return '';
     return '<button type="button" class="btn btn-sm btn-laid" onclick="event.stopPropagation(); tableLaid(' . $tableId . ', this)">'
          . '<i class="fas fa-check"></i> ' . htmlspecialchars(t('table_laid_btn')) . '</button>';
 }

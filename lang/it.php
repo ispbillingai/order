@@ -1142,4 +1142,6 @@ return [
     'bill_req_notif_title' => 'Conto richiesto',
     'bill_req_notif' => 'Il tavolo {table} è pronto per pagare',
     'tables_to_lay_title' => 'Tavoli da riordinare',
+    'table_laid_waiters_only' => 'Solo i camerieri possono segnare un tavolo come riordinato.',
+    'table_laid_by_waiter' => 'lo segna il cameriere',
 ];

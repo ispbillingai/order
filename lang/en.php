@@ -1142,4 +1142,6 @@ return [
     'bill_req_notif_title' => 'Bill requested',
     'bill_req_notif' => 'Table {table} is ready to pay',
     'tables_to_lay_title' => 'Tables to lay',
+    'table_laid_waiters_only' => 'Only waiters can mark a table as laid.',
+    'table_laid_by_waiter' => 'marked by the waiter',
 ];

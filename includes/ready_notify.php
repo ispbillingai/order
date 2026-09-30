@@ -96,9 +96,10 @@ function readyNotifyRecipients(array $order): array
  */
 function readyNotifText(array $i): array
 {
-    $what = !empty($i['what_key']) ? t($i['what_key']) : ($i['what'] ?? null);
+    $what  = !empty($i['what_key']) ? t($i['what_key']) : ($i['what'] ?? null);
     if ($what !== null && !empty($i['seat'])) $what .= ' (' . t('seat') . ' ' . (int) $i['seat'] . ')';
-    $msg = $what === null ? t('ready_notif_all', ['table' => $i['table']]) : t('ready_notif_dish', ['what' => $what, 'table' => $i['table']]);
+    $table = $i['table'] . (!empty($i['room']) ? ' · ' . $i['room'] : '');   // "T4 · Sala Vesuvio"
+    $msg = $what === null ? t('ready_notif_all', ['table' => $table]) : t('ready_notif_dish', ['what' => $what, 'table' => $table]);
     if (!empty($i['order_of'])) $msg .= ' · ' . t('ready_notif_order_of', ['name' => $i['order_of']]);
     return [t($what === null ? 'ready_notif_title_all' : 'ready_notif_title'), $msg];
 }
@@ -106,7 +107,7 @@ function readyNotifText(array $i): array
 /** "Table 5 is free" in the reader's language: ['tables' => [numbers]]. */
 function tableFreedText(array $i): array
 {
-    $tables = implode(' + ', (array) ($i['tables'] ?? []));
+    $tables = implode(' + ', (array) ($i['tables'] ?? [])) . (!empty($i['room']) ? ' · ' . $i['room'] : '');
     return [t('table_free_title'), t('table_free_msg', ['table' => $tables])];
 }
 
@@ -126,7 +127,8 @@ function localizeNotification(array $n): array
 function notifyTableFreed(int $rootOrderId, array $tableNumbers): int
 {
     if (!$tableNumbers) return 0;
-    $info = ['tables' => array_map('strval', $tableNumbers)];
+    $order = getOrderById($rootOrderId);
+    $info  = ['tables' => array_map('strval', $tableNumbers), 'room' => $order['room_name'] ?? null];
     [$title, $msg] = tableFreedText($info);
     $n = 0;
     foreach (allWaiterIds() as $userId) {
@@ -145,7 +147,7 @@ function notifyDishReady(int $orderId, ?string $what, ?int $seat = null, ?int $o
 {
     $order = getOrderById($orderId);
     if (!$order) return 0;
-    $info = ['what' => $what, 'what_key' => $whatKey, 'seat' => $seat, 'table' => $order['table_number'], 'order_of' => null];
+    $info = ['what' => $what, 'what_key' => $whatKey, 'seat' => $seat, 'table' => $order['table_number'], 'room' => $order['room_name'], 'order_of' => null];
     $n = 0;
     foreach (readyNotifyRecipients($order) as $userId) {
         // Someone else's table: say whose order it is.

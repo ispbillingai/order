@@ -116,7 +116,7 @@ if (tablesToLay()) {
             <div class="lay-row">
                 <div><strong><?= te('table') ?> <?= htmlspecialchars($lt['table_number']) ?></strong>
                     <span class="text-muted"> · <?= htmlspecialchars($lt['room_name']) ?> · <?= te('table_to_lay_since', ['time' => date('H:i', strtotime($lt['needs_reset_at']))]) ?></span></div>
-                <?= tableLaidButton((int) $lt['id']) ?>
+                <?= tableLaidButton((int) $lt['id']) ?: '<span class="text-muted" style="font-size:.85rem;"><i class="fas fa-user-tie"></i> ' . te('table_laid_by_waiter') . '</span>' ?>
             </div>
         <?php endforeach; ?>
     </div>
