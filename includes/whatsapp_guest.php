@@ -45,12 +45,17 @@ function restaurantName(): string
 /** "Here is your table's link and your access code, this is what you can do". */
 function guestTableLinkText(array $order, string $lang): string
 {
+    require_once __DIR__ . '/menu_pdf.php';
     $url = tableQrUrl(tableQrToken((int) $order['table_id']));
     return tIn($lang, 'wa_link_text', [
         'restaurant' => restaurantName(),
         'table'      => $order['table_number'],
         'url'        => $url,
         'code'       => orderGuestCode((int) $order['id']),
+        // The whole menu: to browse, as PDF, and a link to send it to the others at the table.
+        'menu'       => menuViewUrl($lang),
+        'menu_pdf'   => menuPdfUrl($lang, true),
+        'menu_share' => menuShareShortUrl($lang),
     ]);
 }
 

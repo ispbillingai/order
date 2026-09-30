@@ -9,6 +9,7 @@
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/table_requests.php';
 require_once __DIR__ . '/includes/restaurant.php';
+require_once __DIR__ . '/includes/menu_pdf.php';
 i18n_prefer_browser('it');
 
 $token = (string) ($_GET['k'] ?? '');
@@ -122,6 +123,13 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .consent-text { white-space: pre-wrap; font-size: .9rem; line-height: 1.5; color: #374151; margin: 0 0 12px; max-height: 40vh; overflow-y: auto; }
 .consent-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .consent-btns button { padding: 13px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.menu-card h2 i { color: var(--p); }
+.menu-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.menu-btns a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: .85rem; text-align: center; }
+.menu-btns a i { font-size: 1.3rem; }
+.mb-view { background: #fff7ed; color: var(--p); box-shadow: inset 0 0 0 2px #fed7aa; }
+.mb-pdf { background: #eff6ff; color: #1d4ed8; box-shadow: inset 0 0 0 2px #bfdbfe; }
+.mb-share { background: #ecfdf5; color: #047857; box-shadow: inset 0 0 0 2px #a7f3d0; }
 .contacts { text-align: center; color: var(--muted); font-size: .88rem; padding: 6px 4px 0; }
 .contacts a { color: inherit; text-decoration: none; }
 .contacts .c-line { margin: 4px 0; }
@@ -151,6 +159,20 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
     <main><div class="card bad"><i class="fas fa-qrcode" style="font-size:2.5rem;color:var(--muted);"></i><p><?= te('guest_bad_qr') ?></p></div></main>
 <?php else: ?>
 <!-- Access: the code the guest got on WhatsApp with the order -->
+<?php
+// The whole menu: browse, download as PDF, share with the others at the table.
+$mLang = currentLang() === 'it' ? 'it' : 'en';
+ob_start(); ?>
+    <div class="card menu-card">
+        <h2><i class="fas fa-book-open"></i> <?= te('menu_card_title') ?></h2>
+        <div class="menu-btns">
+            <a class="mb-view" href="<?= htmlspecialchars(menuViewUrl($mLang)) ?>" target="_blank" rel="noopener"><i class="fas fa-eye"></i><?= te('menu_view') ?></a>
+            <a class="mb-pdf" href="<?= htmlspecialchars(menuPdfUrl($mLang, true)) ?>"><i class="fas fa-file-arrow-down"></i><?= te('menu_download') ?></a>
+            <a class="mb-share" href="<?= htmlspecialchars(menuShareUrl($mLang)) ?>" target="_blank" rel="noopener" onclick="return shareMenu(event)"><i class="fas fa-share-nodes"></i><?= te('menu_share') ?></a>
+        </div>
+        <p class="hint-small"><?= te('menu_share_hint') ?></p>
+    </div>
+<?php $menuHtml = ob_get_clean(); ?>
 <?php
 // The restaurant's address and links (Settings), under the page.
 $rsInfo = restaurantInfo();
@@ -187,6 +209,7 @@ $contactsHtml = ob_get_clean(); ?>
             <p class="gate-text"><?= te('guest_need_phone') ?></p>
         </div>
     </div>
+    <?= $menuHtml ?>
     <?= $contactsHtml ?>
 </main>
 
@@ -212,6 +235,7 @@ $contactsHtml = ob_get_clean(); ?>
         <div class="total" id="totalRow" hidden><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
         <p class="bill-wait" id="billWait" hidden><i class="fas fa-hourglass-half"></i> <?= te('guest_bill_not_ready') ?></p>
     </div>
+    <?= $menuHtml ?>
     <?= $contactsHtml ?>
 </main>
 
@@ -370,6 +394,15 @@ async function giveConsent(accept) {
     const target = renderConsent.single || document.querySelector('input[name=consentTarget]:checked')?.value;
     if (!target) return;
     if (await send({ action: 'consent', target, accept })) toast(accept ? L.consent_yes : L.consent_no);
+}
+
+// Share the menu: the phone's own share sheet when there is one, else WhatsApp.
+function shareMenu(e) {
+    if (!navigator.share) return true;               // follow the WhatsApp link
+    e.preventDefault();
+    navigator.share({ title: <?= json_encode(restaurantName()) ?>, text: <?= json_encode(tIn($mLang, 'menu_share_short', ['restaurant' => restaurantName()])) ?>, url: <?= json_encode(menuViewUrl($mLang)) ?> })
+        .catch(() => {});
+    return false;
 }
 
 async function ask(type) {

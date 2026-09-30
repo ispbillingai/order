@@ -298,7 +298,7 @@ return [
     'cust_no_name'          => 'Guest',
     'cust_bad_phone'        => 'The phone number doesn\'t look right: check the prefix and the digits.',
     // WhatsApp to guests: table link + bill
-    'wa_link_text'          => "Welcome to *{restaurant}*! 🍽️\n\nYour access code: *{code}*\n\nOpen the link to your table *{table}* (or scan the QR on the table) and enter the code:\n{url}\n\nFrom there you can:\n• see your order and how each dish is doing\n• call the waiter\n• ask for the bill\n• ask to change or swap a dish (until it is ready)\n\nThe code is valid for this order only. Enjoy your meal!",
+    'wa_link_text'          => "Welcome to *{restaurant}*! 🍽️\n\nYour access code: *{code}*\n\nOpen the link to your table *{table}* (or scan the QR on the table) and enter the code:\n{url}\n\nFrom there you can:\n• see your order and how each dish is doing\n• call the waiter\n• ask for the bill\n• ask to change or swap a dish (until it is ready)\n\n📖 *Our menu*\nBrowse it: {menu}\nDownload the PDF: {menu_pdf}\n👥 Send it to the others at your table: {menu_share}\n\nThe code is valid for this order only. Enjoy your meal!",
     'wa_bill_title'         => '🧾 Your bill',
     'wa_bill_table'         => 'Table',
     'wa_bill_order'         => 'Order',
@@ -1123,4 +1123,14 @@ return [
     'rs_social_ph' => 'Link to the page (e.g. instagram.com/restaurantname)',
     'rs_hint' => 'Address, phone and website appear on the receipt and the order PDF; the guests\' page (table QR) also shows the social links. Leave empty what you don\'t need.',
     'rs_bad_links' => 'Invalid link: {fields}. Check it and save again.',
+    // Menù per il cliente
+    'menu_card_title' => 'Our menu',
+    'menu_view' => 'View',
+    'menu_download' => 'Download PDF',
+    'menu_share' => 'Share',
+    'menu_share_hint' => 'Send the menu to the others at your table.',
+    'menu_share_text' => 'Here is {restaurant}\'s menu 🍽️ {url}',
+    'menu_share_short' => 'Here is {restaurant}\'s menu 🍽️',
+    'menu_pdf_title' => 'Menu',
+    'menu_pdf_empty' => 'The menu will be available soon.',
 ];

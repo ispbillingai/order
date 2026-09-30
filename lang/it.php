@@ -298,7 +298,7 @@ return [
     'cust_no_name'          => 'Cliente',
     'cust_bad_phone'        => 'Il numero di telefono non sembra corretto: controlla il prefisso e le cifre.',
     // WhatsApp ai clienti: link del tavolo + conto
-    'wa_link_text'          => "Benvenuto da *{restaurant}*! 🍽️\n\nIl tuo codice di accesso: *{code}*\n\nApri il link del tuo tavolo *{table}* (o inquadra il QR sul tavolo) e inserisci il codice:\n{url}\n\nDa lì puoi:\n• vedere il tuo ordine e a che punto è ogni piatto\n• chiamare il cameriere\n• chiedere il conto\n• chiedere di modificare o cambiare una portata (finché non è pronta)\n\nIl codice vale solo per questo ordine. Buon appetito!",
+    'wa_link_text'          => "Benvenuto da *{restaurant}*! 🍽️\n\nIl tuo codice di accesso: *{code}*\n\nApri il link del tuo tavolo *{table}* (o inquadra il QR sul tavolo) e inserisci il codice:\n{url}\n\nDa lì puoi:\n• vedere il tuo ordine e a che punto è ogni piatto\n• chiamare il cameriere\n• chiedere il conto\n• chiedere di modificare o cambiare una portata (finché non è pronta)\n\n📖 *Il nostro menù*\nSfoglialo: {menu}\nScaricalo in PDF: {menu_pdf}\n👥 Invialo a chi è al tavolo con te: {menu_share}\n\nIl codice vale solo per questo ordine. Buon appetito!",
     'wa_bill_title'         => '🧾 Il tuo conto',
     'wa_bill_table'         => 'Tavolo',
     'wa_bill_order'         => 'Ordine',
@@ -1123,4 +1123,14 @@ return [
     'rs_social_ph' => 'Link alla pagina (es. instagram.com/nomeristorante)',
     'rs_hint' => 'Indirizzo, telefono e sito compaiono sulla ricevuta e sul PDF dell\'ordine; nella pagina del cliente (QR del tavolo) anche i social. Lascia vuoto ciò che non serve.',
     'rs_bad_links' => 'Link non valido: {fields}. Controlla e salva di nuovo.',
+    // Menù per il cliente
+    'menu_card_title' => 'Il nostro menù',
+    'menu_view' => 'Visualizza',
+    'menu_download' => 'Scarica PDF',
+    'menu_share' => 'Condividi',
+    'menu_share_hint' => 'Invia il menù a chi è seduto al tavolo con te.',
+    'menu_share_text' => 'Ecco il menù di {restaurant} 🍽️ {url}',
+    'menu_share_short' => 'Ecco il menù di {restaurant} 🍽️',
+    'menu_pdf_title' => 'Menù',
+    'menu_pdf_empty' => 'Il menù sarà disponibile a breve.',
 ];
