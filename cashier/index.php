@@ -189,13 +189,16 @@ include __DIR__ . '/../includes/header.php';
                 $status = $table['order_id'] ? ($table['order_status'] === 'bill_requested' ? 'bill_requested' : 'occupied') : 'free';
                 $guests = $table['order_id'] ? ($occupancy[$table['id']]['guests'] ?? 0) : null;
             ?>
-                <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>"
+                <?php $toLay = $status === 'free' && isset(tablesToLay()[$table['id']]); ?>
+                <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?><?= $toLay ? ' needs-reset' : '' ?>" data-table-id="<?= (int) $table['id'] ?>"
                      <?php if ($table['order_id']): ?>
                      onclick="window.location.href='/cashier/payment.php?order=<?= $table['order_id'] ?>'"
                      <?php endif; ?>
                      style="<?= $table['order_id'] ? '' : 'cursor: default;' ?>">
                     <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
+                    <?= $toLay ? tableLayBadge((int) $table['id']) : '' ?>
                     <?= renderTableVisual((string) $table['table_number'], (int) ($table['capacity'] ?? 4), $guests, (string) $table['status']) ?>
+                    <?= $toLay ? tableLaidButton((int) $table['id']) : '' ?>
                     <div class="tv-guests <?= tableFill((int) ($table['capacity'] ?? 4), $guests) ?>">
                         <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) ($table['capacity'] ?? 4) ?>
                     </div>
@@ -222,4 +225,5 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?= tableLayWatch() ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

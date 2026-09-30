@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/table_visual.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -91,6 +92,37 @@ include __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<?php
+// Paid tables still to be cleared and laid again.
+$toLay = [];
+if (tablesToLay()) {
+    $toLay = getDBConnection()->query("
+        SELECT t.id, t.table_number, t.needs_reset_at, r.name AS room_name
+        FROM tables_restaurant t JOIN rooms r ON r.id = t.room_id
+        WHERE t.needs_reset_at IS NOT NULL AND t.status = 'free'
+        ORDER BY t.needs_reset_at
+    ")->fetchAll();
+}
+?>
+<?php if ($toLay): ?>
+<div class="card mb-lg lay-card">
+    <div class="card-header">
+        <h2><i class="fas fa-broom" style="color:#2563eb;"></i> <?= te('tables_to_lay_title') ?></h2>
+        <span class="badge" style="background:#2563eb;color:#fff;"><?= count($toLay) ?></span>
+    </div>
+    <div class="card-body lay-list">
+        <?php foreach ($toLay as $lt): ?>
+            <div class="lay-row">
+                <div><strong><?= te('table') ?> <?= htmlspecialchars($lt['table_number']) ?></strong>
+                    <span class="text-muted"> · <?= htmlspecialchars($lt['room_name']) ?> · <?= te('table_to_lay_since', ['time' => date('H:i', strtotime($lt['needs_reset_at']))]) ?></span></div>
+                <?= tableLaidButton((int) $lt['id']) ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+<?= tableLayWatch() ?>
 
 <!-- Recent Orders -->
 <div class="card">

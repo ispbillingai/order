@@ -164,7 +164,7 @@ if ($rooms) {
         JOIN rooms r ON r.id = t.room_id
         LEFT JOIN orders o ON o.id = t.current_order_id AND o.status NOT IN ('paid', 'cancelled')
         LEFT JOIN users u ON u.id = o.waiter_id
-        WHERE r.active = 1 AND t.status <> 'free'
+        WHERE r.active = 1 AND (t.status <> 'free' OR t.needs_reset_at IS NOT NULL)
         ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
     ")->fetchAll();
 }
@@ -211,12 +211,15 @@ include __DIR__ . '/../includes/room_scroller.php';
             <div class="tables-grid">
                 <?php foreach ($occupiedTables as $table): ?>
                     <?php $guests = $seatedAt($table); ?>
-                    <div class="table-card table-visual <?= htmlspecialchars($table['status']) ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
+                    <?php $toLay = $table['status'] === 'free' && isset(tablesToLay()[$table['id']]); // paid, still to lay ?>
+                    <div class="table-card table-visual <?= htmlspecialchars($table['status']) ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?><?= $toLay ? ' needs-reset' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
                         <div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div>
                         <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
+                        <?= $toLay ? tableLayBadge((int) $table['id']) : '' ?>
                         <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
+                        <?= $toLay ? tableLaidButton((int) $table['id']) : '' ?>
                         <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
-                        <div class="table-status"><?= htmlspecialchars($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status']))) ?></div>
+                        <div class="table-status"><?= htmlspecialchars($table['status'] === 'free' ? t('available') : ($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status'])))) ?></div>
                         <?php if (!empty($table['order_number'])): ?>
                             <div class="table-order">
                                 <?= formatCurrency($table['total']) ?> · <?= (int) $table['number_of_people'] ?> <?= te('guests') ?>
@@ -260,9 +263,12 @@ include __DIR__ . '/../includes/room_scroller.php';
             <div class="tables-grid">
                 <?php foreach ($tables as $table): ?>
                     <?php $guests = $seatedAt($table); ?>
-                    <div class="table-card table-visual <?= $table['status'] ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
+                    <?php $toLay = $table['status'] === 'free' && isset(tablesToLay()[$table['id']]); ?>
+                    <div class="table-card table-visual <?= $table['status'] ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?><?= $toLay ? ' needs-reset' : '' ?>" data-table-id="<?= (int) $table['id'] ?>" style="cursor: default;">
                         <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
+                        <?= $toLay ? tableLayBadge((int) $table['id']) : '' ?>
                         <?= renderTableVisual($table['table_number'], (int) $table['capacity'], $guests, $table['status']) ?>
+                        <?= $toLay ? tableLaidButton((int) $table['id']) : '' ?>
                         <div class="tv-guests <?= tableFill((int) $table['capacity'], $guests) ?>"><i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) $table['capacity'] ?></div>
                         <div class="table-status"><?= htmlspecialchars($table['status'] === 'free' ? t('available') : ($table['status'] === 'occupied' ? t('occupied') : ($table['status'] === 'bill_requested' ? t('bill_requested') : ucfirst($table['status'])))) ?></div>
 
@@ -503,4 +509,5 @@ function openEditTable(table) {
 }
 </script>
 
+<?= tableLayWatch() ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

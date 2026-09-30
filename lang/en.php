@@ -1141,4 +1141,5 @@ return [
     'table_laid_done' => 'Table ready for the next guests',
     'bill_req_notif_title' => 'Bill requested',
     'bill_req_notif' => 'Table {table} is ready to pay',
+    'tables_to_lay_title' => 'Tables to lay',
 ];

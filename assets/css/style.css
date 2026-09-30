@@ -1471,7 +1471,12 @@ textarea.form-control {
 /* Paid table still to be cleared and laid again. */
 .table-card.table-visual.needs-reset { outline: 3px dashed #2563eb; outline-offset: -3px; }
 .table-card.table-visual .tv-reset { position: absolute; top: 0; left: 4px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; background: #2563eb; color: #fff; font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
-.table-card.table-visual .btn-laid { margin-top: 6px; background: #2563eb; color: #fff; border: 0; }
+.table-card.table-visual .btn-laid, .lay-row .btn-laid { margin-top: 6px; background: #2563eb; color: #fff; border: 0; }
+/* Room name under the corner badges (Bill / To lay) in the all-rooms view. */
+.table-card.table-visual .table-room { margin-top: 16px; }
+.lay-list { display: flex; flex-direction: column; gap: 8px; }
+.lay-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 2px dashed #93c5fd; border-radius: 10px; }
+.lay-row .btn-laid { margin-top: 0; }
 
 /* A table asking for the bill: its drawing blinks with a glow until it is paid. */
 @keyframes tvBillBlink {

@@ -600,3 +600,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = a.offsetLeft - bar.offsetLeft - (bar.clientWidth - a.offsetWidth) / 2;
     });
 });
+
+// Paid table cleared and laid again (floor plans of waiter, cashier, admin).
+async function tableLaid(tableId, btn) {
+    btn.disabled = true;
+    try {
+        await apiCall('/api/orders.php', 'POST', { action: 'table_laid', table_id: tableId });
+        const card = btn.closest('.table-card, .lay-row');
+        if (card) {
+            card.classList.remove('needs-reset');
+            card.querySelector('.tv-reset')?.remove();
+            if (card.classList.contains('lay-row')) card.remove();
+        }
+        btn.remove();
+        if (window.LAY_WATCH) window.LAY_WATCH.shown = window.LAY_WATCH.shown.filter(id => id !== tableId);
+        showToast((window.REQ_I18N || {}).laid_done || 'OK', 'success');
+    } catch (e) { btn.disabled = false; }
+}
+// A table paid (to lay) or laid by a colleague: reload the floor plan.
+document.addEventListener('app:update', e => {
+    const w = window.LAY_WATCH;
+    const ids = e.detail && e.detail.reset_tables;
+    if (!w || !Array.isArray(ids)) return;
+    const now = ids.filter(id => w.scope === null || w.scope.includes(id));
+    const changed = now.length !== w.shown.length || now.some(id => !w.shown.includes(id));
+    if (changed && !document.querySelector('.modal-overlay.active')) location.reload();
+});

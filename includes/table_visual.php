@@ -51,6 +51,49 @@ function tableOccupancy(): array
     return $seated;
 }
 
+/** Paid tables still to be cleared and laid again: [table_id => since]. */
+function tablesToLay(): array
+{
+    static $map = null;
+    if ($map === null) {
+        try {
+            $map = getDBConnection()->query("SELECT id, needs_reset_at FROM tables_restaurant WHERE needs_reset_at IS NOT NULL")->fetchAll(PDO::FETCH_KEY_PAIR);
+        } catch (PDOException $e) {
+            $map = []; // migration 026 not applied yet
+        }
+    }
+    return $map;
+}
+
+/** "To lay" badge (top left of the table card) — '' when the table is ready. */
+function tableLayBadge(int $tableId): string
+{
+    $since = tablesToLay()[$tableId] ?? null;
+    if (!$since) return '';
+    return '<span class="tv-reset" title="' . htmlspecialchars(t('table_to_lay_since', ['time' => date('H:i', strtotime($since))])) . '">'
+         . '<i class="fas fa-broom"></i> ' . htmlspecialchars(t('table_to_lay')) . '</span>';
+}
+
+/** "Laid" button under the table — '' when the table is ready. */
+function tableLaidButton(int $tableId): string
+{
+    if (!isset(tablesToLay()[$tableId])) return '';
+    return '<button type="button" class="btn btn-sm btn-laid" onclick="event.stopPropagation(); tableLaid(' . $tableId . ', this)">'
+         . '<i class="fas fa-check"></i> ' . htmlspecialchars(t('table_laid_btn')) . '</button>';
+}
+
+/**
+ * Lets app.js reload a floor plan when a table there gets paid (to lay) or is
+ * laid by someone else. $tableIds: the tables shown (null = all).
+ */
+function tableLayWatch(?array $tableIds = null): string
+{
+    $scope = $tableIds === null ? null : array_values(array_map('intval', $tableIds));
+    $shown = array_keys(tablesToLay());
+    if ($scope !== null) $shown = array_values(array_intersect($shown, $scope));
+    return '<script>window.LAY_WATCH = ' . json_encode(['shown' => array_map('intval', $shown), 'scope' => $scope]) . ';</script>';
+}
+
 /** 'free' | 'partial' | 'full' for a table with $guests of $capacity (null = no order). */
 function tableFill(int $capacity, ?int $guests): string
 {

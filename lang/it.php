@@ -1141,4 +1141,5 @@ return [
     'table_laid_done' => 'Tavolo pronto per i prossimi clienti',
     'bill_req_notif_title' => 'Conto richiesto',
     'bill_req_notif' => 'Il tavolo {table} è pronto per pagare',
+    'tables_to_lay_title' => 'Tavoli da riordinare',
 ];
