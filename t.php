@@ -44,6 +44,9 @@ $L = [
     'consent_no'   => t('consent_declined_toast'),
     'consent_pick' => t('consent_pick_number'),
     'call_sent'    => t('guest_call_sent'),
+    'call_sent_name' => t('guest_call_sent_name'),
+    'call_sent_sub_name' => t('guest_call_sent_sub_name'),
+    'ready_body_name' => t('guest_ready_body_name'),
     'call_sent_sub'=> t('guest_call_sent_sub'),
     'call_coming'  => t('guest_call_coming'),
     'call_coming_name' => t('guest_call_coming_name'),
@@ -634,8 +637,9 @@ function renderCallBanner(requests) {
     box.querySelector('i').className = 'fas ' + (coming ? 'fa-person-walking' : 'fa-bell');
     box.querySelector('strong').textContent = coming
         ? (call.seen_by ? L.call_coming_name.replace('{name}', call.seen_by) : L.call_coming)
-        : L.call_sent;
-    box.querySelector('small').textContent = coming ? L.call_coming_sub : L.call_sent_sub;
+        : (state && state.waiter_name ? L.call_sent_name.replace('{name}', state.waiter_name) : L.call_sent);
+    box.querySelector('small').textContent = coming ? L.call_coming_sub
+        : (state && state.waiter_name ? L.call_sent_sub_name.replace('{name}', state.waiter_name) : L.call_sent_sub);
     if (coming && callWasComing === false) {            // just answered: let them know
         playChime();
         if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
@@ -781,7 +785,10 @@ function notifyReady(items) {
     if (!fresh.length) return;
 
     const names = fresh.map(i => (i.quantity > 1 ? i.quantity + '× ' : '') + i.name).join(', ');
-    const body  = L.ready_body.replace('{dish}', names);
+    // "...: Jane is bringing it" when the table's waiter is known.
+    const body  = state && state.waiter_name
+        ? L.ready_body_name.replace('{dish}', names).replace('{name}', state.waiter_name)
+        : L.ready_body.replace('{dish}', names);
     $('readyTitle').textContent = L.ready_title;
     $('readyBody').textContent = body;
     $('readyBanner').hidden = false;

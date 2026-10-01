@@ -1208,4 +1208,7 @@ return [
     'guest_call_coming' => 'The waiter is coming',
     'guest_call_coming_name' => '{name} is coming to your table',
     'guest_call_coming_sub' => 'Your call has been seen.',
+    'guest_call_sent_name' => 'You called {name}',
+    'guest_ready_body_name' => '{dish}: {name} is bringing it.',
+    'guest_call_sent_sub_name' => '{name} has your call and will answer shortly.',
 ];

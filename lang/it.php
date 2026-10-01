@@ -1208,4 +1208,7 @@ return [
     'guest_call_coming' => 'Il cameriere sta arrivando',
     'guest_call_coming_name' => '{name} sta arrivando al tuo tavolo',
     'guest_call_coming_sub' => 'Ha visto la tua chiamata.',
+    'guest_call_sent_name' => 'Hai chiamato {name}',
+    'guest_ready_body_name' => '{dish}: te lo porta {name}.',
+    'guest_call_sent_sub_name' => 'La chiamata è arrivata a {name}: tra poco ti risponde.',
 ];

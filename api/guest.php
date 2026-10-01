@@ -143,9 +143,22 @@ function guestState(array $table): array
         'targets' => array_map(fn($t) => ['key' => $t['key'], 'label' => $t['label']], $consentTargets),
     ] : null;
 
+    // The table's waiter (first name), for the guest's notices: whoever took
+    // the order — on a guest's own order, the waiter who took the table.
+    $waiterName = null;
+    if ($order) {
+        $wid = !empty($order['created_by_guest']) ? (int) ($order['assigned_waiter_id'] ?? 0) : (int) $order['waiter_id'];
+        if ($wid) {
+            $st = getDBConnection()->prepare("SELECT SUBSTRING_INDEX(full_name, ' ', 1) FROM users WHERE id = ? AND active = 1");
+            $st->execute([$wid]);
+            $waiterName = $st->fetchColumn() ?: null;
+        }
+    }
+
     return [
         'success'  => true,
         'consent'  => $consent,
+        'waiter_name' => $waiterName,
         // Guest ordering: this order takes dishes from the table page.
         'can_order'=> selfOrderCanOrder($order),
         'bill_ready' => guestBillReady($items),
