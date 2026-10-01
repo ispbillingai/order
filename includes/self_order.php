@@ -7,9 +7,11 @@
  * dishes and send them to the kitchen exactly like the waiter does
  * (sendPendingToKitchen), then see the usual table page (bill, waiter, change).
  *
- * The order belongs to a system "Guest (QR)" user. The waiters get no alert
- * while the guest orders (no "new order", no "dish ready": the guest is told
- * on their own page); only "table free, clear it" once it is paid.
+ * The order belongs to a system "Guest (QR)" user. No "new order" alert: the
+ * first "dish ready" goes to every waiter with "I'll take it", and the first
+ * to take it (or to answer a call) becomes the table's waiter — later alerts
+ * and the table's calls go to them only (ready_notify.php takeGuestOrder).
+ * Once paid every waiter gets "table free, clear it".
  */
 
 require_once __DIR__ . '/functions.php';

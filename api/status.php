@@ -31,7 +31,7 @@ $data['ready_alerts'] = recentReadyAlerts((int) $user['id']);
 // Guests' QR requests (bill / waiter / dish change) this role must answer.
 require_once __DIR__ . '/../includes/table_requests.php';
 try {
-    $data['table_requests'] = openTableRequestsForRole($user['role']);
+    $data['table_requests'] = openTableRequestsForRole($user['role'], (int) $user['id']);
 } catch (PDOException $e) {
     $data['table_requests'] = []; // migration 012 not applied yet
 }

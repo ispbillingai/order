@@ -27,6 +27,8 @@
         'tables'      => t('tables_btn'),
         'laid_done'   => t('table_laid_done'),
         'layout_auto' => t('layout_back_auto'),
+        'take_it'     => t('take_it'),
+        'taken'       => t('take_done'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?php endif; ?>

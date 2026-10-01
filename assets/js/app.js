@@ -575,6 +575,7 @@ function showReadyAlerts(alerts) {
         el.innerHTML = `
             <i class="fas ${a.type === 'table_free' ? 'fa-broom' : 'fa-bell-concierge'}"></i>
             <div class="ra-text"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.message)}</span></div>
+            ${a.takeable ? `<button class="btn btn-sm ra-take" type="button">${escapeHtml(L.take_it || "I'll take it")}</button>` : ''}
             ${a.order_id ? `<a class="btn btn-sm" href="/waiter/order.php?order=${a.order_id}">${escapeHtml(L.open_order || 'Open')}</a>` : ''}
             ${a.type === 'table_free' ? `<a class="btn btn-sm" href="/waiter/index.php">${escapeHtml(L.tables || 'Tables')}</a>` : ''}
             <button class="btn btn-sm" type="button">OK</button>`;
@@ -583,7 +584,17 @@ function showReadyAlerts(alerts) {
                 body: JSON.stringify({ action: 'mark_read', notification_id: a.id }) }).catch(() => {});
             el.remove();
         };
-        el.querySelector('button').addEventListener('click', done);
+        el.dataset.alertId = a.id;
+        el.querySelector('button:not(.ra-take)').addEventListener('click', done);
+        const take = el.querySelector('.ra-take');
+        if (take) take.addEventListener('click', async () => {
+            take.disabled = true;
+            try {
+                await apiCall('/api/orders.php', 'POST', { action: 'take_guest_order', order_id: a.order_id });
+                showToast(L.taken || 'OK', 'success');
+                done();
+            } catch (e) { done(); }   // a colleague was quicker: apiCall showed who
+        });
         const link = el.querySelector('a');
         if (link) link.addEventListener('click', done);
         box.appendChild(el);
@@ -591,7 +602,15 @@ function showReadyAlerts(alerts) {
     readyChime();
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 }
-document.addEventListener('app:update', e => showReadyAlerts(e.detail && e.detail.ready_alerts));
+document.addEventListener('app:update', e => {
+    const alerts = e.detail && e.detail.ready_alerts;
+    // Pop-ups no longer waiting (taken by a colleague, read elsewhere) go away.
+    if (Array.isArray(alerts)) {
+        const live = new Set(alerts.map(a => String(a.id)));
+        document.querySelectorAll('#readyAlerts .ready-alert[data-alert-id]').forEach(el => { if (!live.has(el.dataset.alertId)) el.remove(); });
+    }
+    showReadyAlerts(alerts);
+});
 
 // Phones: the scrolling menu rows start at the page that is open.
 document.addEventListener('DOMContentLoaded', () => {

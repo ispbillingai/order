@@ -613,6 +613,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['success' => true, 'phone' => $phone, 'link_queued' => (bool) $linkQueued]);
             break;
 
+        case 'take_guest_order':
+            // "I'll take it" on a guest's order: the first waiter becomes its waiter.
+            require_once __DIR__ . '/../includes/ready_notify.php';
+            if (!hasRole(['waiter'])) {
+                jsonResponse(['success' => false, 'message' => t('take_waiters_only')], 403);
+            }
+            $res = takeGuestOrder((int) ($input['order_id'] ?? 0), (int) $user['id']);
+            if (!empty($res['ok'])) jsonResponse(['success' => true]);
+            jsonResponse(['success' => false, 'message' => isset($res['taken_by']) ? t('take_already', ['name' => $res['taken_by']]) : t('take_failed')]);
+            break;
+
         case 'table_laid':
             // The waiter cleared the table and laid it again (waiters only).
             if (!hasRole(['waiter'])) {

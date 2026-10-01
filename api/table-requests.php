@@ -33,6 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'seen') {
         $pdo->prepare("UPDATE table_requests SET status = 'seen', seen_by = ?, seen_at = NOW() WHERE id = ? AND status = 'open'")
             ->execute([$user['id'], $id]);
+        // "On my way" to a guest's table nobody has taken: it's now this waiter's table.
+        if ($user['role'] === 'waiter') {
+            require_once __DIR__ . '/../includes/ready_notify.php';
+            $stmt = $pdo->prepare("SELECT order_id FROM table_requests WHERE id = ?");
+            $stmt->execute([$id]);
+            if ($oid = (int) $stmt->fetchColumn()) takeGuestOrder($oid, (int) $user['id']);
+        }
     } elseif ($action === 'done') {
         $pdo->prepare("UPDATE table_requests SET status = 'done', done_by = ?, done_at = NOW(),
                               seen_by = COALESCE(seen_by, ?), seen_at = COALESCE(seen_at, NOW()) WHERE id = ?")
@@ -41,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['success' => false, 'message' => 'Invalid action']);
     }
     logActivity('table_request_' . $action, 'table_requests', $id);
-    jsonResponse(['success' => true, 'requests' => openTableRequestsForRole($user['role'])]);
+    jsonResponse(['success' => true, 'requests' => openTableRequestsForRole($user['role'], (int) $user['id'])]);
 }
 
-jsonResponse(['success' => true, 'requests' => openTableRequestsForRole($user['role'])]);
+jsonResponse(['success' => true, 'requests' => openTableRequestsForRole($user['role'], (int) $user['id'])]);

@@ -57,6 +57,49 @@ function readyNotifyRuleLabel(): string
     return $names ? implode(' + ', $names) : t('ready_short_order_waiter');
 }
 
+/**
+ * A guest's own order (table QR): [is guest order, its waiter or null].
+ * Seat bills follow the table's order.
+ */
+function guestOrderWaiter(array $order): array
+{
+    $root = $order;
+    if (!empty($order['parent_order_id'])) {
+        $stmt = getDBConnection()->prepare("SELECT created_by_guest, assigned_waiter_id FROM orders WHERE id = ?");
+        $stmt->execute([$order['parent_order_id']]);
+        $root = $stmt->fetch() ?: $order;
+    }
+    return [!empty($root['created_by_guest']), !empty($root['assigned_waiter_id']) ? (int) $root['assigned_waiter_id'] : null];
+}
+
+/**
+ * "I'll take it": the first waiter to take a guest's order becomes its waiter.
+ * Returns ['ok' => true] or ['taken_by' => name] when someone was quicker.
+ */
+function takeGuestOrder(int $orderId, int $userId): array
+{
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT COALESCE(parent_order_id, id) FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $rootId = (int) $stmt->fetchColumn();
+    $upd = $pdo->prepare("UPDATE orders SET assigned_waiter_id = ? WHERE id = ? AND created_by_guest = 1 AND assigned_waiter_id IS NULL");
+    $upd->execute([$userId, $rootId]);
+    if ($upd->rowCount()) {
+        // The others' "take it" pop-ups for this table go away.
+        $pdo->prepare("
+            UPDATE notifications SET read_at = NOW()
+            WHERE type = 'dish_ready' AND read_at IS NULL AND user_id <> ?
+              AND JSON_EXTRACT(payload, '$.order_id') IN (SELECT id FROM orders WHERE id = ? OR parent_order_id = ?)
+        ")->execute([$userId, $rootId, $rootId]);
+        logActivity('guest_order_taken', 'orders', $rootId);
+        return ['ok' => true];
+    }
+    $stmt = $pdo->prepare("SELECT u.full_name FROM orders o JOIN users u ON u.id = o.assigned_waiter_id WHERE o.id = ?");
+    $stmt->execute([$rootId]);
+    $name = $stmt->fetchColumn();
+    return $name ? ['taken_by' => $name] : ['ok' => false];
+}
+
 /** Who is told when a dish of this order is ready (user ids). */
 function readyNotifyRecipients(array $order): array
 {
@@ -69,14 +112,9 @@ function readyNotifyRecipients(array $order): array
     }
     $own = [(int) $order['waiter_id']];
 
-    // A guest's own order (table QR): the waiters aren't told — the guest sees it on their page.
-    $guestOrder = !empty($order['created_by_guest']);
-    if (!$guestOrder && !empty($order['parent_order_id'])) {
-        $stmt = $pdo->prepare("SELECT created_by_guest FROM orders WHERE id = ?");
-        $stmt->execute([$order['parent_order_id']]);
-        $guestOrder = (bool) $stmt->fetchColumn();
-    }
-    if ($guestOrder) return [];
+    // A guest's own order (table QR): every waiter until one takes the table, then only them.
+    [$guestOrder, $guestWaiter] = guestOrderWaiter($order);
+    if ($guestOrder) return $guestWaiter ? [$guestWaiter] : allWaiterIds();
 
     if ($choice === 'order_waiter') return $own;
     if ($choice === 'all') return allWaiterIds() ?: $own;
@@ -157,6 +195,9 @@ function notifyDishReady(int $orderId, ?string $what, ?int $seat = null, ?int $o
     $order = getOrderById($orderId);
     if (!$order) return 0;
     $info = ['what' => $what, 'what_key' => $whatKey, 'seat' => $seat, 'table' => $order['table_number'], 'room' => $order['room_name'], 'order_of' => null];
+    // A guest's order nobody has taken yet: the pop-up offers "I'll take it".
+    [$guestOrder, $guestWaiter] = guestOrderWaiter($order);
+    if ($guestOrder && !$guestWaiter) $payload['takeable'] = true;
     $n = 0;
     foreach (readyNotifyRecipients($order) as $userId) {
         // Someone else's table: say whose order it is.
@@ -174,7 +215,7 @@ function notifyDishReady(int $orderId, ?string $what, ?int $seat = null, ?int $o
 function recentReadyAlerts(int $userId): array
 {
     $stmt = getDBConnection()->prepare("
-        SELECT id, type, title, message, payload FROM notifications
+        SELECT id, type, title, message, payload, created_at FROM notifications
         WHERE user_id = ? AND type IN ('dish_ready', 'table_free') AND read_at IS NULL AND created_at > NOW() - INTERVAL 10 MINUTE
         ORDER BY id DESC LIMIT 5
     ");
@@ -182,7 +223,12 @@ function recentReadyAlerts(int $userId): array
     return array_map(function ($r) {
         $r = localizeNotification($r);
         $p = json_decode((string) $r['payload'], true) ?: [];
+        $takeable = false;
+        if (!empty($p['takeable']) && !empty($p['order_id']) && ($o = getOrderById((int) $p['order_id']))) {
+            [, $guestWaiter] = guestOrderWaiter($o);
+            $takeable = !$guestWaiter;                       // still nobody's table
+        }
         return ['id' => (int) $r['id'], 'type' => $r['type'], 'title' => $r['title'], 'message' => $r['message'],
-                'order_id' => $r['type'] === 'dish_ready' ? (int) ($p['order_id'] ?? 0) : 0];
+                'order_id' => $r['type'] === 'dish_ready' ? (int) ($p['order_id'] ?? 0) : 0, 'takeable' => $takeable];
     }, $stmt->fetchAll());
 }

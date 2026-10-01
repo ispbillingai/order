@@ -200,10 +200,14 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
 }
 
 /** Open (not done) requests the given staff role should see, newest last. */
-function openTableRequestsForRole(string $role): array
+function openTableRequestsForRole(string $role, ?int $userId = null): array
 {
     $types = TABLE_REQUEST_ROLES[$role] ?? [];
     if (!$types) return [];
+    // A waiter doesn't see the calls of a guest's table another waiter has taken.
+    $mine = ($role === 'waiter' && $userId)
+        ? " AND NOT (COALESCE(o.created_by_guest, 0) = 1 AND o.assigned_waiter_id IS NOT NULL AND o.assigned_waiter_id <> " . (int) $userId . ")"
+        : '';
     $in   = implode(',', array_fill(0, count($types), '?'));
     $stmt = getDBConnection()->prepare("
         SELECT tr.id, tr.type, tr.status, tr.message, tr.order_id, tr.created_at,
@@ -217,7 +221,7 @@ function openTableRequestsForRole(string $role): array
         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
         LEFT JOIN menu_items rmi ON rmi.id = tr.replacement_menu_item_id
         LEFT JOIN users su ON su.id = tr.seen_by
-        WHERE tr.status <> 'done' AND tr.type IN ($in)
+        WHERE tr.status <> 'done' AND tr.type IN ($in)$mine
         ORDER BY tr.created_at, tr.id
     ");
     $stmt->execute($types);

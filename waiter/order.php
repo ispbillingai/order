@@ -296,7 +296,19 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div><strong><?= te('room') ?>:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
-    <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
+    <div><strong><?= te('waiter') ?>:</strong> <?php
+        // A guest's own order: the waiter who took the table (or nobody yet).
+        if (!empty($order['created_by_guest'])) {
+            $gw = null;
+            if (!empty($order['assigned_waiter_id'])) {
+                $st = getDBConnection()->prepare("SELECT full_name FROM users WHERE id = ?");
+                $st->execute([$order['assigned_waiter_id']]);
+                $gw = $st->fetchColumn();
+            }
+            echo $gw ? htmlspecialchars($gw) : '<span class="text-muted">' . te('take_nobody_yet') . '</span>';
+        } else {
+            echo htmlspecialchars($order['waiter_name']);
+        } ?></div>
     <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true) && empty($order['created_by_guest'])): // guest orders: no waiter alerts ?>
         <div class="d-flex align-center gap-sm ready-notify-pick">
             <strong><i class="fas fa-bell-concierge"></i> <?= te('ready_notify_label') ?>:</strong>
