@@ -135,7 +135,7 @@ function markOrderBillRequested(int $orderId, ?int $tillId = null, bool $keepTil
     logActivity('bill_requested', 'orders', $orderId);
 }
 
-function createTableRequest(array $table, string $type, ?int $orderItemId = null, string $message = '', ?int $replacementId = null): array
+function createTableRequest(array $table, string $type, ?int $orderItemId = null, string $message = '', ?int $replacementId = null, ?int $quantity = null): array
 {
     if (!in_array($type, ['bill', 'waiter', 'change'], true)) {
         return ['ok' => false, 'error' => 'bad_type'];
@@ -148,12 +148,15 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         if (!$order || !$orderItemId) return ['ok' => false, 'error' => 'no_dish'];
         // The dish must be on this table's meal.
         $stmt = $pdo->prepare("
-            SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+            SELECT oi.quantity FROM order_items oi JOIN orders o ON o.id = oi.order_id
             WHERE oi.id = ? AND (o.id = ? OR o.parent_order_id = ?) AND o.status <> 'paid'
               AND oi.status IN ('" . implode("','", GUEST_CHANGEABLE_STATUSES) . "')
         ");
         $stmt->execute([$orderItemId, $order['id'], $order['id']]);
-        if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_dish'];
+        $have = (int) $stmt->fetchColumn();
+        if (!$have) return ['ok' => false, 'error' => 'no_dish'];
+        // Two alike, change one: how many (all when not said).
+        $quantity = ($quantity && $quantity >= 1 && $quantity < $have) ? $quantity : null;
         // Swap for another dish: it must be on the menu right now.
         if ($replacementId) {
             $stmt = $pdo->prepare("SELECT mi.id FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
@@ -179,8 +182,8 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
     if ($id = $stmt->fetchColumn()) {
         // Same dish asked again: the latest wish replaces the earlier one.
         if ($type === 'change') {
-            $pdo->prepare("UPDATE table_requests SET message = ?, replacement_menu_item_id = ?, status = 'open' WHERE id = ?")
-                ->execute([$message !== '' ? $message : null, $replacementId, $id]);
+            $pdo->prepare("UPDATE table_requests SET message = ?, replacement_menu_item_id = ?, quantity = ?, status = 'open' WHERE id = ?")
+                ->execute([$message !== '' ? $message : null, $replacementId, $quantity, $id]);
         } elseif ($message !== '') {
             $pdo->prepare("UPDATE table_requests SET message = ? WHERE id = ?")->execute([$message, $id]);
         }
@@ -194,9 +197,84 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         return ['ok' => false, 'error' => 'too_many'];
     }
 
-    $pdo->prepare("INSERT INTO table_requests (table_id, order_id, order_item_id, replacement_menu_item_id, type, message) VALUES (?, ?, ?, ?, ?, ?)")
-        ->execute([$table['id'], $order['id'] ?? null, $orderItemId, $replacementId, $type, $message !== '' ? $message : null]);
+    $pdo->prepare("INSERT INTO table_requests (table_id, order_id, order_item_id, replacement_menu_item_id, type, message, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        ->execute([$table['id'], $order['id'] ?? null, $orderItemId, $replacementId, $type, $message !== '' ? $message : null, $quantity]);
     return ['ok' => true, 'id' => (int) $pdo->lastInsertId()];
+}
+
+/**
+ * The staff applies a guest's "change a dish" request: the order really
+ * changes. A swap takes the dish off (all of it, or the number asked) with
+ * the usual cancel / change slip at its work point, and sends the new dish to
+ * the kitchen as an addition; a written change goes on the dish as a note,
+ * with a change slip. Returns ['ok' => true] or ['error' => lang key].
+ */
+function applyTableChange(int $requestId, int $userId): array
+{
+    require_once __DIR__ . '/kitchen_ticket.php';
+    $pdo  = getDBConnection();
+    $stmt = $pdo->prepare("SELECT * FROM table_requests WHERE id = ? AND type = 'change' AND status <> 'done'");
+    $stmt->execute([$requestId]);
+    $r = $stmt->fetch();
+    if (!$r) return ['error' => 'change_gone'];
+    $stmt = $pdo->prepare("
+        SELECT oi.*, mi.name AS item_name, o.status AS order_status
+        FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN orders o ON o.id = oi.order_id
+        WHERE oi.id = ?
+    ");
+    $stmt->execute([(int) $r['order_item_id']]);
+    $it = $stmt->fetch();
+    if (!$it || in_array($it['order_status'], ['paid', 'cancelled'], true)) return ['error' => 'change_gone'];
+    if (!in_array($it['status'], GUEST_CHANGEABLE_STATUSES, true)) return ['error' => 'change_too_late'];
+
+    $orderId = (int) $it['order_id'];
+    $have    = (int) $it['quantity'];
+    $n       = ($r['quantity'] && (int) $r['quantity'] < $have) ? (int) $r['quantity'] : $have;
+    $sent    = $it['status'] !== 'pending';
+
+    if ($r['replacement_menu_item_id']) {
+        $stmt = $pdo->prepare("SELECT mi.id, mi.base_price FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
+        $stmt->execute([(int) $r['replacement_menu_item_id']]);
+        if (!$new = $stmt->fetch()) return ['error' => 'change_no_dish'];
+
+        // The old dish: fewer of it, or gone — its work point is told.
+        if ($n < $have) {
+            $pdo->prepare("UPDATE order_items SET quantity = ?, total_price = unit_price * ? WHERE id = ?")->execute([$have - $n, $have - $n, $it['id']]);
+            if ($sent) printOrderChangeTicket($orderId, (int) $it['id'], TICKET_CHANGE, $have);
+        } else {
+            if ($sent) printOrderChangeTicket($orderId, (int) $it['id'], TICKET_VOID);
+            $pdo->prepare("UPDATE order_items SET status = 'cancelled' WHERE id = ?")->execute([$it['id']]);
+            $pdo->prepare("DELETE FROM kitchen_tickets WHERE order_item_id = ?")->execute([$it['id']]);
+        }
+        // The new dish, same seat, to the kitchen.
+        $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            ->execute([$orderId, $it['seat'], (int) $new['id'], $n, $new['base_price'], $new['base_price'] * $n,
+                       t('change_replaces', ['dish' => $it['item_name']])]);
+        $newId = (int) $pdo->lastInsertId();
+        calculateOrderTotals($orderId);
+        sendPendingToKitchen($orderId, [$newId]);
+    } else {
+        // A written change ("no salt"): on the dish, and its work point is told.
+        $note = trim(($it['notes'] ? $it['notes'] . ' · ' : '')
+              . t('change_note', ['what' => (string) $r['message']]) . ($n < $have ? ' (' . $n . '/' . $have . ')' : ''));
+        $pdo->prepare("UPDATE order_items SET notes = ? WHERE id = ?")->execute([mb_substr($note, 0, 500), $it['id']]);
+        if ($sent) printOrderChangeTicket($orderId, (int) $it['id'], TICKET_CHANGE);
+    }
+
+    $pdo->prepare("UPDATE table_requests SET status = 'done', outcome = 'applied', done_by = ?, done_at = NOW(),
+                          seen_by = COALESCE(seen_by, ?), seen_at = COALESCE(seen_at, NOW()) WHERE id = ?")
+        ->execute([$userId, $userId, $requestId]);
+    logActivity('table_change_applied', 'table_requests', $requestId, ['order_item' => (int) $it['id'], 'qty' => $n]);
+    return ['ok' => true];
+}
+
+/** The change can't be made (the dish is already on its way, ...): the guest is told. */
+function declineTableChange(int $requestId, int $userId): void
+{
+    getDBConnection()->prepare("UPDATE table_requests SET status = 'done', outcome = 'declined', done_by = ?, done_at = NOW(),
+                                       seen_by = COALESCE(seen_by, ?), seen_at = COALESCE(seen_at, NOW()) WHERE id = ? AND type = 'change'")
+        ->execute([$userId, $userId, $requestId]);
+    logActivity('table_change_declined', 'table_requests', $requestId);
 }
 
 /** Open (not done) requests the given staff role should see, newest last. */
@@ -210,7 +288,7 @@ function openTableRequestsForRole(string $role, ?int $userId = null): array
         : '';
     $in   = implode(',', array_fill(0, count($types), '?'));
     $stmt = getDBConnection()->prepare("
-        SELECT tr.id, tr.type, tr.status, tr.message, tr.order_id, tr.created_at,
+        SELECT tr.id, tr.type, tr.status, tr.message, tr.order_id, tr.created_at, tr.quantity, oi.quantity AS item_quantity,
                TIMESTAMPDIFF(SECOND, tr.created_at, NOW()) AS age_seconds,
                COALESCE(o.table_label, t.table_number) AS table_number, t.id AS table_id,
                mi.name AS item_name, rmi.name AS replacement_name, oi.seat, o.waiter_id, su.full_name AS seen_by_name

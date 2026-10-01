@@ -402,10 +402,12 @@ function trText(r) {
     if (r.type === 'bill') return L.bill || 'Asks for the bill';
     if (r.type === 'waiter') return L.waiter || 'Calls the waiter';
     const seat = r.seat ? ' (' + (L.seat || 'Seat') + ' ' + r.seat + ')' : '';
+    // Two alike, change one: "1 of 2".
+    const part = r.quantity && r.item_quantity && +r.quantity < +r.item_quantity ? ' [' + r.quantity + '/' + r.item_quantity + ']' : '';
     if (r.replacement_name) {
-        return (L.swap || 'Swap') + ': ' + (r.item_name || '') + seat + ' → ' + r.replacement_name;
+        return (L.swap || 'Swap') + ': ' + (r.item_name || '') + part + seat + ' → ' + r.replacement_name;
     }
-    return (L.change || 'Change to') + ' ' + (r.item_name || '') + seat;
+    return (L.change || 'Change to') + ' ' + (r.item_name || '') + part + seat;
 }
 
 function trBeep() {
@@ -451,8 +453,11 @@ function renderTableRequests(list) {
             ${r.message ? `<div class="tr-msg">“${escapeHtml(r.message)}”</div>` : ''}
             ${r.status === 'seen' ? `<div class="tr-by"><i class="fas fa-check"></i> ${escapeHtml((L.taken_by || 'Taken by') + ' ' + (r.seen_by_name || ''))}</div>` : ''}
             <div class="tr-actions">
+                ${r.type === 'change' ? `
+                <button class="btn btn-sm btn-outline" onclick="tableRequestAction(${r.id}, 'decline')">${escapeHtml(L.decline || 'Not possible')}</button>
+                <button class="btn btn-sm btn-success" onclick="tableRequestAction(${r.id}, 'apply')"><i class="fas fa-check"></i> ${escapeHtml(L.apply || 'Apply')}</button>` : `
                 ${r.status === 'open' ? `<button class="btn btn-sm btn-primary" onclick="tableRequestAction(${r.id}, 'seen')">${escapeHtml(L.take || 'On my way')}</button>` : ''}
-                <button class="btn btn-sm btn-success" onclick="tableRequestAction(${r.id}, 'done')"><i class="fas fa-check"></i> ${escapeHtml(L.done || 'Done')}</button>
+                <button class="btn btn-sm btn-success" onclick="tableRequestAction(${r.id}, 'done')"><i class="fas fa-check"></i> ${escapeHtml(L.done || 'Done')}</button>`}
             </div>
         </div>`;
     }).join('');
@@ -462,6 +467,7 @@ async function tableRequestAction(id, action) {
     try {
         const r = await apiCall('/api/table-requests.php', 'POST', { id, action });
         renderTableRequests(r.requests);
+        if (action === 'apply') showToast((window.REQ_I18N || {}).applied || 'OK', 'success');
     } catch (e) { /* apiCall already showed the reason */ }
 }
 

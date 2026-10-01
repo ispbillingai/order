@@ -29,6 +29,9 @@
         'layout_auto' => t('layout_back_auto'),
         'take_it'     => t('take_it'),
         'taken'       => t('take_done'),
+        'apply'       => t('change_apply'),
+        'decline'     => t('change_decline'),
+        'applied'     => t('change_applied_toast'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?php endif; ?>

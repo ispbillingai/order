@@ -52,6 +52,8 @@ $L = [
     'call_coming_name' => t('guest_call_coming_name'),
     'call_coming_sub'  => t('guest_call_coming_sub'),
     'self_sent'    => t('self_sent_toast'),
+    'chg_applied'  => t('change_guest_applied'),
+    'chg_declined' => t('change_guest_declined'),
     'self_custom'  => t('self_custom_label'),
     'self_fixed'   => t('self_custom_fixed'),
     'self_add_basket' => t('self_add_basket'),
@@ -100,6 +102,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .req { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: .95rem; }
 .req i { color: var(--p); }
 .req.seen i { color: var(--ok); }
+.req.declined i { color: #dc2626; }
 .actions { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .actions button { border: 0; border-radius: 12px; padding: 12px 6px; font: inherit; font-weight: 700; font-size: .85rem; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
 .actions button i { font-size: 1.3rem; }
@@ -435,6 +438,10 @@ $contactsHtml = ob_get_clean(); ?>
         <h3><?= te('guest_change_title') ?></h3>
         <div id="changePicks"></div>
         <p id="notChangeable" class="hint-small" hidden><?= te('guest_ready_locked') ?></p>
+        <div class="custom-qty" id="changeQtyRow" hidden>
+            <span><?= te('change_how_many') ?> <small class="hint-small">(<?= te('change_of') ?> <span id="changeQtyMax"></span>)</small></span>
+            <div class="qty"><button type="button" onclick="changeQtyStep(-1)">−</button><span id="changeQtyVal">1</span><button type="button" class="plus" onclick="changeQtyStep(1)">+</button></div>
+        </div>
 
         <div class="step"><?= te('guest_change_how') ?></div>
         <div class="modes">
@@ -752,12 +759,17 @@ function render(s) {
 
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
     $('requestsCard').hidden = !s.requests.length;
-    $('requestsList').innerHTML = s.requests.map(r => `
-        <div class="req ${r.status === 'seen' ? 'seen' : ''}">
-            <i class="fas ${r.status === 'seen' ? 'fa-person-walking' : 'fa-clock'}"></i>
-            <div><strong>${r.replacement_name ? esc(L.swap) + ': ' + esc(r.item_name) + ' → ' + esc(r.replacement_name) : esc(label[r.type]) + (r.item_name ? ': ' + esc(r.item_name) : '')}</strong><br>
-                 <small>${esc(r.status === 'seen' ? L.req_seen : L.req_open)}</small></div>
-        </div>`).join('');
+    $('requestsList').innerHTML = s.requests.map(r => {
+        // A change: still waiting, done, or not possible.
+        const st = r.outcome === 'applied' ? ['seen', 'fa-circle-check', L.chg_applied]
+                    : r.outcome === 'declined' ? ['declined', 'fa-circle-xmark', L.chg_declined]
+                    : r.status === 'seen' ? ['seen', 'fa-person-walking', L.req_seen] : ['', 'fa-clock', L.req_open];
+        const qty = r.quantity ? r.quantity + '× ' : '';
+        return `<div class="req ${st[0]}">
+            <i class="fas ${st[1]}"></i>
+            <div><strong>${r.replacement_name ? esc(L.swap) + ': ' + qty + esc(r.item_name) + ' → ' + esc(r.replacement_name) : esc(label[r.type]) + (r.item_name ? ': ' + qty + esc(r.item_name) : '')}</strong><br>
+                 <small>${esc(st[2])}</small></div>
+        </div>`; }).join('');
 }
 
 // Waiter called: "the staff has your call", then "Jane is coming" (with a chime).
@@ -852,14 +864,31 @@ function openChange() {
     const dishes = (state?.items || []).filter(i => i.changeable);
     $('notChangeable').hidden = dishes.length === (state?.items || []).length;
     $('changePicks').innerHTML = dishes.map(i => `
-        <label class="pick"><input type="radio" name="dish" value="${i.id}">
+        <label class="pick"><input type="radio" name="dish" value="${i.id}" data-qty="${i.quantity}" onchange="changeQtyShow()">
             <span>${i.quantity}× ${esc(i.name)}${i.seat ? ' · ' + esc(L.seat) + ' ' + i.seat : ''}</span></label>`).join('');
+    $('changeQtyRow').hidden = true;
     $('changeMsg').value = '';
     document.querySelectorAll('input[name=newdish]').forEach(r => { r.checked = false; });
     setMode('modify');
     $('changeSheet').classList.add('on');
 }
 function closeChange() { $('changeSheet').classList.remove('on'); }
+// Two (or more) alike: how many of them to change.
+let changeQty = 1;
+function changeQtyShow() {
+    const d = document.querySelector('input[name=dish]:checked');
+    const max = d ? parseInt(d.dataset.qty, 10) : 1;
+    changeQty = 1;
+    $('changeQtyRow').hidden = max < 2;
+    $('changeQtyMax').textContent = max;
+    $('changeQtyVal').textContent = changeQty;
+}
+function changeQtyStep(dlt) {
+    const d = document.querySelector('input[name=dish]:checked');
+    const max = d ? parseInt(d.dataset.qty, 10) : 1;
+    changeQty = Math.max(1, Math.min(max, changeQty + dlt));
+    $('changeQtyVal').textContent = changeQty;
+}
 
 // Modify the same dish (write what to change) or swap it for another dish
 // from the menu (the note is then optional).
@@ -891,7 +920,8 @@ async function sendChange() {
     const dish = document.querySelector('input[name=dish]:checked');
     const message = $('changeMsg').value.trim();
     if (!dish) { toast(L.pick_dish); return; }
-    const body = { type: 'change', order_item_id: parseInt(dish.value, 10), message };
+    const body = { type: 'change', order_item_id: parseInt(dish.value, 10), message,
+                   quantity: parseInt(dish.dataset.qty, 10) > 1 ? changeQty : null };
     if (changeMode === 'swap') {
         const nd = document.querySelector('input[name=newdish]:checked');
         if (!nd) { toast(L.pick_new); return; }

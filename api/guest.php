@@ -121,14 +121,16 @@ function guestState(array $table): array
         }
     }
     $stmt = getDBConnection()->prepare("
-        SELECT tr.id, tr.type, tr.status, mi.name AS item_name, rmi.name AS replacement_name,
+        SELECT tr.id, tr.type, tr.status, tr.outcome, tr.quantity, mi.name AS item_name, rmi.name AS replacement_name,
                su.full_name AS seen_by
         FROM table_requests tr
         LEFT JOIN users su ON su.id = tr.seen_by
         LEFT JOIN order_items oi ON oi.id = tr.order_item_id
         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
         LEFT JOIN menu_items rmi ON rmi.id = tr.replacement_menu_item_id
-        WHERE tr.table_id = ? AND tr.status <> 'done'
+        WHERE tr.table_id = ? AND (tr.status <> 'done'
+              -- a change just applied / declined: the guest sees how it went for a while
+              OR (tr.type = 'change' AND tr.outcome IS NOT NULL AND tr.done_at > NOW() - INTERVAL 15 MINUTE))
         ORDER BY tr.id
     ");
     $stmt->execute([$table['id']]);
@@ -243,7 +245,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($input['action'] ?? '', [
         (string) ($input['type'] ?? ''),
         isset($input['order_item_id']) ? (int) $input['order_item_id'] : null,
         (string) ($input['message'] ?? ''),
-        !empty($input['replacement_menu_item_id']) ? (int) $input['replacement_menu_item_id'] : null
+        !empty($input['replacement_menu_item_id']) ? (int) $input['replacement_menu_item_id'] : null,
+        !empty($input['quantity']) ? (int) $input['quantity'] : null
     );
     if (!$res['ok']) {
         jsonResponse(['success' => false, 'message' => t('guest_err_' . $res['error'])]);

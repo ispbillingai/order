@@ -40,6 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$id]);
             if ($oid = (int) $stmt->fetchColumn()) takeGuestOrder($oid, (int) $user['id']);
         }
+    } elseif ($action === 'apply' && $type === 'change') {
+        // The guest's change goes into the order (swap / note), slips printed.
+        $res = applyTableChange($id, (int) $user['id']);
+        if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    } elseif ($action === 'decline' && $type === 'change') {
+        declineTableChange($id, (int) $user['id']);
     } elseif ($action === 'done') {
         $pdo->prepare("UPDATE table_requests SET status = 'done', done_by = ?, done_at = NOW(),
                               seen_by = COALESCE(seen_by, ?), seen_at = COALESCE(seen_at, NOW()) WHERE id = ?")

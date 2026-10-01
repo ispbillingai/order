@@ -300,7 +300,7 @@ function printStationTicket(
  * the first send print as an ADDITION so the work point tops up the table.
  * Returns ['items' => how many, 'addition' => bool, 'print' => print result].
  */
-function sendPendingToKitchen(int $orderId): array
+function sendPendingToKitchen(int $orderId, ?array $onlyIds = null): array
 {
     $pdo   = getDBConnection();
     $order = getOrderById($orderId);
@@ -308,13 +308,16 @@ function sendPendingToKitchen(int $orderId): array
     $kind = ($order['status'] === 'open') ? TICKET_NEW : TICKET_ADDITION;
 
     // The dishes being sent NOW (still pending): the slip prints exactly these.
+    // $onlyIds: just these (a dish swapped on a guest's request), not the
+    // waiter's dishes still being typed in.
     $stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND status = 'pending'");
     $stmt->execute([$orderId]);
     $ids = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+    if ($onlyIds !== null) $ids = array_values(array_intersect($ids, array_map('intval', $onlyIds)));
     if (!$ids) return ['items' => 0, 'addition' => false, 'print' => ['ok' => false]];
 
-    $pdo->prepare("UPDATE order_items SET status = 'in_kitchen', sent_to_kitchen_at = NOW() WHERE order_id = ? AND status = 'pending'")
-        ->execute([$orderId]);
+    $in = implode(',', $ids);
+    $pdo->query("UPDATE order_items SET status = 'in_kitchen', sent_to_kitchen_at = NOW() WHERE id IN ($in)");
     // Asking for the bill and then adding a dish puts the order back in the kitchen flow.
     $pdo->prepare("UPDATE orders SET status = 'sent_to_kitchen' WHERE id = ?")->execute([$orderId]);
     $pdo->prepare("
