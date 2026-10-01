@@ -22,6 +22,7 @@ try {
             t.capacity,
             t.status,
             t.current_order_id,
+            r.id as room_id,
             r.name as room_name,
             o.id as order_id,
             o.order_number,
@@ -34,7 +35,7 @@ try {
         LEFT JOIN orders o ON (o.table_id = t.id OR o.id = t.current_order_id) AND o.status NOT IN ('paid', 'cancelled')
             AND o.parent_order_id IS NULL
         WHERE r.active = 1
-        ORDER BY r.sort_order, t.table_number
+        ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
     ");
     $tables = $stmt->fetchAll();
 } catch (Exception $e) {
@@ -177,15 +178,40 @@ include __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <!-- All Tables -->
+<?php
+// Table overview by room, as in admin Rooms & Tables: "Occupied" (every
+// table in use, any room, with its room's name) and one view per room.
+$occupancy  = tableOccupancy();              // guests seated per table (chairs red/green)
+$billTables = array_flip(billAlertTables()); // blink: asking for the bill
+$byRoom = [];
+foreach ($tables as $t) {
+    $byRoom[(int) $t['room_id']]['name']     = $t['room_name'];
+    $byRoom[(int) $t['room_id']]['tables'][] = $t;
+}
+$inUse = array_values(array_filter($tables, fn($t) => $t['order_id'] || isset(tablesToLay()[$t['id']])));
+
+$scrollerKey   = 'cashier-rooms';
+$scrollerRooms = [['id' => 'occupied', 'name' => t('rooms_occupied_view'), 'icon' => 'fa-utensils',
+                   'count' => count(array_filter($inUse, fn($t) => $t['order_id'])), 'count_class' => 'busy']];
+foreach ($byRoom as $rid => $r) {
+    $free = count(array_filter($r['tables'], fn($t) => !$t['order_id']));
+    $scrollerRooms[] = ['id' => $rid, 'name' => $r['name'], 'count' => $free, 'count_class' => 'free',
+                        'title' => t('rooms_free_of', ['free' => $free, 'all' => count($r['tables'])])];
+}
+?>
 <div class="card">
     <div class="card-header">
         <h2><?= te('table_overview') ?></h2>
     </div>
     <div class="card-body">
+        <?php include __DIR__ . '/../includes/room_scroller.php'; ?>
+        <?php foreach (array_merge([['id' => 'occupied', 'tables' => $inUse]], array_map(fn($rid, $r) => ['id' => $rid, 'tables' => $r['tables']], array_keys($byRoom), $byRoom)) as $panel): ?>
+        <div data-room-panel="<?= htmlspecialchars((string) $panel['id']) ?>">
+        <?php if (!$panel['tables']): ?>
+            <p class="text-muted text-center" style="padding: 30px;"><?= te('rooms_none_occupied') ?></p>
+        <?php endif; ?>
         <div class="tables-grid">
-            <?php $occupancy = tableOccupancy(); // guests seated per table (chairs red/green)
-            $billTables = array_flip(billAlertTables()); // blink: asking for the bill
-            foreach ($tables as $table):
+            <?php foreach ($panel['tables'] as $table):
                 $status = $table['order_id'] ? ($table['order_status'] === 'bill_requested' ? 'bill_requested' : 'occupied') : 'free';
                 $guests = $table['order_id'] ? ($occupancy[$table['id']]['guests'] ?? 0) : null;
             ?>
@@ -195,6 +221,7 @@ include __DIR__ . '/../includes/header.php';
                      onclick="window.location.href='/cashier/payment.php?order=<?= $table['order_id'] ?>'"
                      <?php endif; ?>
                      style="<?= $table['order_id'] ? '' : 'cursor: default;' ?>">
+                    <?php if ($panel['id'] === 'occupied'): ?><div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div><?php endif; ?>
                     <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
                     <?= $toLay ? tableLayBadge((int) $table['id']) : '' ?>
                     <?= renderTableVisual((string) $table['table_number'], (int) ($table['capacity'] ?? 4), $guests, (string) $table['status']) ?>
@@ -222,6 +249,8 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             <?php endforeach; ?>
         </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 </div>
 
