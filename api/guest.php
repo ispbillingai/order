@@ -121,8 +121,10 @@ function guestState(array $table): array
         }
     }
     $stmt = getDBConnection()->prepare("
-        SELECT tr.id, tr.type, tr.status, mi.name AS item_name, rmi.name AS replacement_name
+        SELECT tr.id, tr.type, tr.status, mi.name AS item_name, rmi.name AS replacement_name,
+               SUBSTRING_INDEX(su.full_name, ' ', 1) AS seen_by   -- the waiter's first name only
         FROM table_requests tr
+        LEFT JOIN users su ON su.id = tr.seen_by
         LEFT JOIN order_items oi ON oi.id = tr.order_item_id
         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
         LEFT JOIN menu_items rmi ON rmi.id = tr.replacement_menu_item_id

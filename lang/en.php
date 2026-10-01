@@ -585,7 +585,7 @@ return [
     'guest_req_waiter'      => 'Waiter called',
     'guest_req_change'      => 'Change',
     'guest_req_open'        => 'Sent — waiting for the staff',
-    'guest_req_seen'        => 'Seen — someone is on the way',
+    'guest_req_seen'        => 'Seen — the waiter is coming',
     'guest_failed'          => 'Could not send. Please try again.',
     'guest_paid'            => 'paid',
     'guest_st_pending'      => 'Ordered',
@@ -1203,4 +1203,9 @@ return [
     'self_returning_hint' => 'Just enter your mobile: we fetch your name and the consents you already gave us.',
     'self_err_not_found' => 'We can\'t find this number among our customers: untick "I\'m already a customer" and fill in your details.',
     'self_welcome_back' => 'Welcome back, {name}!',
+    'guest_call_sent' => 'You called the waiter',
+    'guest_call_sent_sub' => 'The staff has your call: someone will answer shortly.',
+    'guest_call_coming' => 'The waiter is coming',
+    'guest_call_coming_name' => '{name} is coming to your table',
+    'guest_call_coming_sub' => 'Your call has been seen.',
 ];

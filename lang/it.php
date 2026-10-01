@@ -585,7 +585,7 @@ return [
     'guest_req_waiter'      => 'Cameriere chiamato',
     'guest_req_change'      => 'Modifica',
     'guest_req_open'        => 'Inviata — in attesa del personale',
-    'guest_req_seen'        => 'Vista — qualcuno sta arrivando',
+    'guest_req_seen'        => 'Vista — il cameriere sta arrivando',
     'guest_failed'          => 'Invio non riuscito. Riprova.',
     'guest_paid'            => 'pagato',
     'guest_st_pending'      => 'Ordinato',
@@ -1203,4 +1203,9 @@ return [
     'self_returning_hint' => 'Inserisci solo il tuo cellulare: recuperiamo nome e consensi che ci hai già dato.',
     'self_err_not_found' => 'Non troviamo questo numero tra i nostri clienti: togli la spunta "Sono già cliente" e compila i tuoi dati.',
     'self_welcome_back' => 'Bentornato {name}!',
+    'guest_call_sent' => 'Hai chiamato il cameriere',
+    'guest_call_sent_sub' => 'La chiamata è arrivata al personale: tra poco qualcuno ti risponde.',
+    'guest_call_coming' => 'Il cameriere sta arrivando',
+    'guest_call_coming_name' => '{name} sta arrivando al tuo tavolo',
+    'guest_call_coming_sub' => 'Ha visto la tua chiamata.',
 ];

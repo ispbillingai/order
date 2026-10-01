@@ -43,6 +43,11 @@ $L = [
     'consent_yes'  => t('consent_thanks'),
     'consent_no'   => t('consent_declined_toast'),
     'consent_pick' => t('consent_pick_number'),
+    'call_sent'    => t('guest_call_sent'),
+    'call_sent_sub'=> t('guest_call_sent_sub'),
+    'call_coming'  => t('guest_call_coming'),
+    'call_coming_name' => t('guest_call_coming_name'),
+    'call_coming_sub'  => t('guest_call_coming_sub'),
     'self_sent'    => t('self_sent_toast'),
     'self_dishes'  => t('self_cart_dishes'),
     'self_note_ph' => t('self_note_ph'),
@@ -121,6 +126,14 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .notify-btn { width: 100%; border: 0; background: #fff7ed; border-radius: 12px; padding: 12px; font: inherit; font-weight: 700; color: var(--p); margin-bottom: 14px; cursor: pointer; box-shadow: inset 0 0 0 2px #fed7aa; }
 .notify-btn i { margin-right: 6px; animation: bellRing 1.8s ease-in-out infinite; display: inline-block; }
 @keyframes bellRing { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
+/* Waiter called: what is happening, at the top of the page */
+.call-banner { display: flex; gap: 14px; align-items: center; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; color: #fff; background: #2563eb; box-shadow: 0 4px 14px rgba(37,99,235,.25); }
+.call-banner i { font-size: 1.6rem; }
+.call-banner strong { display: block; font-size: 1.05rem; }
+.call-banner small { opacity: .9; }
+.call-banner.coming { background: var(--ok); box-shadow: 0 4px 14px rgba(22,163,74,.25); animation: callPulse 1.6s ease-in-out 3; }
+.call-banner.waiting i { animation: bellRing 1.8s ease-in-out infinite; }
+@keyframes callPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 .ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; animation: readyIn .35s ease-out; }
 .ready-banner i { font-size: 1.8rem; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
@@ -330,6 +343,7 @@ $contactsHtml = ob_get_clean(); ?>
 
 <main id="app" hidden>
     <button class="notify-btn" id="notifyBtn" hidden onclick="enableNotifications()"><i class="fas fa-bell"></i> <?= te('guest_notify_on') ?></button>
+    <div class="call-banner" id="callBanner" hidden><i class="fas"></i><div><strong></strong><small></small></div></div>
     <button class="order-more" id="orderMore" hidden onclick="openShop()"><i class="fas fa-plus"></i> <?= te('self_order_more') ?></button>
     <!-- Marketing consent: the guest decides for their own number -->
     <div class="card consent" id="consentCard" hidden>
@@ -596,6 +610,8 @@ function render(s) {
     $('btnChange').disabled = !s.items.some(i => i.changeable);
     renderConsent(s.consent);
 
+    renderCallBanner(s.requests);
+
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
     $('requestsCard').hidden = !s.requests.length;
     $('requestsList').innerHTML = s.requests.map(r => `
@@ -604,6 +620,27 @@ function render(s) {
             <div><strong>${r.replacement_name ? esc(L.swap) + ': ' + esc(r.item_name) + ' → ' + esc(r.replacement_name) : esc(label[r.type]) + (r.item_name ? ': ' + esc(r.item_name) : '')}</strong><br>
                  <small>${esc(r.status === 'seen' ? L.req_seen : L.req_open)}</small></div>
         </div>`).join('');
+}
+
+// Waiter called: "the staff has your call", then "Jane is coming" (with a chime).
+let callWasComing = null;
+function renderCallBanner(requests) {
+    const call = (requests || []).filter(r => r.type === 'waiter').pop();
+    const box = $('callBanner');
+    box.hidden = !call;
+    if (!call) { callWasComing = null; return; }
+    const coming = call.status === 'seen';
+    box.className = 'call-banner ' + (coming ? 'coming' : 'waiting');
+    box.querySelector('i').className = 'fas ' + (coming ? 'fa-person-walking' : 'fa-bell');
+    box.querySelector('strong').textContent = coming
+        ? (call.seen_by ? L.call_coming_name.replace('{name}', call.seen_by) : L.call_coming)
+        : L.call_sent;
+    box.querySelector('small').textContent = coming ? L.call_coming_sub : L.call_sent_sub;
+    if (coming && callWasComing === false) {            // just answered: let them know
+        playChime();
+        if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    }
+    callWasComing = coming;
 }
 
 async function load() {
