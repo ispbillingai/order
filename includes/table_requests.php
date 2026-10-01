@@ -247,6 +247,7 @@ function guestMenu(): array
                 'id' => (int) $c['id'], 'name' => $c['component_name'], 'default' => (bool) $c['is_default'],
                 'removable' => (bool) $c['removable'], 'extra' => (float) $c['extra_price'],
                 'extra_fmt' => (float) $c['extra_price'] > 0 ? '+' . formatCurrency($c['extra_price']) : '',
+                'image' => $c['image_url'] ?: null,
             ];
         }
     }

@@ -1223,4 +1223,7 @@ return [
     'self_custom_hint' => 'Togli gli ingredienti che non vuoi o aggiungi un extra.',
     'self_custom_fixed' => 'non si può togliere',
     'self_add_basket' => 'Aggiungi · {price}',
+    'msg_component_deleted' => 'Componente eliminato.',
+    'photo_remove' => 'Rimuovi la foto',
+    'component_delete_confirm' => 'Eliminare questo componente dal piatto?',
 ];

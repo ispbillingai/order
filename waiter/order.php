@@ -1027,6 +1027,7 @@ async function selectMenuItem(item, allowComposition) {
                                data-is-default="${comp.is_default}"
                                data-extra-price="${comp.extra_price}"
                                ${comp.is_default ? 'checked' : ''}>
+                        ${comp.image_url ? `<img src="${escapeHtml(comp.image_url)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;">` : ''}
                         <span style="flex: 1;">${escapeHtml(comp.component_name)}</span>
                         ${comp.extra_price > 0 ? `<span class="text-primary">+${formatCurrency(comp.extra_price)}</span>` : ''}
                     </label>

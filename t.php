@@ -190,6 +190,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .shop-item .info small.custom { color: var(--p); font-weight: 700; }
 .cart-line .top strong small.mods { display: block; font-weight: 400; font-size: .8rem; color: var(--muted); }
 .cart-line .lp { font-weight: 700; white-space: nowrap; }
+.pick .comp-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; }
 .custom-qty { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-weight: 700; }
 .video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .shop-item .info strong { display: block; }
@@ -631,6 +632,7 @@ function openCustomize(id) {
     $('customList').innerHTML = it.components.map(c => `
         <label class="pick">
             <input type="checkbox" data-cid="${c.id}" data-default="${c.default ? 1 : 0}" ${c.default ? 'checked' : ''} ${c.default && !c.removable ? 'disabled' : ''} onchange="customPrice()">
+            ${c.image ? `<img class="comp-img" src="${esc(c.image)}" alt="" loading="lazy">` : ''}
             <span>${esc(c.name)}${c.default && !c.removable ? ` <small class="hint-small">(${esc(L.self_fixed)})</small>` : ''}</span>
             <span class="price">${esc(c.extra_fmt)}</span>
         </label>`).join('');

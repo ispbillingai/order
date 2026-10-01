@@ -72,6 +72,12 @@ function deleteMenuVideoFile(?string $url): void
     if ($url && preg_match('~^/assets/uploads/menu/video_[\w.-]+$~', $url)) @unlink(__DIR__ . '/..' . $url);
 }
 
+/** Back to the components editor of the dish just changed (keeping its category). */
+function componentsQuery(): string
+{
+    return http_build_query(array_filter(['category' => (int) ($_POST['category_id'] ?? 0), 'item' => (int) ($_POST['menu_item_id'] ?? 0)]));
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // A file larger than the server accepts empties the whole form: say so.
@@ -202,15 +208,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'add_component') {
-        $stmt = $pdo->prepare("INSERT INTO menu_item_components (menu_item_id, component_name, is_default, extra_price, removable) VALUES (?, ?, ?, ?, ?)");
+        $photo = saveMenuImage('image');   // optional photo of the ingredient
+        $stmt = $pdo->prepare("INSERT INTO menu_item_components (menu_item_id, component_name, is_default, extra_price, removable, image_url) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['menu_item_id'],
             $_POST['component_name'],
             isset($_POST['is_default']) ? 1 : 0,
             $_POST['extra_price'] ?? 0,
-            isset($_POST['removable']) ? 1 : 0
+            isset($_POST['removable']) ? 1 : 0,
+            $photo
         ]);
-        header('Location: /admin/menu.php?item=' . $_POST['menu_item_id'] . '&success=component_added');
+        $bad = !$photo && ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+        header('Location: /admin/menu.php?' . componentsQuery() . ($bad ? '&error=photo_failed' : '&success=component_added'));
+        exit;
+    }
+
+    // An ingredient's photo: new / replaced, or removed.
+    if ($action === 'component_photo') {
+        $compId = (int) ($_POST['component_id'] ?? 0);
+        if (!empty($_POST['remove'])) {
+            $pdo->prepare("UPDATE menu_item_components SET image_url = NULL WHERE id = ?")->execute([$compId]);
+            header('Location: /admin/menu.php?' . componentsQuery() . '&success=photo_updated');
+        } elseif ($photo = saveMenuImage('image')) {
+            $pdo->prepare("UPDATE menu_item_components SET image_url = ? WHERE id = ?")->execute([$photo, $compId]);
+            header('Location: /admin/menu.php?' . componentsQuery() . '&success=photo_updated');
+        } else {
+            header('Location: /admin/menu.php?' . componentsQuery() . '&error=photo_failed');
+        }
+        exit;
+    }
+
+    // An ingredient off the dish's list (orders already taken keep their notes).
+    if ($action === 'delete_component') {
+        $pdo->prepare("DELETE FROM menu_item_components WHERE id = ? AND menu_item_id = ?")
+            ->execute([(int) ($_POST['component_id'] ?? 0), (int) ($_POST['menu_item_id'] ?? 0)]);
+        header('Location: /admin/menu.php?' . componentsQuery() . '&success=component_deleted');
         exit;
     }
 }
@@ -273,6 +305,7 @@ include __DIR__ . '/../includes/header.php';
             case 'item_added': echo te('msg_item_added'); break;
             case 'item_deleted': echo te('msg_item_deleted'); break;
             case 'component_added': echo te('msg_component_added'); break;
+            case 'component_deleted': echo te('msg_component_deleted'); break;
             case 'photo_updated': echo te('msg_photo_updated'); break;
             case 'item_updated': echo te('msg_item_updated'); break;
             case 'category_updated': echo te('msg_category_updated'); break;
@@ -442,9 +475,10 @@ include __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="card-body">
-        <form method="POST" class="form-row mb-lg">
+        <form method="POST" class="form-row mb-lg" enctype="multipart/form-data">
             <input type="hidden" name="action" value="add_component">
             <input type="hidden" name="menu_item_id" value="<?= $editItem['id'] ?>">
+            <input type="hidden" name="category_id" value="<?= (int) $selectedCategoryId ?>">
             
             <div class="form-group">
                 <label class="form-label"><?= te('component_name') ?></label>
@@ -465,6 +499,11 @@ include __DIR__ . '/../includes/header.php';
             </div>
 
             <div class="form-group">
+                <label class="form-label"><i class="fas fa-image"></i> <?= te('photo_optional') ?></label>
+                <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">&nbsp;</label>
                 <button type="submit" class="btn btn-success">
                     <i class="fas fa-plus"></i> <?= te('add') ?>
@@ -478,15 +517,37 @@ include __DIR__ . '/../includes/header.php';
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th><?= te('photo') ?></th>
                         <th><?= te('component') ?></th>
                         <th><?= te('default_label') ?></th>
                         <th><?= te('extra_price') ?></th>
                         <th><?= te('removable') ?></th>
+                        <th><?= te('actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($itemComponents as $comp): ?>
                         <tr>
+                            <td>
+                                <!-- The ingredient's photo: tap the picture to add / replace it -->
+                                <form method="POST" enctype="multipart/form-data" class="comp-photo">
+                                    <input type="hidden" name="action" value="component_photo">
+                                    <input type="hidden" name="component_id" value="<?= (int) $comp['id'] ?>">
+                                    <input type="hidden" name="menu_item_id" value="<?= (int) $editItem['id'] ?>">
+                                    <input type="hidden" name="category_id" value="<?= (int) $selectedCategoryId ?>">
+                                    <label title="<?= te(!empty($comp['image_url']) ? 'replace_photo_optional' : 'photo_optional') ?>">
+                                        <?php if (!empty($comp['image_url'])): ?>
+                                            <img src="<?= htmlspecialchars($comp['image_url']) ?>" alt="">
+                                        <?php else: ?>
+                                            <span class="comp-noimg"><i class="fas fa-camera"></i></span>
+                                        <?php endif; ?>
+                                        <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" hidden onchange="this.form.submit()">
+                                    </label>
+                                    <?php if (!empty($comp['image_url'])): ?>
+                                        <button type="submit" name="remove" value="1" class="comp-photo-x" title="<?= te('photo_remove') ?>"><i class="fas fa-times"></i></button>
+                                    <?php endif; ?>
+                                </form>
+                            </td>
                             <td><?= htmlspecialchars($comp['component_name']) ?></td>
                             <td>
                                 <?php if ($comp['is_default']): ?>
@@ -497,6 +558,15 @@ include __DIR__ . '/../includes/header.php';
                             </td>
                             <td><?= $comp['extra_price'] > 0 ? formatCurrency($comp['extra_price']) : '-' ?></td>
                             <td><?= $comp['removable'] ? te('yes') : te('no') ?></td>
+                            <td>
+                                <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('component_delete_confirm')), ENT_QUOTES) ?>);">
+                                    <input type="hidden" name="action" value="delete_component">
+                                    <input type="hidden" name="component_id" value="<?= (int) $comp['id'] ?>">
+                                    <input type="hidden" name="menu_item_id" value="<?= (int) $editItem['id'] ?>">
+                                    <input type="hidden" name="category_id" value="<?= (int) $selectedCategoryId ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="<?= te('delete') ?>"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -505,6 +575,13 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <?php endif; ?>
+
+<style>
+.comp-photo { position: relative; display: inline-block; }
+.comp-photo label { cursor: pointer; display: block; }
+.comp-photo img, .comp-photo .comp-noimg { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; display: flex; align-items: center; justify-content: center; background: var(--bg-light, #f3f4f6); color: var(--text-secondary); border: 1px dashed var(--border-color); }
+.comp-photo-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; font-size: 10px; cursor: pointer; }
+</style>
 
 <!-- Add Category Modal -->
 <div class="modal-overlay" id="addCategoryModal">

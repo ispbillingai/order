@@ -1223,4 +1223,7 @@ return [
     'self_custom_hint' => 'Take off the ingredients you don\'t want or add an extra.',
     'self_custom_fixed' => 'can\'t be removed',
     'self_add_basket' => 'Add · {price}',
+    'msg_component_deleted' => 'Component deleted.',
+    'photo_remove' => 'Remove the photo',
+    'component_delete_confirm' => 'Delete this component from the dish?',
 ];
