@@ -40,8 +40,45 @@ function saveMenuImage(string $field): ?string
     return '/assets/uploads/menu/' . $name;
 }
 
+/**
+ * Save an uploaded dish video to assets/uploads/menu and return its web path.
+ * MP4 (H.264) or WebM: browsers play them with <video>, no plugin. Up to the
+ * server's upload limit (25 MB). Null = nothing uploaded; on a bad file
+ * $error says why ('video_too_big', 'video_bad_format', 'video_failed').
+ */
+function saveMenuVideo(string $field, ?string &$error): ?string
+{
+    $error = null;
+    $err   = $_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($err === UPLOAD_ERR_NO_FILE) return null;
+    if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) { $error = 'video_too_big'; return null; }
+    if ($err !== UPLOAD_ERR_OK) { $error = 'video_failed'; return null; }
+    $f     = $_FILES[$field];
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $f['tmp_name']);
+    finfo_close($finfo);
+    $extMap = ['video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/x-m4v' => 'mp4'];
+    if (!isset($extMap[$mime])) { $error = 'video_bad_format'; return null; }
+    $dir = __DIR__ . '/../assets/uploads/menu';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $name = 'video_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extMap[$mime];
+    if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $name)) { $error = 'video_failed'; return null; }
+    return '/assets/uploads/menu/' . $name;
+}
+
+/** The video file of a dish goes away with it (only our own uploads). */
+function deleteMenuVideoFile(?string $url): void
+{
+    if ($url && preg_match('~^/assets/uploads/menu/video_[\w.-]+$~', $url)) @unlink(__DIR__ . '/..' . $url);
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // A file larger than the server accepts empties the whole form: say so.
+    if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        header('Location: /admin/menu.php?error=video_too_big');
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add_category') {
@@ -92,9 +129,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add_item') {
         $imageUrl = saveMenuImage('image');
+        $videoUrl = saveMenuVideo('video', $videoError);
         // Blank = inherit the category's work point.
         $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
-        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url, station_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url, video_url, station_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['category_id'],
             $_POST['name'],
@@ -102,9 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['base_price'],
             $_POST['preparation_time'] ?? 15,
             $imageUrl,
+            $videoUrl,
             $stationId
         ]);
-        header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . '&success=item_added');
+        header('Location: /admin/menu.php?category=' . (int) $_POST['category_id'] . ($videoError ? '&error=' . $videoError : '&success=item_added'));
         exit;
     }
 
@@ -142,7 +181,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($imageUrl) {
             $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$imageUrl, $itemId]);
         }
-        header('Location: /admin/menu.php?category=' . $catId . '&success=item_updated');
+        // The video: a new one replaces the old; or removed.
+        $stmt = $pdo->prepare("SELECT video_url FROM menu_items WHERE id = ?");
+        $stmt->execute([$itemId]);
+        $oldVideo = $stmt->fetchColumn() ?: null;
+        $videoUrl = saveMenuVideo('video', $videoError);
+        if ($videoUrl || !empty($_POST['remove_video'])) {
+            $pdo->prepare("UPDATE menu_items SET video_url = ? WHERE id = ?")->execute([$videoUrl, $itemId]);
+            deleteMenuVideoFile($oldVideo);
+        }
+        header('Location: /admin/menu.php?category=' . $catId . ($videoError ? '&error=' . $videoError : '&success=item_updated'));
         exit;
     }
 
@@ -240,6 +288,12 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
+<?php if (in_array($_GET['error'] ?? '', ['video_too_big', 'video_bad_format', 'video_failed'], true)): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te('err_' . $_GET['error']) ?>
+    </div>
+<?php endif; ?>
+
 <?php if (isset($_GET['error']) && $_GET['error'] === 'category_has_items'): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
         <i class="fas fa-exclamation-circle"></i> <?= te('err_category_has_items') ?>
@@ -319,6 +373,7 @@ include __DIR__ . '/../includes/header.php';
                                         <span style="width:42px;height:42px;border-radius:6px;background:var(--bg-light,#f3f4f6);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);"><i class="fas fa-image"></i></span>
                                     <?php endif; ?>
                                     <strong><?= htmlspecialchars($item['name']) ?></strong>
+                                    <?php if (!empty($item['video_url'])): ?><span class="badge badge-info" title="<?= te('video') ?>"><i class="fas fa-film"></i></span><?php endif; ?>
                                 </div>
                             </td>
                             <td class="text-muted"><?= htmlspecialchars(substr($item['description'] ?? '', 0, 50)) ?>...</td>
@@ -350,6 +405,7 @@ include __DIR__ . '/../includes/header.php';
                                             "base_price" => $item["base_price"],
                                             "preparation_time" => $item["preparation_time"],
                                             "station_id" => $item["station_id"] ?? null,
+                                            "video_url" => $item["video_url"] ?? null,
                                         ]), ENT_QUOTES) ?>)'>
                                         <i class="fas fa-edit"></i> <?= te('edit') ?>
                                     </button>
@@ -624,6 +680,12 @@ include __DIR__ . '/../includes/header.php';
                     <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
                     <small class="text-muted d-block"><?= te('photo_hint') ?></small>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-film"></i> <?= te('video_optional') ?></label>
+                    <input type="file" name="video" class="form-control" accept="video/mp4,video/webm,.mp4,.m4v,.webm">
+                    <small class="text-muted d-block"><?= te('video_hint') ?></small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addItemModal')"><?= te('cancel') ?></button>
@@ -691,6 +753,16 @@ include __DIR__ . '/../includes/header.php';
                     <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
                     <small class="text-muted d-block"><?= te('photo_hint') ?></small>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-film"></i> <span id="ei_video_label"><?= te('video_optional') ?></span></label>
+                    <video id="ei_video_preview" controls playsinline preload="metadata" style="width:100%;max-height:220px;border-radius:8px;background:#000;margin-bottom:6px;" hidden></video>
+                    <input type="file" name="video" class="form-control" accept="video/mp4,video/webm,.mp4,.m4v,.webm">
+                    <small class="text-muted d-block"><?= te('video_hint') ?></small>
+                    <label id="ei_video_remove_wrap" style="display:flex;gap:8px;align-items:center;margin-top:6px;cursor:pointer;" hidden>
+                        <input type="checkbox" name="remove_video" value="1" id="ei_video_remove"> <?= te('video_remove') ?>
+                    </label>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('editItemModal')"><?= te('cancel') ?></button>
@@ -750,6 +822,13 @@ function openEditItem(item) {
     document.getElementById('ei_price').value = item.base_price;
     document.getElementById('ei_prep').value = item.preparation_time;
     document.getElementById('ei_station').value = item.station_id ? String(item.station_id) : '';
+    // The dish's video: preview it, replace it or remove it.
+    const vp = document.getElementById('ei_video_preview');
+    vp.hidden = !item.video_url;
+    if (item.video_url) vp.src = item.video_url; else vp.removeAttribute('src');
+    document.getElementById('ei_video_label').textContent = item.video_url ? <?= json_encode(t('video_replace_optional')) ?> : <?= json_encode(t('video_optional')) ?>;
+    document.getElementById('ei_video_remove_wrap').hidden = !item.video_url;
+    document.getElementById('ei_video_remove').checked = false;
     openModal('editItemModal');
 }
 </script>

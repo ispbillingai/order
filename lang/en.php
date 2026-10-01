@@ -1211,4 +1211,12 @@ return [
     'guest_call_sent_name' => 'You called {name}',
     'guest_ready_body_name' => '{dish}: {name} is bringing it.',
     'guest_call_sent_sub_name' => '{name} has your call and will answer shortly.',
+    'video' => 'Video',
+    'video_optional' => 'Dish video (optional)',
+    'video_replace_optional' => 'Replace the video (optional)',
+    'video_hint' => 'MP4 (recommended) or WebM, max 25 MB: plays in any browser and phone with no plugin. Short is best (10-30 seconds).',
+    'video_remove' => 'Remove the video',
+    'err_video_too_big' => 'Video too large: 25 MB max. Shorten it or export it at a lower resolution (e.g. 720p).',
+    'err_video_bad_format' => 'Video format not supported: use MP4 (H.264) or WebM. From a phone: export/share the video as MP4.',
+    'err_video_failed' => 'The video couldn\'t be uploaded. Please try again.',
 ];

@@ -1211,4 +1211,12 @@ return [
     'guest_call_sent_name' => 'Hai chiamato {name}',
     'guest_ready_body_name' => '{dish}: te lo porta {name}.',
     'guest_call_sent_sub_name' => 'La chiamata è arrivata a {name}: tra poco ti risponde.',
+    'video' => 'Video',
+    'video_optional' => 'Video del piatto (opzionale)',
+    'video_replace_optional' => 'Sostituisci il video (opzionale)',
+    'video_hint' => 'MP4 (consigliato) o WebM, max 25 MB: si vede in qualsiasi browser e telefono senza plugin. Meglio un video breve (10-30 secondi).',
+    'video_remove' => 'Rimuovi il video',
+    'err_video_too_big' => 'Video troppo grande: massimo 25 MB. Accorcialo o esportalo a una risoluzione più bassa (es. 720p).',
+    'err_video_bad_format' => 'Formato video non supportato: usa MP4 (H.264) o WebM. Dal telefono: esporta/condividi il video come MP4.',
+    'err_video_failed' => 'Caricamento del video non riuscito. Riprova.',
 ];

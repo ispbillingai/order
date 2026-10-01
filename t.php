@@ -180,6 +180,11 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .shop-item { display: flex; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .shop-item:last-child { border-bottom: 0; }
 .shop-item .info { flex: 1; min-width: 0; }
+.shop-thumb { position: relative; flex: 0 0 auto; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: #f3f4f6; border: 0; padding: 0; }
+.shop-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shop-thumb .pl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.35); font-size: .95rem; }
+.shop-thumb.novideo .pl { display: none; }
+.video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .shop-item .info strong { display: block; }
 .shop-item .info small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
 .shop-item .price { font-weight: 700; white-space: nowrap; }
@@ -330,6 +335,13 @@ $contactsHtml = ob_get_clean(); ?>
 <div class="cart-bar" id="cartBar" hidden>
     <div class="sum"><small id="cartCount"></small><strong id="cartTotal"></strong></div>
     <button onclick="openCart()"><i class="fas fa-basket-shopping"></i> <?= te('self_review_send') ?></button>
+</div>
+<div class="sheet-bg" id="videoSheet" onclick="if (event.target === this) closeDishVideo()">
+    <div class="sheet video-sheet">
+        <h3 id="videoTitle"></h3>
+        <video id="dishVideo" controls playsinline preload="metadata"></video>
+        <div class="row"><button class="btn-no" onclick="closeDishVideo()"><?= te('close') ?></button></div>
+    </div>
 </div>
 <div class="sheet-bg" id="cartSheet" onclick="if (event.target === this) this.classList.remove('on')">
     <div class="sheet">
@@ -524,13 +536,29 @@ function renderShop() {
     const c = shopMenu[shopCat];
     $('shopMenu').innerHTML = c ? `<div class="card">${c.items.map(i => {
         const q = cart[i.id]?.qty || 0;
-        return `<div class="shop-item">
+        const thumb = (i.image || i.video)
+            ? `<button type="button" class="shop-thumb ${i.video ? '' : 'novideo'}" ${i.video ? `onclick="openDishVideo(${i.id})" aria-label="Video"` : 'tabindex="-1"'}>
+                   ${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy">` : ''}<span class="pl"><i class="fas fa-play"></i></span></button>` : '';
+        return `<div class="shop-item">${thumb}
             <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}</div>
             <div class="price">${esc(i.price)}</div>
             <div class="qty">${q ? `<button onclick="cartAdd(${i.id}, -1)" aria-label="-">−</button><span>${q}</span>` : ''}<button class="plus" onclick="cartAdd(${i.id}, 1)" aria-label="+">+</button></div>
         </div>`; }).join('')}</div>` : `<div class="card"><div class="empty"><?= te('no_items_cat') ?></div></div>`;
     renderCartBar();
 }
+// The dish's video in a sheet (MP4 / WebM: the phone plays it, no app needed).
+function openDishVideo(id) {
+    const item = (shopMenu || []).flatMap(c => c.items).find(i => i.id === id);
+    if (!item || !item.video) return;
+    $('videoTitle').textContent = item.name;
+    const v = $('dishVideo');
+    v.src = item.video;
+    if (item.image) v.poster = item.image; else v.removeAttribute('poster');
+    $('videoSheet').classList.add('on');
+    v.play().catch(() => {});
+}
+function closeDishVideo() { const v = $('dishVideo'); v.pause(); v.removeAttribute('src'); v.load(); $('videoSheet').classList.remove('on'); }
+
 function cartAdd(id, d) {
     const l = cart[id] || { qty: 0, note: '' };
     l.qty = Math.max(0, Math.min(20, l.qty + d));

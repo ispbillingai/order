@@ -232,7 +232,7 @@ function openTableRequestsForRole(string $role, ?int $userId = null): array
 function guestMenu(): array
 {
     $rows = getDBConnection()->query("
-        SELECT mc.id AS category_id, mc.name AS category, mi.id, mi.name, mi.description, mi.base_price
+        SELECT mc.id AS category_id, mc.name AS category, mi.id, mi.name, mi.description, mi.base_price, mi.image_url, mi.video_url
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE mi.active = 1 AND mc.active = 1
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
@@ -247,6 +247,8 @@ function guestMenu(): array
             'description' => (string) $r['description'],
             'price'       => formatCurrency($r['base_price']),
             'amount'      => (float) $r['base_price'],
+            'image'       => $r['image_url'] ?: null,
+            'video'       => $r['video_url'] ?: null,
         ];
     }
     return array_values($menu);

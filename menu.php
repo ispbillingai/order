@@ -776,6 +776,10 @@ $currency = __('currency');
             overflow: hidden;
         }
 
+        .dish-play { position: absolute; inset: 0; margin: auto; width: 64px; height: 64px; border-radius: 50%; border: 0; z-index: 2;
+                     background: rgba(0,0,0,.55); color: #fff; font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding-left: 4px; }
+        .dish-play:hover { background: rgba(0,0,0,.75); }
+        .menu-card-image video { width: 100%; height: 100%; object-fit: cover; background: #000; position: relative; z-index: 3; }
         .menu-card-image img {
             width: 100%;
             height: 100%;
@@ -1141,9 +1145,15 @@ $currency = __('currency');
                     ?>
                         <article class="menu-card fade-in">
                             <div class="menu-card-image">
-                                <img src="<?= htmlspecialchars($imageUrl) ?>" 
+                                <img src="<?= htmlspecialchars($imageUrl) ?>"
                                      alt="<?= htmlspecialchars($item['name']) ?>"
                                      loading="lazy">
+                                <?php if (!empty($item['video_url'])): ?>
+                                    <!-- The dish's video: the browser plays it (MP4 / WebM), no plugin -->
+                                    <button type="button" class="dish-play" onclick="playDishVideo(this, <?= htmlspecialchars(json_encode($item['video_url']), ENT_QUOTES) ?>)" aria-label="Video">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                <?php endif; ?>
                                 <?php if ($item['preparation_time'] <= 10): ?>
                                     <span class="menu-card-badge"><?= __('quick_serve') ?></span>
                                 <?php endif; ?>
@@ -1316,5 +1326,18 @@ $currency = __('currency');
             document.querySelector('#menu').scrollIntoView({ behavior: 'smooth' });
         });
     </script>
+<script>
+// The dish's video in place of its photo (plays inline on phones too).
+function playDishVideo(btn, src) {
+    const box = btn.parentElement;
+    const img = box.querySelector('img');
+    const v = document.createElement('video');
+    v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', '');
+    if (img) v.poster = img.src;
+    box.querySelectorAll('img, .dish-play, .menu-card-badge').forEach(el => el.remove());
+    box.appendChild(v);
+    v.play().catch(() => {});
+}
+</script>
 </body>
 </html>
