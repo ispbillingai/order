@@ -297,7 +297,7 @@ include __DIR__ . '/../includes/header.php';
     <div><strong><?= te('room') ?>:</strong> <?= htmlspecialchars($order['room_name']) ?></div>
     <div><strong><?= te('guests') ?>:</strong> <?= $order['number_of_people'] ?></div>
     <div><strong><?= te('waiter') ?>:</strong> <?= htmlspecialchars($order['waiter_name']) ?></div>
-    <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true)): ?>
+    <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true) && empty($order['created_by_guest'])): // guest orders: no waiter alerts ?>
         <div class="d-flex align-center gap-sm ready-notify-pick">
             <strong><i class="fas fa-bell-concierge"></i> <?= te('ready_notify_label') ?>:</strong>
             <select class="form-control form-control-sm" style="width:auto;max-width:340px;padding:4px 8px;" onchange="setReadyNotify(this)">

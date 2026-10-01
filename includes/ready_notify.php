@@ -69,6 +69,15 @@ function readyNotifyRecipients(array $order): array
     }
     $own = [(int) $order['waiter_id']];
 
+    // A guest's own order (table QR): the waiters aren't told — the guest sees it on their page.
+    $guestOrder = !empty($order['created_by_guest']);
+    if (!$guestOrder && !empty($order['parent_order_id'])) {
+        $stmt = $pdo->prepare("SELECT created_by_guest FROM orders WHERE id = ?");
+        $stmt->execute([$order['parent_order_id']]);
+        $guestOrder = (bool) $stmt->fetchColumn();
+    }
+    if ($guestOrder) return [];
+
     if ($choice === 'order_waiter') return $own;
     if ($choice === 'all') return allWaiterIds() ?: $own;
     if ($choice && preg_match('/^user:(\d+)$/', $choice, $m) && isset(readyNotifyStaff()[(int) $m[1]])) return [(int) $m[1]];
@@ -111,21 +120,12 @@ function tableFreedText(array $i): array
     return [t('table_free_title'), t('table_free_msg', ['table' => $tables])];
 }
 
-/** "Table 4 · Room: 3 dishes ordered by the guest" in the reader's language. */
-function selfOrderNotifText(array $i): array
-{
-    $table = $i['table'] . (!empty($i['room']) ? ' · ' . $i['room'] : '');
-    return [t(!empty($i['addition']) ? 'self_new_order_more_title' : 'self_new_order_title'),
-            t('self_new_order_msg', ['table' => $table, 'n' => (int) ($i['dishes'] ?? 0)])];
-}
-
 /** A notification row with title/message in the reader's language (when it can be). */
 function localizeNotification(array $n): array
 {
     $p = json_decode((string) ($n['payload'] ?? ''), true);
     if (is_array($p) && isset($p['ready'])) [$n['title'], $n['message']] = readyNotifText($p['ready']);
     if (is_array($p) && isset($p['freed'])) [$n['title'], $n['message']] = tableFreedText($p['freed']);
-    if (is_array($p) && isset($p['self'])) [$n['title'], $n['message']] = selfOrderNotifText($p['self']);
     return $n;
 }
 
@@ -175,7 +175,7 @@ function recentReadyAlerts(int $userId): array
 {
     $stmt = getDBConnection()->prepare("
         SELECT id, type, title, message, payload FROM notifications
-        WHERE user_id = ? AND type IN ('dish_ready', 'table_free', 'new_order') AND read_at IS NULL AND created_at > NOW() - INTERVAL 10 MINUTE
+        WHERE user_id = ? AND type IN ('dish_ready', 'table_free') AND read_at IS NULL AND created_at > NOW() - INTERVAL 10 MINUTE
         ORDER BY id DESC LIMIT 5
     ");
     $stmt->execute([$userId]);
@@ -183,6 +183,6 @@ function recentReadyAlerts(int $userId): array
         $r = localizeNotification($r);
         $p = json_decode((string) $r['payload'], true) ?: [];
         return ['id' => (int) $r['id'], 'type' => $r['type'], 'title' => $r['title'], 'message' => $r['message'],
-                'order_id' => in_array($r['type'], ['dish_ready', 'new_order'], true) ? (int) ($p['order_id'] ?? 0) : 0];
+                'order_id' => $r['type'] === 'dish_ready' ? (int) ($p['order_id'] ?? 0) : 0];
     }, $stmt->fetchAll());
 }

@@ -1529,7 +1529,6 @@ textarea.form-control {
 }
 .ready-alert > i { font-size: 1.6rem; }
 .ready-alert.table-free { background: #2563eb; }
-.ready-alert.guest-order { background: #ea580c; }
 .ready-alert .ra-text { flex: 1; min-width: 0; }
 .ready-alert .ra-text strong { display: block; }
 .ready-alert .ra-text span { font-size: .9rem; }

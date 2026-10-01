@@ -7,9 +7,9 @@
  * dishes and send them to the kitchen exactly like the waiter does
  * (sendPendingToKitchen), then see the usual table page (bill, waiter, change).
  *
- * The order belongs to a system "Guest (QR)" user; the waiters chosen in
- * Settings get the "new order" and "dish ready" alerts, and every waiter the
- * "table free" one once it is paid.
+ * The order belongs to a system "Guest (QR)" user. The waiters get no alert
+ * while the guest orders (no "new order", no "dish ready": the guest is told
+ * on their own page); only "table free, clear it" once it is paid.
  */
 
 require_once __DIR__ . '/functions.php';
@@ -25,12 +25,11 @@ const SELF_CODE_GAP       = 60;  // a new code at most once a minute
 const SELF_CODE_MAX_SENDS = 5;   // codes per table per browser session
 const SELF_CODE_MAX_TRIES = 5;   // wrong codes before a new one is needed
 
-/** ['enabled' => bool, 'notify' => 'all' | 'user:<id>'] */
+/** ['enabled' => bool] */
 function selfOrderSettings(): array
 {
     $s = (array) getSetting('self_order', []);
-    $notify = (string) ($s['notify'] ?? 'all');
-    return ['enabled' => !empty($s['enabled']), 'notify' => preg_match('/^(all|user:\d+)$/', $notify) ? $notify : 'all'];
+    return ['enabled' => !empty($s['enabled'])];
 }
 
 /** On, and WhatsApp can carry the code. */
@@ -50,14 +49,6 @@ function selfOrderUserId(): int
         $id = (int) $pdo->lastInsertId();
     }
     return $id;
-}
-
-/** The waiters told about guest orders (new order, dish ready). */
-function selfOrderWaiterIds(): array
-{
-    $n = selfOrderSettings()['notify'];
-    if (preg_match('/^user:(\d+)$/', $n, $m) && isset(readyNotifyStaff()[(int) $m[1]])) return [(int) $m[1]];
-    return allWaiterIds();
 }
 
 /**
@@ -137,12 +128,11 @@ function selfOrderVerify(array $table, string $code): array
     $cover = (float) ($pdo->query("SELECT cover_charge FROM workspaces LIMIT 1")->fetchColumn() ?: COVER_CHARGE_DEFAULT);
     $pdo->prepare("
         INSERT INTO orders (order_number, table_id, room_id, waiter_id, number_of_people, cover_charge_per_person, status,
-                            customer_name, customer_city, customer_country, customer_phone, guest_code, created_by_guest, ready_notify)
-        VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, 1, ?)
+                            customer_name, customer_city, customer_country, customer_phone, guest_code, created_by_guest)
+        VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, 1)
     ")->execute([
         generateOrderNumber(), $tid, $table['room_id'], selfOrderUserId(), $r['people'], $cover,
         trim($r['name'] . ' ' . $r['surname']), $r['city'], $r['country'], $r['phone'], $r['code'],
-        selfOrderSettings()['notify'],
     ]);
     $orderId = (int) $pdo->lastInsertId();
     $pdo->prepare("UPDATE tables_restaurant SET status = 'occupied', current_order_id = ?, needs_reset_at = NULL WHERE id = ?")
@@ -191,14 +181,7 @@ function selfOrderSend(array $order, array $cart): array
     }
     if (!$n) return ['error' => 'self_err_empty'];
     calculateOrderTotals((int) $order['id']);
-    $sent = sendPendingToKitchen((int) $order['id']);
-
-    // The waiters in charge: a guest order has arrived (pop-up + sound).
-    foreach (selfOrderWaiterIds() as $uid) {
-        $info = ['table' => $order['table_number'], 'room' => $order['room_name'], 'dishes' => $n, 'addition' => $sent['addition']];
-        [$title, $msg] = selfOrderNotifText($info);
-        createNotification($uid, 'new_order', $title, $msg, null, ['order_id' => (int) $order['id'], 'self' => $info]);
-    }
+    sendPendingToKitchen((int) $order['id']);   // no alert to the waiters: only "table free" once paid
     logActivity('self_order_sent', 'orders', (int) $order['id'], ['dishes' => $n]);
     return ['ok' => $n];
 }

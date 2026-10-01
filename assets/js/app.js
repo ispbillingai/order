@@ -68,7 +68,7 @@ function renderNotifications(notifications) {
     const orderOf = n => { try { return (JSON.parse(n.payload || '{}') || {}).order_id || 0; } catch (e) { return 0; } };
     list.innerHTML = notifications.map(n => `
         <div class="notification-item ${n.read_at ? '' : 'unread'}" data-id="${n.id}"
-             ${orderOf(n) && (n.type === 'dish_ready' || n.type === 'new_order') ?  `style="cursor:pointer" onclick="location.href='/waiter/order.php?order=${parseInt(orderOf(n), 10)}'"` : ''}>
+             ${orderOf(n) && n.type === 'dish_ready' ?   `style="cursor:pointer" onclick="location.href='/waiter/order.php?order=${parseInt(orderOf(n), 10)}'"` : ''}>
             <div class="title">${escapeHtml(n.title)}</div>
             <div class="message">${escapeHtml(n.message)}</div>
             <div class="time">${formatTimeAgo(n.created_at)}</div>
@@ -571,9 +571,9 @@ function showReadyAlerts(alerts) {
     const L = window.REQ_I18N || {};
     fresh.reverse().forEach(a => {
         const el = document.createElement('div');
-        el.className = 'ready-alert' + (a.type === 'table_free' ? ' table-free' : a.type === 'new_order' ? ' guest-order' : '');
+        el.className = 'ready-alert' + (a.type === 'table_free' ? ' table-free' : '');
         el.innerHTML = `
-            <i class="fas ${a.type === 'table_free' ? 'fa-broom' : a.type === 'new_order' ? 'fa-mobile-screen' : 'fa-bell-concierge'}"></i>
+            <i class="fas ${a.type === 'table_free' ? 'fa-broom' : 'fa-bell-concierge'}"></i>
             <div class="ra-text"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.message)}</span></div>
             ${a.order_id ? `<a class="btn btn-sm" href="/waiter/order.php?order=${a.order_id}">${escapeHtml(L.open_order || 'Open')}</a>` : ''}
             ${a.type === 'table_free' ? `<a class="btn btn-sm" href="/waiter/index.php">${escapeHtml(L.tables || 'Tables')}</a>` : ''}

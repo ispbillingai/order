@@ -155,9 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Guests ordering by themselves from the table page.
     if ($action === 'update_self_order') {
-        $notify = (string) ($_POST['self_notify'] ?? 'all');
-        if (!preg_match('/^user:(\d+)$/', $notify, $m) || !isset(readyNotifyStaff()[(int) $m[1]])) $notify = 'all';
-        setSetting('self_order', ['enabled' => !empty($_POST['self_enabled']), 'notify' => $notify]);
+        setSetting('self_order', ['enabled' => !empty($_POST['self_enabled'])]);
         logActivity('self_order_settings_saved', 'settings', null, ['enabled' => !empty($_POST['self_enabled'])]);
         header('Location: /admin/settings.php?success=saved#selforder');
         exit;
@@ -609,16 +607,7 @@ function renumberLoyalty() {
                 <input type="checkbox" name="self_enabled" value="1" <?= $selfSet['enabled'] ? 'checked' : '' ?> style="width:20px;height:20px;">
                 <strong><?= te('self_settings_enable') ?></strong>
             </label>
-            <div class="form-group">
-                <label class="form-label"><?= te('self_settings_notify') ?></label>
-                <select name="self_notify" class="form-control">
-                    <option value="all"><?= te('ready_mode_all') ?></option>
-                    <?php foreach (readyNotifyStaff() as $uid => $uname): ?>
-                        <option value="user:<?= (int) $uid ?>" <?= $selfSet['notify'] === 'user:' . $uid ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <small class="text-muted"><?= te('self_settings_notify_hint') ?></small>
-            </div>
+            <p class="text-muted" style="font-size:.85rem;margin:0;"><i class="fas fa-circle-info"></i> <?= te('self_settings_waiters') ?></p>
         </div>
         <div class="card-footer">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
