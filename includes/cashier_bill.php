@@ -9,6 +9,7 @@
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/devices.php';
 require_once __DIR__ . '/ThermalPrinter.php';
+require_once __DIR__ . '/tips.php';
 
 /**
  * @return array{ok:bool, error?:string, bytes?:int}
@@ -69,7 +70,7 @@ function printCashierBillForOrder(int $orderId, ?array $order = null): array
         'order_label'  => 'Ordine',
         'order_number' => (string) ($order['order_number'] ?? ''),
         'waiter_label' => 'Cameriere',
-        'waiter'       => (string) ($order['waiter_name'] ?? ''),
+        'waiter'       => orderWaiterName($order),   // a guest's own order: the waiter who took the table
         'time'         => date('d/m/Y H:i'),
         'currency'     => $sym,
         'items'        => $lineItems,
@@ -79,6 +80,11 @@ function printCashierBillForOrder(int $orderId, ?array $order = null): array
         'total'        => number_format((float) $order['total'], 2),
         'note'         => 'Documento non fiscale - non valido ai fini fiscali',
     ];
+    // The table's waiter takes tips on PayPal: a QR on the bill.
+    if ($tip = orderTipTarget($orderId)) {
+        $ticket['tip_label'] = t('tip_print_line', ['name' => $tip['name']]);
+        $ticket['tip_url']   = $tip['url'];
+    }
 
     $res = $printer->printBill($ticket);
     logDeviceEvent('system', 'cashier_bill', $orderId, [

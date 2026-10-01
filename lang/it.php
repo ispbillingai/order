@@ -1226,4 +1226,13 @@ return [
     'msg_component_deleted' => 'Componente eliminato.',
     'photo_remove' => 'Rimuovi la foto',
     'component_delete_confirm' => 'Eliminare questo componente dal piatto?',
+    // Mance PayPal
+    'user_paypal' => 'PayPal per le mance',
+    'user_paypal_hint' => 'Il nome PayPal.me del cameriere (o il link intero). Il link e il QR per la mancia arrivano al cliente con il conto su WhatsApp, sullo scontrino e nella pagina del tavolo.',
+    'err_bad_paypal' => 'Nome PayPal.me non valido: scrivi solo il nome (es. nomecognome) o il link paypal.me/nomecognome.',
+    'tip_wa_line' => '💶 Ti è piaciuto il servizio? Puoi lasciare una mancia a {name}:',
+    'tip_print_line' => 'Lascia una mancia a {name}',
+    'tip_guest_title' => 'Lascia una mancia a {name}',
+    'tip_guest_hint' => 'Facoltativa: va direttamente al tuo cameriere, con PayPal.',
+    'tip_guest_button' => 'Mancia con PayPal',
 ];

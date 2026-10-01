@@ -191,6 +191,8 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .cart-line .top strong small.mods { display: block; font-weight: 400; font-size: .8rem; color: var(--muted); }
 .cart-line .lp { font-weight: 700; white-space: nowrap; }
 .pick .comp-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; }
+.tip-card h2 span { vertical-align: middle; }
+.tip-btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: 12px; background: #0070BA; color: #fff; font-weight: 700; text-decoration: none; }
 .custom-qty { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-weight: 700; }
 .video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .shop-item .info strong { display: block; }
@@ -401,6 +403,12 @@ $contactsHtml = ob_get_clean(); ?>
         <div id="dishes"><div class="empty"><?= te('loading') ?></div></div>
         <div class="total" id="totalRow" hidden><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
         <p class="bill-wait" id="billWait" hidden><i class="fas fa-hourglass-half"></i> <?= te('guest_bill_not_ready') ?></p>
+    </div>
+    <!-- Tip to the table's waiter (PayPal), at the end of the meal -->
+    <div class="card tip-card" id="tipCard" hidden>
+        <h2><i class="fab fa-paypal" style="color:#003087;"></i> <span id="tipTitle"></span></h2>
+        <p class="hint-small" style="margin:0 0 12px;"><?= te('tip_guest_hint') ?></p>
+        <a class="tip-btn" id="tipLink" href="#" target="_blank" rel="noopener"><i class="fab fa-paypal"></i> <?= te('tip_guest_button') ?></a>
     </div>
     <?= $menuHtml ?>
     <?= $contactsHtml ?>
@@ -735,6 +743,12 @@ function render(s) {
     renderConsent(s.consent);
 
     renderCallBanner(s.call);
+    // Tip: once the bill can be asked for (the meal is at its end).
+    $('tipCard').hidden = !(s.tip && s.bill_ready);
+    if (s.tip) {
+        $('tipTitle').textContent = <?= json_encode(t('tip_guest_title')) ?>.replace('{name}', s.tip.name);
+        $('tipLink').href = s.tip.url;
+    }
 
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
     $('requestsCard').hidden = !s.requests.length;

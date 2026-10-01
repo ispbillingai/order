@@ -176,7 +176,7 @@ $workspace = $stmt->fetch();
         </div>
         <div class="info-row">
             <span><?= te('server') ?>:</span>
-            <span><?= htmlspecialchars($order['waiter_name']) ?></span>
+            <span><?php require_once __DIR__ . '/../includes/tips.php'; echo htmlspecialchars(orderWaiterName($order) ?: '—'); ?></span>
         </div>
     </div>
     
@@ -247,6 +247,23 @@ $workspace = $stmt->fetch();
         </div>
     <?php endif; ?>
     
+    <?php require_once __DIR__ . '/../includes/tips.php';
+    if ($tip = orderTipTarget((int) $order['id'])): ?>
+        <!-- Tip to the table's waiter: QR to their PayPal -->
+        <div class="tip" style="text-align:center;margin-top:14px;padding-top:10px;border-top:1px dashed #000;">
+            <p style="font-weight:bold;"><?= te('tip_print_line', ['name' => $tip['name']]) ?></p>
+            <div id="tipQr" data-url="<?= htmlspecialchars($tip['url']) ?>" style="display:flex;justify-content:center;margin:8px 0;"></div>
+            <p style="font-size:11px;"><?= htmlspecialchars($tip['url']) ?></p>
+        </div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+        (function () {
+            const el = document.getElementById('tipQr');
+            try { new QRCode(el, { text: el.dataset.url, width: 130, height: 130, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
+        })();
+        </script>
+    <?php endif; ?>
+
     <div class="footer">
         <p><?= te('thank_visiting') ?></p>
         <p><?= te('come_again') ?></p>

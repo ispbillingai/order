@@ -183,7 +183,10 @@ function renderGuestBill(array $bill, string $lang): string
         '*' . tIn($lang, 'wa_bill_total') . ': ' . $money($bill['total']) . '*',
         '',
         '_' . tIn($lang, 'wa_bill_note') . '_',
-    ]);
+    ]) . (!empty($bill['tip'])
+        // The table's waiter takes tips on PayPal: the link, ready to tap.
+        ? "\n\n" . tIn($lang, 'tip_wa_line', ['name' => $bill['tip']['name']]) . "\n" . $bill['tip']['url']
+        : '');
 }
 
 /** The whole bill of an order (the table's, or a seat bill already split off). */
@@ -204,7 +207,15 @@ function guestBillText(int $orderId, string $lang): string
         'subtotal'     => (float) $order['subtotal'],
         'discount'     => (float) $order['discount_amount'],
         'total'        => (float) $order['total'],
+        'tip'          => guestBillTip($orderId),
     ], $lang);
+}
+
+/** The table's waiter's PayPal link for the bill, or null. */
+function guestBillTip(int $orderId): ?array
+{
+    require_once __DIR__ . '/tips.php';
+    return orderTipTarget($orderId);
 }
 
 /**
@@ -234,6 +245,7 @@ function guestSeatBillText(int $tableOrderId, int $seat, string $lang): string
         'table' => $order['table_number'], 'order_number' => $order['order_number'], 'seat' => $seat,
         'items' => $items, 'people' => $people, 'cover_per' => $coverPer,
         'subtotal' => $total, 'discount' => 0.0, 'total' => $total,
+        'tip' => guestBillTip($tableOrderId),
     ], $lang);
 }
 

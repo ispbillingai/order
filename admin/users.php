@@ -54,10 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /admin/users.php?error=bad_email');
             exit;
         }
+        // PayPal.me for the guests' tips (a name or the link, both accepted).
+        require_once __DIR__ . '/../includes/tips.php';
+        $paypal = normalizePaypalMe((string) ($_POST['paypal_me'] ?? ''));
+        if ($paypal === false) {
+            header('Location: /admin/users.php?error=bad_paypal');
+            exit;
+        }
         $phone = userPhoneFromPost();
-        $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ?, phone_country = ? WHERE id = ?")
+        $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ?, phone_country = ?, paypal_me = ? WHERE id = ?")
             ->execute([trim($_POST['full_name'] ?? '') ?: $_POST['username_fallback'], $email ?: null, $phone,
-                       $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null, (int) $_POST['user_id']]);
+                       $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null, $paypal, (int) $_POST['user_id']]);
         logActivity('user_contacts_updated', 'users', (int) $_POST['user_id']);
         header('Location: /admin/users.php?success=contacts_updated');
         exit;
@@ -137,6 +144,11 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
+<?php if (($_GET['error'] ?? '') === 'bad_paypal'): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
+        <i class="fas fa-exclamation-circle"></i> <?= te('err_bad_paypal') ?>
+    </div>
+<?php endif; ?>
 <?php if (in_array($_GET['error'] ?? '', ['bad_phone', 'bad_email'], true)): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
         <i class="fas fa-exclamation-circle"></i> <?= te($_GET['error'] === 'bad_phone' ? 'cust_bad_phone' : 'err_bad_email') ?>
@@ -189,6 +201,9 @@ include __DIR__ . '/../includes/header.php';
                         <?php if ($user['phone']): ?>
                             <div class="flag-font"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= countryFlag($user['phone_country'] ?: 'IT') ?> <?= htmlspecialchars($user['phone']) ?></div>
                         <?php endif; ?>
+                        <?php if (!empty($user['paypal_me'])): ?>
+                            <div><i class="fab fa-paypal" style="color:#003087;"></i> <a href="https://paypal.me/<?= htmlspecialchars(rawurlencode($user['paypal_me'])) ?>" target="_blank" rel="noopener">paypal.me/<?= htmlspecialchars($user['paypal_me']) ?></a></div>
+                        <?php endif; ?>
                         <?php if (!$user['email'] || !$user['phone']): ?>
                             <div class="text-muted" style="font-size:.75rem;"><i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> <?= te('user_no_reset') ?></div>
                         <?php endif; ?>
@@ -205,7 +220,8 @@ include __DIR__ . '/../includes/header.php';
                             <button class="btn btn-sm btn-outline" onclick='openContacts(<?= htmlspecialchars(json_encode([
                                 "id" => (int) $user["id"], "username" => $user["username"], "full_name" => $user["full_name"],
                                 "email" => $user["email"] ?? "", "country" => $user["phone_country"] ?: "IT",
-                                "phone" => $user["phone"] ? nationalPhone($user["phone_country"] ?: "IT", $user["phone"]) : ""]), ENT_QUOTES) ?>)' title="<?= te('user_contacts') ?>">
+                                "phone" => $user["phone"] ? nationalPhone($user["phone_country"] ?: "IT", $user["phone"]) : "",
+                                "paypal" => $user["paypal_me"] ?? "", "role" => $user["role"]]), ENT_QUOTES) ?>)' title="<?= te('user_contacts') ?>">
                                 <i class="fas fa-address-card"></i> <?= te('user_contacts') ?>
                             </button>
                             <button class="btn btn-sm btn-outline" onclick="openResetModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" title="<?= te('reset_password') ?>">
@@ -327,6 +343,14 @@ include __DIR__ . '/../includes/header.php';
                         <input type="tel" name="phone" id="ctPhone" class="form-control" placeholder="333 123 4567">
                     </div>
                 </div>
+                <div class="form-group" id="ctPaypalWrap">
+                    <label class="form-label"><i class="fab fa-paypal" style="color:#003087;"></i> <?= te('user_paypal') ?></label>
+                    <div class="d-flex gap-sm" style="align-items:center;">
+                        <span class="text-muted" style="white-space:nowrap;">paypal.me/</span>
+                        <input type="text" name="paypal_me" id="ctPaypal" class="form-control" maxlength="120" placeholder="nomecognome" autocomplete="off">
+                    </div>
+                    <small class="text-muted d-block"><?= te('user_paypal_hint') ?></small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('contactsModal')"><?= te('cancel') ?></button>
@@ -372,6 +396,9 @@ function openContacts(u) {
     document.getElementById('ctEmail').value = u.email;
     document.getElementById('ctCountry').value = u.country || 'IT';
     document.getElementById('ctPhone').value = u.phone;
+    document.getElementById('ctPaypal').value = u.paypal || '';
+    // Tips go to waiters (and an admin who serves).
+    document.getElementById('ctPaypalWrap').hidden = !['waiter', 'admin'].includes(u.role);
     openModal('contactsModal');
 }
 </script>

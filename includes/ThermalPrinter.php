@@ -258,9 +258,30 @@ class ThermalPrinter
             $out .= $this->enc((string) $t['note']) . self::LF;
         }
 
+        // Tip to the waiter: a line and a QR with the PayPal link.
+        if (!empty($t['tip_url'])) {
+            $out .= self::LF . self::ESC . 'a' . "\x01";
+            $out .= $this->enc((string) ($t['tip_label'] ?? '')) . self::LF;
+            $out .= $this->qr((string) $t['tip_url']);
+            $out .= $this->enc((string) $t['tip_url']) . self::LF;
+        }
+
         $out .= str_repeat(self::LF, 4);
         $out .= self::GS . 'V' . "\x01";
         return $out;
+    }
+
+    /** ESC/POS QR code (GS ( k), model 2, size 6, error level M, printed centred. */
+    private function qr(string $data): string
+    {
+        $len = strlen($data) + 3;
+        $pL  = chr($len % 256); $pH = chr(intdiv($len, 256));
+        return self::GS . "(k\x04\x00\x31\x41\x32\x00"     // model 2
+             . self::GS . "(k\x03\x00\x31\x43\x06"         // module size 6
+             . self::GS . "(k\x03\x00\x31\x45\x31"         // error correction M
+             . self::GS . '(k' . $pL . $pH . "\x31\x50\x30" . $data   // store
+             . self::GS . "(k\x03\x00\x31\x51\x30"         // print
+             . self::LF;
     }
 
     /** Left text + right-aligned value on one $w-char line. */

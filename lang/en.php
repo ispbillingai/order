@@ -1226,4 +1226,13 @@ return [
     'msg_component_deleted' => 'Component deleted.',
     'photo_remove' => 'Remove the photo',
     'component_delete_confirm' => 'Delete this component from the dish?',
+    // Mance PayPal
+    'user_paypal' => 'PayPal for tips',
+    'user_paypal_hint' => 'The waiter\'s PayPal.me name (or the whole link). The tip link and QR reach the guest with the bill on WhatsApp, on the receipt and on the table page.',
+    'err_bad_paypal' => 'Invalid PayPal.me name: write just the name (e.g. firstlast) or the link paypal.me/firstlast.',
+    'tip_wa_line' => '💶 Enjoyed the service? You can leave a tip for {name}:',
+    'tip_print_line' => 'Leave a tip for {name}',
+    'tip_guest_title' => 'Leave a tip for {name}',
+    'tip_guest_hint' => 'Optional: it goes straight to your waiter, with PayPal.',
+    'tip_guest_button' => 'Tip with PayPal',
 ];

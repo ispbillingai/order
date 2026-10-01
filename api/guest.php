@@ -168,10 +168,18 @@ function guestState(array $table): array
         }
     }
 
+    // Tip to the table's waiter (PayPal), offered once the meal is at its end.
+    $tip = null;
+    if ($order) {
+        require_once __DIR__ . '/../includes/tips.php';
+        $tip = orderTipTarget((int) $order['id']);
+    }
+
     return [
         'success'  => true,
         'consent'  => $consent,
         'waiter_name' => $waiterName,
+        'tip'      => $tip,
         // Guest ordering: this order takes dishes from the table page.
         'can_order'=> selfOrderCanOrder($order),
         'bill_ready' => guestBillReady($items),
