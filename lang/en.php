@@ -1188,4 +1188,9 @@ return [
     'self_settings_needs_wa' => 'WhatsApp (TextMeBot) must be active: the code is sent on WhatsApp.',
     'self_settings_enable' => 'Let guests order from the table\'s QR',
     'self_settings_waiters' => 'While the guest orders the waiters get no alerts (the guest sees on their phone when dishes are ready): once paid they only get the alert to clear and lay the table. The orders belong to the "Guest (QR)" waiter and can still be opened and managed.',
+    'layout_label' => 'Layout',
+    'layout_desktop' => 'PC layout',
+    'layout_tablet' => 'Tablet layout',
+    'layout_phone' => 'Phone layout',
+    'layout_back_auto' => 'click again for the automatic layout',
 ];

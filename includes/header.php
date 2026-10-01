@@ -16,12 +16,20 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PC / tablet / phone layout chosen from the header icons: applied before the page draws -->
+    <script src="/assets/js/layout-mode.js?v=<?= @filemtime(__DIR__ . '/../assets/js/layout-mode.js') ?>"></script>
     <title><?= sanitize($pageTitle) ?> - <?= te('app_name') ?></title>
     <style>
         .lang-switch { display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(255,255,255,.28); border-radius:999px; margin-right:10px; background:rgba(255,255,255,.06); }
         .lang-switch a { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none; color:rgba(255,255,255,.85); }
         .lang-switch a:hover { color:#fff; }
         .lang-switch a.active { background:var(--primary,#e74c3c); color:#fff; }
+        /* PC / tablet / phone layout (assets/js/layout-mode.js) */
+        .layout-switch { display:inline-flex; gap:2px; padding:3px; border:1px solid rgba(255,255,255,.28); border-radius:999px; background:rgba(255,255,255,.06); }
+        .layout-switch button { border:0; background:none; color:rgba(255,255,255,.75); width:30px; height:26px; border-radius:999px; cursor:pointer; font-size:13px; }
+        .layout-switch button:hover { color:#fff; }
+        .layout-switch button.active { background:var(--primary,#e74c3c); color:#fff; }
+        .layout-switch button.auto { box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
         /* Admin sidebar layout */
         .app-body { display:flex; align-items:stretch; }
         .app-body > .main-content { flex:1 1 auto; min-width:0; }
@@ -30,7 +38,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
         .admin-sidebar a i { width:18px; text-align:center; }
         .admin-sidebar a:hover { background:rgba(255,255,255,.08); color:#fff; }
         .admin-sidebar a.active { background:var(--primary,#e74c3c); color:#fff; }
-        @media (max-width:900px){ .app-body{flex-direction:column;} .admin-sidebar{flex:none;width:auto;min-height:0;display:flex;flex-wrap:wrap;} }
+        @media (max-width:1024px){ .app-body{flex-direction:column;} .admin-sidebar{flex:none;width:auto;min-height:0;display:flex;flex-wrap:wrap;} }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,6 +86,11 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
         </div>
         
         <div class="nav-user">
+            <div class="layout-switch" role="group" aria-label="<?= te('layout_label') ?>">
+                <button type="button" data-layout="desktop" title="<?= te('layout_desktop') ?>" onclick="setLayoutMode('desktop')"><i class="fas fa-desktop"></i></button>
+                <button type="button" data-layout="tablet" title="<?= te('layout_tablet') ?>" onclick="setLayoutMode('tablet')"><i class="fas fa-tablet-screen-button"></i></button>
+                <button type="button" data-layout="phone" title="<?= te('layout_phone') ?>" onclick="setLayoutMode('phone')"><i class="fas fa-mobile-screen-button"></i></button>
+            </div>
             <div class="lang-switch" aria-label="<?= te('language') ?>">
                 <?php foreach (langLabels() as $label => $code): ?>
                     <a href="<?= htmlspecialchars(langSwitchUrl($code)) ?>" class="<?= $code === currentLang() ? 'active' : '' ?>"><?= $label ?></a>

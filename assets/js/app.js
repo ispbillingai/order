@@ -626,3 +626,17 @@ document.addEventListener('app:update', e => {
     const changed = now.length !== w.shown.length || now.some(id => !w.shown.includes(id));
     if (changed && !document.querySelector('.modal-overlay.active')) location.reload();
 });
+
+// Header icons PC / tablet / phone: the chosen layout is filled; when none is
+// chosen (automatic) the one matching this screen is outlined. Clicking the
+// chosen one again goes back to automatic.
+document.addEventListener('DOMContentLoaded', () => {
+    const w = window.innerWidth;
+    const detected = w <= 768 ? 'phone' : w <= 1024 ? 'tablet' : 'desktop';
+    const chosen = window.layoutMode || null;
+    document.querySelectorAll('.layout-switch [data-layout]').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === chosen);
+        b.classList.toggle('auto', !chosen && b.dataset.layout === detected);
+        if (b.dataset.layout === chosen) b.title += ' — ' + ((window.REQ_I18N || {}).layout_auto || '');
+    });
+});

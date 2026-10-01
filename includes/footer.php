@@ -26,6 +26,7 @@
         'open_order'  => t('ready_open_order'),
         'tables'      => t('tables_btn'),
         'laid_done'   => t('table_laid_done'),
+        'layout_auto' => t('layout_back_auto'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?php endif; ?>

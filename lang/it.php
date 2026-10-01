@@ -1188,4 +1188,9 @@ return [
     'self_settings_needs_wa' => 'Serve WhatsApp (TextMeBot) attivo: il codice arriva su WhatsApp.',
     'self_settings_enable' => 'Permetti ai clienti di ordinare dal QR del tavolo',
     'self_settings_waiters' => 'Mentre il cliente ordina i camerieri non ricevono avvisi (il cliente vede sul telefono quando i piatti sono pronti): quando ha pagato ricevono solo l\'avviso di ripulire e riordinare il tavolo. Gli ordini risultano del cameriere "Cliente (QR)" e si possono comunque aprire e gestire.',
+    'layout_label' => 'Visualizzazione',
+    'layout_desktop' => 'Visualizzazione PC',
+    'layout_tablet' => 'Visualizzazione tablet',
+    'layout_phone' => 'Visualizzazione telefono',
+    'layout_back_auto' => 'clicca di nuovo per la visualizzazione automatica',
 ];
