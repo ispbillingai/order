@@ -54,6 +54,27 @@ function selfOrderUserId(): int
 }
 
 /**
+ * A returning guest, by phone: the details they left last time (name, city,
+ * country) from their latest visit, or null. Only used after the WhatsApp
+ * code proved the number is theirs (nothing is shown before).
+ */
+function selfCustomerLookup(string $phone): ?array
+{
+    $stmt = getDBConnection()->prepare("
+        SELECT name, city, country FROM (
+            SELECT o.customer_name AS name, o.customer_city AS city, o.customer_country AS country, o.created_at AS at
+            FROM orders o WHERE o.customer_phone = ? AND o.customer_name IS NOT NULL AND o.status <> 'cancelled'
+            UNION ALL
+            SELECT sg.customer_name, NULL, sg.customer_country, o.created_at
+            FROM order_seat_guests sg JOIN orders o ON o.id = sg.order_id
+            WHERE sg.customer_phone = ? AND sg.customer_name IS NOT NULL
+        ) v ORDER BY (city IS NULL), at DESC LIMIT 1
+    ");
+    $stmt->execute([$phone, $phone]);
+    return $stmt->fetch() ?: null;
+}
+
+/**
  * Step 1: the guest's details. Checks them, keeps them in this browser's
  * session and sends the code. Returns ['ok' => true] or ['error' => lang key].
  */
@@ -62,15 +83,25 @@ function selfOrderRegister(array $table, array $in): array
     if (!selfOrderEnabled()) return ['error' => 'self_err_off'];
     if (tableCurrentOrder($table)) return ['error' => 'self_err_table_busy'];
 
+    $returning = !empty($in['returning']);   // "I'm already a customer": just the phone
     $name    = mb_substr(trim((string) ($in['name'] ?? '')), 0, 60);
     $surname = mb_substr(trim((string) ($in['surname'] ?? '')), 0, 60);
     $city    = mb_substr(trim((string) ($in['city'] ?? '')), 0, 100);
     $country = strtoupper(trim((string) ($in['country'] ?? 'IT')));
     $people  = (int) ($in['people'] ?? 0);
     $phone   = internationalPhone($country, (string) ($in['phone'] ?? ''));
-    if ($name === '' || $surname === '' || $city === '') return ['error' => 'self_err_fields'];
     if (!$phone) return ['error' => 'cust_bad_phone'];
     if ($people < 1 || $people > 30) return ['error' => 'self_err_people'];
+    if ($returning) {
+        // Their details come from the archive (shown only once the code is right).
+        $known = selfCustomerLookup($phone);
+        if (!$known) return ['error' => 'self_err_not_found'];
+        $name    = (string) $known['name'];
+        $surname = '';
+        $city    = (string) ($known['city'] ?? '');
+    } elseif ($name === '' || $surname === '' || $city === '') {
+        return ['error' => 'self_err_fields'];
+    }
 
     $tid  = (int) $table['id'];
     $prev = $_SESSION['self_reg'][$tid] ?? null;
@@ -85,7 +116,9 @@ function selfOrderRegister(array $table, array $in): array
     $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $_SESSION['self_reg'][$tid] = [
         'name' => $name, 'surname' => $surname, 'city' => $city, 'country' => $country, 'phone' => $phone,
-        'people' => $people, 'consent' => !empty($in['consent']), 'lang' => currentLang() === 'it' ? 'it' : 'en',
+        // A returning guest keeps the consents they already gave (none asked here).
+        'people' => $people, 'consent' => $returning ? null : !empty($in['consent']), 'returning' => $returning,
+        'lang' => currentLang() === 'it' ? 'it' : 'en',
         'code' => $code, 'sent_at' => time(), 'sends' => $sends, 'tries' => 0,
     ];
     queueGuestWhatsapp(null, null, 'self_code', $phone, tIn(guestLang($country), 'self_code_text', [
@@ -134,7 +167,7 @@ function selfOrderVerify(array $table, string $code): array
         VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, 1)
     ")->execute([
         generateOrderNumber(), $tid, $table['room_id'], selfOrderUserId(), $r['people'], $cover,
-        trim($r['name'] . ' ' . $r['surname']), $r['city'], $r['country'], $r['phone'], $r['code'],
+        trim($r['name'] . ' ' . $r['surname']), $r['city'] !== '' ? $r['city'] : null, $r['country'], $r['phone'], $r['code'],
     ]);
     $orderId = (int) $pdo->lastInsertId();
     $pdo->prepare("UPDATE tables_restaurant SET status = 'occupied', current_order_id = ?, needs_reset_at = NULL WHERE id = ?")
@@ -143,14 +176,16 @@ function selfOrderVerify(array $table, string $code): array
     $_SESSION['guest_access'][$tid] = $orderId;
     logActivity('self_order_opened', 'orders', $orderId, ['people' => $r['people']]);
 
-    // The marketing consent as the guest gave it in the form (with its text, as proof).
-    if (!consentStatus($r['phone'])) {
+    // The marketing consent as the guest gave it in the form (with its text, as
+    // proof). A returning guest keeps theirs; if they never answered, their
+    // table page asks them.
+    if ($r['consent'] !== null && !consentStatus($r['phone'])) {
         setConsent($r['phone'], $r['consent'] ? 'granted' : 'declined', 'self_order', consentText('prompt', $r['lang']), $orderId, $r['lang']);
         if ($r['consent']) sendConsentConfirmation($r['phone']);
     }
     // The usual welcome: table link, code for tablemates, menu.
     sendTableLinkOnce(getOrderById($orderId), null, $r['phone'], $r['country']);
-    return ['ok' => $orderId];
+    return ['ok' => $orderId, 'welcome' => $r['returning'] ? trim(strtok($r['name'], ' ') ?: '') : null];
 }
 
 /** May this order take dishes from the guest page? */

@@ -62,6 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'self_
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'self_verify') {
     $res = selfOrderVerify($table, (string) ($input['code'] ?? ''));
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    // A returning guest: "Welcome back, Luca!"
+    $selfWelcome = !empty($res['welcome']) ? t('self_welcome_back', ['name' => $res['welcome']]) : null;
     $order   = tableCurrentOrder($table);
     $granted = true;
 }
@@ -240,4 +242,4 @@ if (!empty($_GET['menu'])) {
     jsonResponse(['success' => true, 'menu' => guestMenu()]);
 }
 
-jsonResponse(guestState($table));
+jsonResponse(guestState($table) + (!empty($selfWelcome) ? ['welcome' => $selfWelcome] : []));

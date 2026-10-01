@@ -260,11 +260,15 @@ $contactsHtml = ob_get_clean(); ?>
             <h2><?= te('self_title') ?></h2>
             <p class="gate-text"><?= te('self_intro') ?></p>
             <form class="self-form" onsubmit="selfRegister(event)">
-                <div class="two">
+                <label class="self-consent self-returning" style="font-weight:700;color:var(--ink);margin-top:0;">
+                    <input type="checkbox" id="sfReturning" onchange="selfReturning()">
+                    <span><?= te('self_returning') ?><br><small style="font-weight:400;color:var(--muted);"><?= te('self_returning_hint') ?></small></span>
+                </label>
+                <div class="two sf-new">
                     <div><label for="sfName"><?= te('self_name') ?></label><input id="sfName" maxlength="60" autocomplete="given-name" required></div>
                     <div><label for="sfSurname"><?= te('self_surname') ?></label><input id="sfSurname" maxlength="60" autocomplete="family-name" required></div>
                 </div>
-                <label for="sfCity"><?= te('self_city') ?></label><input id="sfCity" maxlength="100" autocomplete="address-level2" required>
+                <label for="sfCity" class="sf-new"><?= te('self_city') ?></label><input id="sfCity" class="sf-new" maxlength="100" autocomplete="address-level2" required>
                 <label for="sfPhone"><?= te('self_phone') ?></label>
                 <div class="phone">
                     <select id="sfCountry" aria-label="<?= te('cust_prefix') ?>">
@@ -273,7 +277,7 @@ $contactsHtml = ob_get_clean(); ?>
                     <input id="sfPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
                 </div>
                 <label for="sfPeople"><?= te('self_people') ?></label><input id="sfPeople" type="number" min="1" max="30" value="2" inputmode="numeric" required>
-                <label class="self-consent" style="font-weight:400;color:#374151;">
+                <label class="self-consent sf-new" style="font-weight:400;color:#374151;">
                     <input type="checkbox" id="sfConsent">
                     <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt', currentLang())) ?></span>
                 </label>
@@ -439,7 +443,15 @@ function renderLocked(s) {
 let selfEditing = false, selfLast = null, selfResendAt = 0;
 function selfForm() {
     return { name: $('sfName').value, surname: $('sfSurname').value, city: $('sfCity').value, country: $('sfCountry').value,
-             phone: $('sfPhone').value, people: $('sfPeople').value, consent: $('sfConsent').checked };
+             phone: $('sfPhone').value, people: $('sfPeople').value, consent: $('sfConsent').checked,
+             returning: $('sfReturning').checked };
+}
+// "I'm already a customer": only the phone (and party size); the rest comes from the archive.
+function selfReturning() {
+    const back = $('sfReturning').checked;
+    document.querySelectorAll('.self-form .sf-new').forEach(el => { el.hidden = back; });
+    ['sfName', 'sfSurname', 'sfCity'].forEach(id => { $(id).required = !back; });
+    if (back) $('sfPhone').focus();
 }
 async function selfRegister(e) {
     e.preventDefault();
@@ -462,6 +474,7 @@ function tickResend() {
 async function selfVerify(e) {
     e.preventDefault();
     if (await send({ action: 'self_verify', code: $('sfCode').value })) $('sfCode').value = '';
+    if (state && state.welcome) toast(state.welcome);
 }
 
 /* ---- Guest ordering: the menu and the cart (kept on this phone until sent) ---- */

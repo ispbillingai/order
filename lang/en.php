@@ -1199,4 +1199,8 @@ return [
     'take_failed' => 'The table couldn\'t be taken',
     'take_waiters_only' => 'Only waiters can take a table',
     'take_nobody_yet' => 'guest\'s order, nobody yet (the first to tap "I\'ll take it")',
+    'self_returning' => 'I\'m already a customer',
+    'self_returning_hint' => 'Just enter your mobile: we fetch your name and the consents you already gave us.',
+    'self_err_not_found' => 'We can\'t find this number among our customers: untick "I\'m already a customer" and fill in your details.',
+    'self_welcome_back' => 'Welcome back, {name}!',
 ];

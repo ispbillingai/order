@@ -1199,4 +1199,8 @@ return [
     'take_failed' => 'Non è stato possibile prendere il tavolo',
     'take_waiters_only' => 'Solo i camerieri possono prendere un tavolo',
     'take_nobody_yet' => 'ordine del cliente, ancora nessuno (il primo che preme "Lo prendo io")',
+    'self_returning' => 'Sono già cliente',
+    'self_returning_hint' => 'Inserisci solo il tuo cellulare: recuperiamo nome e consensi che ci hai già dato.',
+    'self_err_not_found' => 'Non troviamo questo numero tra i nostri clienti: togli la spunta "Sono già cliente" e compila i tuoi dati.',
+    'self_welcome_back' => 'Bentornato {name}!',
 ];
