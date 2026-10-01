@@ -122,7 +122,7 @@ function guestState(array $table): array
     }
     $stmt = getDBConnection()->prepare("
         SELECT tr.id, tr.type, tr.status, mi.name AS item_name, rmi.name AS replacement_name,
-               SUBSTRING_INDEX(su.full_name, ' ', 1) AS seen_by   -- the waiter's first name only
+               su.full_name AS seen_by
         FROM table_requests tr
         LEFT JOIN users su ON su.id = tr.seen_by
         LEFT JOIN order_items oi ON oi.id = tr.order_item_id
@@ -143,13 +143,26 @@ function guestState(array $table): array
         'targets' => array_map(fn($t) => ['key' => $t['key'], 'label' => $t['label']], $consentTargets),
     ] : null;
 
-    // The table's waiter (first name), for the guest's notices: whoever took
+    // The guest's latest call to the waiter, for the banner at the top: still
+    // open / answered, or answered in the last 2 minutes (a waiter often taps
+    // "On my way" and "Done" within seconds: the guest must still see who's coming).
+    $st = getDBConnection()->prepare("
+        SELECT tr.status, su.full_name AS seen_by
+        FROM table_requests tr LEFT JOIN users su ON su.id = tr.seen_by
+        WHERE tr.table_id = ? AND tr.type = 'waiter'
+          AND (tr.status <> 'done' OR (tr.seen_by IS NOT NULL AND COALESCE(tr.seen_at, tr.done_at) > NOW() - INTERVAL 2 MINUTE))
+        ORDER BY tr.id DESC LIMIT 1
+    ");
+    $st->execute([$table['id']]);
+    $call = $st->fetch() ?: null;
+
+    // The table's waiter (name), for the guest's notices: whoever took
     // the order — on a guest's own order, the waiter who took the table.
     $waiterName = null;
     if ($order) {
         $wid = !empty($order['created_by_guest']) ? (int) ($order['assigned_waiter_id'] ?? 0) : (int) $order['waiter_id'];
         if ($wid) {
-            $st = getDBConnection()->prepare("SELECT SUBSTRING_INDEX(full_name, ' ', 1) FROM users WHERE id = ? AND active = 1");
+            $st = getDBConnection()->prepare("SELECT full_name FROM users WHERE id = ? AND active = 1");
             $st->execute([$wid]);
             $waiterName = $st->fetchColumn() ?: null;
         }
@@ -169,6 +182,7 @@ function guestState(array $table): array
         'total'    => $total,
         'total_fmt'=> formatCurrency($total),
         'requests' => $stmt->fetchAll(),
+        'call'     => $call,
     ];
 }
 

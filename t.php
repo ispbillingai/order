@@ -613,7 +613,7 @@ function render(s) {
     $('btnChange').disabled = !s.items.some(i => i.changeable);
     renderConsent(s.consent);
 
-    renderCallBanner(s.requests);
+    renderCallBanner(s.call);
 
     const label = { bill: L.req_bill, waiter: L.req_waiter, change: L.req_change };
     $('requestsCard').hidden = !s.requests.length;
@@ -627,12 +627,11 @@ function render(s) {
 
 // Waiter called: "the staff has your call", then "Jane is coming" (with a chime).
 let callWasComing = null;
-function renderCallBanner(requests) {
-    const call = (requests || []).filter(r => r.type === 'waiter').pop();
+function renderCallBanner(call) {
     const box = $('callBanner');
     box.hidden = !call;
     if (!call) { callWasComing = null; return; }
-    const coming = call.status === 'seen';
+    const coming = call.status !== 'open';             // answered ("On my way", or already done)
     box.className = 'call-banner ' + (coming ? 'coming' : 'waiting');
     box.querySelector('i').className = 'fas ' + (coming ? 'fa-person-walking' : 'fa-bell');
     box.querySelector('strong').textContent = coming
@@ -866,8 +865,10 @@ function showSystemNotification(title, body) {
     } catch (e) {}
 }
 
-load();
-setInterval(load, 10000);
+// Every 10 s; every 4 s while a call to the waiter is waiting for an answer.
+(function poll() {
+    load().finally(() => setTimeout(poll, state && state.call && state.call.status === 'open' ? 4000 : 10000));
+})();
 </script>
 <?php endif; ?>
 </body>
