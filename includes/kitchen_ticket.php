@@ -292,3 +292,41 @@ function printStationTicket(
     }
     return $res;
 }
+
+/**
+ * Send an order's pending dishes to the kitchen (the waiter's "Send to
+ * kitchen", or the guest ordering from the table page): dishes to in_kitchen,
+ * kitchen display tickets, the work-point slips printed. Dishes added after
+ * the first send print as an ADDITION so the work point tops up the table.
+ * Returns ['items' => how many, 'addition' => bool, 'print' => print result].
+ */
+function sendPendingToKitchen(int $orderId): array
+{
+    $pdo   = getDBConnection();
+    $order = getOrderById($orderId);
+    if (!$order) return ['items' => 0, 'addition' => false, 'print' => ['ok' => false]];
+    $kind = ($order['status'] === 'open') ? TICKET_NEW : TICKET_ADDITION;
+
+    // The dishes being sent NOW (still pending): the slip prints exactly these.
+    $stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND status = 'pending'");
+    $stmt->execute([$orderId]);
+    $ids = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+    if (!$ids) return ['items' => 0, 'addition' => false, 'print' => ['ok' => false]];
+
+    $pdo->prepare("UPDATE order_items SET status = 'in_kitchen', sent_to_kitchen_at = NOW() WHERE order_id = ? AND status = 'pending'")
+        ->execute([$orderId]);
+    // Asking for the bill and then adding a dish puts the order back in the kitchen flow.
+    $pdo->prepare("UPDATE orders SET status = 'sent_to_kitchen' WHERE id = ?")->execute([$orderId]);
+    $pdo->prepare("
+        INSERT INTO kitchen_tickets (order_id, order_item_id, status)
+        SELECT ?, id, 'queued' FROM order_items
+        WHERE order_id = ? AND status = 'in_kitchen'
+          AND id NOT IN (SELECT order_item_id FROM kitchen_tickets WHERE order_id = ?)
+    ")->execute([$orderId, $orderId, $orderId]);
+    logActivity('sent_to_kitchen', 'orders', $orderId);
+
+    // Work-point slips (table + dishes, no prices). Non-fatal: an offline
+    // printer doesn't stop the order.
+    $print = printKitchenTicketForOrder($orderId, $ids, $order, $kind);
+    return ['items' => count($ids), 'addition' => $kind === TICKET_ADDITION, 'print' => $print];
+}

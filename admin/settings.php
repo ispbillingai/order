@@ -13,6 +13,7 @@ require_once __DIR__ . '/../includes/consent.php';
 require_once __DIR__ . '/../includes/ready_notify.php';
 require_once __DIR__ . '/../includes/thanks.php';
 require_once __DIR__ . '/../includes/restaurant.php';
+require_once __DIR__ . '/../includes/self_order.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -149,6 +150,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('consent_texts', $texts);
         logActivity('consent_texts_saved', 'settings');
         header('Location: /admin/settings.php?success=saved#consent');
+        exit;
+    }
+
+    // Guests ordering by themselves from the table page.
+    if ($action === 'update_self_order') {
+        $notify = (string) ($_POST['self_notify'] ?? 'all');
+        if (!preg_match('/^user:(\d+)$/', $notify, $m) || !isset(readyNotifyStaff()[(int) $m[1]])) $notify = 'all';
+        setSetting('self_order', ['enabled' => !empty($_POST['self_enabled']), 'notify' => $notify]);
+        logActivity('self_order_settings_saved', 'settings', null, ['enabled' => !empty($_POST['self_enabled'])]);
+        header('Location: /admin/settings.php?success=saved#selforder');
         exit;
     }
 
@@ -579,6 +590,41 @@ function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }
 </script>
+
+<!-- Guests ordering by themselves from the table page -->
+<?php $selfSet = selfOrderSettings(); ?>
+<div class="card" id="selforder" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-mobile-screen" style="color:#ea580c;"></i> <?= te('self_settings_title') ?></h2>
+        <span class="badge badge-<?= $selfSet['enabled'] ? 'success' : 'light' ?>"><?= $selfSet['enabled'] ? te('tmb_active') : te('tmb_inactive') ?></span>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_self_order">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('self_settings_intro') ?></p>
+            <?php if (!$tmbKeyOn): ?>
+                <p style="color:var(--danger);font-size:.9rem;"><i class="fas fa-triangle-exclamation"></i> <?= te('self_settings_needs_wa') ?></p>
+            <?php endif; ?>
+            <label style="display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:14px;">
+                <input type="checkbox" name="self_enabled" value="1" <?= $selfSet['enabled'] ? 'checked' : '' ?> style="width:20px;height:20px;">
+                <strong><?= te('self_settings_enable') ?></strong>
+            </label>
+            <div class="form-group">
+                <label class="form-label"><?= te('self_settings_notify') ?></label>
+                <select name="self_notify" class="form-control">
+                    <option value="all"><?= te('ready_mode_all') ?></option>
+                    <?php foreach (readyNotifyStaff() as $uid => $uname): ?>
+                        <option value="user:<?= (int) $uid ?>" <?= $selfSet['notify'] === 'user:' . $uid ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted"><?= te('self_settings_notify_hint') ?></small>
+            </div>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
+        </div>
+    </form>
+</div>
 
 <!-- Thank-you on WhatsApp after the bill is paid -->
 <?php $thanks = thanksSettings(); ?>

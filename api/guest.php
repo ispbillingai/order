@@ -9,6 +9,9 @@
  * GET  ?k=<token>                                  → the table's order + open requests
  * GET  ?k=<token>&menu=1                          → the menu (to swap a dish)
  * POST {k, action: 'consent', target, accept}      → the guest's own marketing consent (see consent.php)
+ * POST {k, action: 'self_register', name, surname, city, country, phone, people, consent} → guest ordering: code on WhatsApp
+ * POST {k, action: 'self_verify', code}            → guest ordering: the code opens a new order
+ * POST {k, action: 'self_send', cart: [{id, qty, note}]} → guest ordering: dishes to the kitchen
  * POST {k, type: bill|waiter|change, order_item_id?, replacement_menu_item_id?, message?} → new request
  */
 
@@ -16,6 +19,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/table_requests.php';
 require_once __DIR__ . '/../includes/whatsapp_guest.php';
 require_once __DIR__ . '/../includes/consent.php';
+require_once __DIR__ . '/../includes/self_order.php';
 i18n_prefer_browser('it');
 
 header('Content-Type: application/json');
@@ -43,7 +47,23 @@ function lockedState(array $table, ?array $order): array
         'table'     => $order ? $order['table_number'] : $table['table_number'],
         'has_order' => (bool) $order,
         'has_phone' => $order ? orderHasGuestPhone($order) : false,
+        // Guest ordering: a free table can be opened from here.
+        'self_order'   => selfOrderEnabled(),
+        'self_pending' => selfOrderPending($table),
     ];
+}
+
+// Guest ordering, steps 1 and 2: details → code on WhatsApp → the code opens the order.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'self_register') {
+    $res = selfOrderRegister($table, $input);
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(lockedState($table, $order));
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'self_verify') {
+    $res = selfOrderVerify($table, (string) ($input['code'] ?? ''));
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    $order   = tableCurrentOrder($table);
+    $granted = true;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'unlock') {
@@ -122,6 +142,8 @@ function guestState(array $table): array
     return [
         'success'  => true,
         'consent'  => $consent,
+        // Guest ordering: this order takes dishes from the table page.
+        'can_order'=> selfOrderCanOrder($order),
         'bill_ready' => guestBillReady($items),
         'wa_targets' => $waTargets,
         'table'    => $order ? $order['table_number'] : $table['table_number'],
@@ -131,6 +153,13 @@ function guestState(array $table): array
         'total_fmt'=> formatCurrency($total),
         'requests' => $stmt->fetchAll(),
     ];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'self_send') {
+    $cur = tableCurrentOrder($table);
+    $res = $cur ? selfOrderSend($cur, (array) ($input['cart'] ?? [])) : ['error' => 'self_err_off'];
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(guestState($table) + ['sent' => $res['ok']]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'consent') {
@@ -150,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') === 'conse
     jsonResponse(guestState($table) + ['consent_done' => $accept ? 'granted' : 'declined']);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($input['action'] ?? '') !== 'unlock') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($input['action'] ?? '', ['unlock', 'self_verify'], true)) {
     // "Bill on WhatsApp": the bill request as usual, plus the receipt copy
     // sent straight away to the chosen guest's number.
     // No bill while dishes are still being prepared.

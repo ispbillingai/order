@@ -10,6 +10,8 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/table_requests.php';
 require_once __DIR__ . '/includes/restaurant.php';
 require_once __DIR__ . '/includes/menu_pdf.php';
+require_once __DIR__ . '/includes/countries.php';
+require_once __DIR__ . '/includes/consent.php';
 i18n_prefer_browser('it');
 
 $token = (string) ($_GET['k'] ?? '');
@@ -41,6 +43,12 @@ $L = [
     'consent_yes'  => t('consent_thanks'),
     'consent_no'   => t('consent_declined_toast'),
     'consent_pick' => t('consent_pick_number'),
+    'self_sent'    => t('self_sent_toast'),
+    'self_dishes'  => t('self_cart_dishes'),
+    'self_note_ph' => t('self_note_ph'),
+    'self_resend'  => t('self_resend'),
+    'self_resend_in' => t('self_resend_in'),
+    'currency'     => formatCurrency(0),
 ];
 header('Cache-Control: no-store');
 ?>
@@ -136,6 +144,43 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .contacts .c-line i { color: var(--p); margin-right: 5px; }
 .contacts .socials { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
 .contacts .socials a { width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: inline-flex; align-items: center; justify-content: center; font-size: 1.15rem; color: var(--ink); }
+/* Guest ordering: sign-up, code, menu with cart */
+.self-form { text-align: left; }
+.self-form label { display: block; font-size: .8rem; font-weight: 700; color: var(--muted); margin: 10px 0 4px; }
+.self-form input, .self-form select { width: 100%; font: inherit; padding: 11px 12px; border: 2px solid var(--line); border-radius: 10px; background: #fff; }
+.self-form input:focus, .self-form select:focus { outline: none; border-color: var(--p); }
+.self-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.self-form .phone { display: grid; grid-template-columns: 7.5rem 1fr; gap: 8px; }
+.self-consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .82rem; color: #374151; }
+.self-consent input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 2px; }
+.self-consent span { white-space: pre-wrap; line-height: 1.45; }
+.self-sub { color: var(--muted); font-size: .9rem; margin: 4px 0 6px; }
+.link-btn { background: none; border: 0; color: var(--p); font: inherit; font-weight: 700; cursor: pointer; padding: 8px; }
+.link-btn:disabled { color: var(--muted); cursor: default; }
+.shop-cats { position: sticky; top: 0; z-index: 4; display: flex; gap: 6px; overflow-x: auto; background: var(--bg); padding: 8px 0 10px; scrollbar-width: none; }
+.shop-cats::-webkit-scrollbar { display: none; }
+.shop-cats button { flex: 0 0 auto; border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 14px; font: inherit; font-weight: 700; font-size: .85rem; color: var(--ink); }
+.shop-cats button.on { background: var(--p); border-color: var(--p); color: #fff; }
+.shop-item { display: flex; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.shop-item:last-child { border-bottom: 0; }
+.shop-item .info { flex: 1; min-width: 0; }
+.shop-item .info strong { display: block; }
+.shop-item .info small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+.shop-item .price { font-weight: 700; white-space: nowrap; }
+.qty { display: flex; align-items: center; gap: 6px; }
+.qty button { width: 34px; height: 34px; border-radius: 50%; border: 0; font-size: 1.1rem; font-weight: 700; cursor: pointer; background: #f3f4f6; color: var(--ink); }
+.qty button.plus { background: var(--p); color: #fff; }
+.qty span { min-width: 18px; text-align: center; font-weight: 700; }
+.cart-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: #fff; border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; box-shadow: 0 -6px 18px rgba(0,0,0,.08); }
+.cart-bar .sum { flex: 1; line-height: 1.2; }
+.cart-bar .sum small { display: block; color: var(--muted); font-size: .78rem; }
+.cart-bar .sum strong { font-size: 1.1rem; }
+.cart-bar button { border: 0; border-radius: 12px; padding: 13px 16px; font: inherit; font-weight: 700; background: var(--p); color: #fff; }
+.cart-line { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cart-line .top { display: flex; align-items: center; gap: 10px; }
+.cart-line .top strong { flex: 1; }
+.cart-line input { width: 100%; margin-top: 6px; font: inherit; font-size: .85rem; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.order-more { width: 100%; border: 0; border-radius: 12px; padding: 14px; font: inherit; font-weight: 700; background: var(--p); color: #fff; margin-bottom: 14px; cursor: pointer; }
 .gate { text-align: center; padding: 28px 20px; }
 .gate-icon { font-size: 2.2rem; color: var(--p); margin-bottom: 8px; }
 .gate-text { color: var(--muted); margin: 6px 0 18px; }
@@ -208,13 +253,80 @@ $contactsHtml = ob_get_clean(); ?>
             <h2><?= te('guest_gate_phone_title') ?></h2>
             <p class="gate-text"><?= te('guest_need_phone') ?></p>
         </div>
+
+        <!-- Guest ordering, step 1: who you are (code on WhatsApp) -->
+        <?php $selfCountries = phoneCountryOptions(); ?>
+        <div id="gateSelf" hidden>
+            <h2><?= te('self_title') ?></h2>
+            <p class="gate-text"><?= te('self_intro') ?></p>
+            <form class="self-form" onsubmit="selfRegister(event)">
+                <div class="two">
+                    <div><label for="sfName"><?= te('self_name') ?></label><input id="sfName" maxlength="60" autocomplete="given-name" required></div>
+                    <div><label for="sfSurname"><?= te('self_surname') ?></label><input id="sfSurname" maxlength="60" autocomplete="family-name" required></div>
+                </div>
+                <label for="sfCity"><?= te('self_city') ?></label><input id="sfCity" maxlength="100" autocomplete="address-level2" required>
+                <label for="sfPhone"><?= te('self_phone') ?></label>
+                <div class="phone">
+                    <select id="sfCountry" aria-label="<?= te('cust_prefix') ?>">
+                        <?php foreach ($selfCountries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= $c['dial'] ?></option><?php endforeach; ?>
+                    </select>
+                    <input id="sfPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
+                </div>
+                <label for="sfPeople"><?= te('self_people') ?></label><input id="sfPeople" type="number" min="1" max="30" value="2" inputmode="numeric" required>
+                <label class="self-consent" style="font-weight:400;color:#374151;">
+                    <input type="checkbox" id="sfConsent">
+                    <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt', currentLang())) ?></span>
+                </label>
+                <button class="btn-go gate-btn" type="submit" style="max-width:none;"><i class="fab fa-whatsapp"></i> <?= te('self_send_code') ?></button>
+            </form>
+        </div>
+
+        <!-- Guest ordering, step 2: the code from WhatsApp -->
+        <div id="gateSelfCode" hidden>
+            <h2><?= te('self_code_title') ?></h2>
+            <p class="gate-text" id="sfCodeText"></p>
+            <form onsubmit="selfVerify(event)">
+                <input id="sfCode" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="••••••" required>
+                <button class="btn-go gate-btn" type="submit"><?= te('self_enter') ?></button>
+            </form>
+            <button class="link-btn" id="sfResend" onclick="selfResend()"></button>
+            <button class="link-btn" onclick="selfChangeNumber()"><?= te('self_change_number') ?></button>
+        </div>
     </div>
     <?= $menuHtml ?>
     <?= $contactsHtml ?>
 </main>
 
+<!-- Guest ordering: pick dishes, then send them to the kitchen -->
+<main id="shop" hidden>
+    <div class="card">
+        <h2><i class="fas fa-utensils" style="color:var(--p);"></i> <?= te('self_shop_title') ?></h2>
+        <p class="self-sub"><?= te('self_shop_intro') ?></p>
+        <button class="link-btn" id="shopBack" hidden onclick="closeShop()" style="padding-left:0;"><i class="fas fa-arrow-left"></i> <?= te('self_back_to_order') ?></button>
+    </div>
+    <div class="shop-cats" id="shopCats"></div>
+    <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
+</main>
+<div class="cart-bar" id="cartBar" hidden>
+    <div class="sum"><small id="cartCount"></small><strong id="cartTotal"></strong></div>
+    <button onclick="openCart()"><i class="fas fa-basket-shopping"></i> <?= te('self_review_send') ?></button>
+</div>
+<div class="sheet-bg" id="cartSheet" onclick="if (event.target === this) this.classList.remove('on')">
+    <div class="sheet">
+        <h3><i class="fas fa-basket-shopping" style="color:var(--p);"></i> <?= te('self_cart_title') ?></h3>
+        <div id="cartLines"></div>
+        <div class="total" style="padding-top:12px;"><span><?= te('total') ?></span><span id="cartSheetTotal"></span></div>
+        <p class="hint-small"><?= te('self_cart_hint') ?></p>
+        <div class="row">
+            <button class="btn-no" onclick="$('cartSheet').classList.remove('on')"><?= te('self_keep_ordering') ?></button>
+            <button class="btn-go" id="cartSend" onclick="sendCart()"><i class="fas fa-fire"></i> <?= te('send_to_kitchen') ?></button>
+        </div>
+    </div>
+</div>
+
 <main id="app" hidden>
     <button class="notify-btn" id="notifyBtn" hidden onclick="enableNotifications()"><i class="fas fa-bell"></i> <?= te('guest_notify_on') ?></button>
+    <button class="order-more" id="orderMore" hidden onclick="openShop()"><i class="fas fa-plus"></i> <?= te('self_order_more') ?></button>
     <!-- Marketing consent: the guest decides for their own number -->
     <div class="card consent" id="consentCard" hidden>
         <h2><i class="fas fa-bullhorn"></i> <?= te('consent_card_title') ?></h2>
@@ -306,9 +418,128 @@ function renderLocked(s) {
     $('app').hidden = true;
     $('actionsBar').hidden = true;
     $('gate').hidden = false;
-    $('gateCode').hidden = !s.has_phone;
-    $('gatePhone').hidden = !!s.has_phone;
-    if (s.has_phone && !renderLocked.focused) { renderLocked.focused = true; $('codeInput').focus(); }
+    $('shop').hidden = true;
+    $('cartBar').hidden = true;
+    // Free table with guest ordering on: sign up (then the code) instead of waiting for the waiter.
+    const self = s.self_order && !s.has_order;
+    const pending = self && s.self_pending && !selfEditing;
+    $('gateSelf').hidden = !self || pending;
+    $('gateSelfCode').hidden = !pending;
+    $('gateCode').hidden = self || !s.has_phone;
+    $('gatePhone').hidden = self || !!s.has_phone;
+    if (pending) {
+        $('sfCodeText').textContent = <?= json_encode(t('self_code_sent_to')) ?>.replace('{phone}', '•••• ' + s.self_pending.phone_end);
+        selfResendAt = Date.now() + s.self_pending.resend_in * 1000;
+        tickResend();
+    }
+    if (!self && s.has_phone && !renderLocked.focused) { renderLocked.focused = true; $('codeInput').focus(); }
+}
+
+/* ---- Guest ordering: sign-up and code ---- */
+let selfEditing = false, selfLast = null, selfResendAt = 0;
+function selfForm() {
+    return { name: $('sfName').value, surname: $('sfSurname').value, city: $('sfCity').value, country: $('sfCountry').value,
+             phone: $('sfPhone').value, people: $('sfPeople').value, consent: $('sfConsent').checked };
+}
+async function selfRegister(e) {
+    e.preventDefault();
+    selfLast = selfForm();
+    selfEditing = false;
+    if (await send(Object.assign({ action: 'self_register' }, selfLast))) setTimeout(() => $('sfCode').focus(), 50);
+}
+async function selfResend() {
+    if (!selfLast) { selfChangeNumber(); return; }   // page reloaded: fill the form again
+    await send(Object.assign({ action: 'self_register' }, selfLast));
+}
+function selfChangeNumber() { selfEditing = true; load(); }
+function tickResend() {
+    clearTimeout(tickResend.h);
+    const left = Math.ceil((selfResendAt - Date.now()) / 1000);
+    $('sfResend').disabled = left > 0;
+    $('sfResend').textContent = left > 0 ? L.self_resend_in.replace('{s}', left) : L.self_resend;
+    if (left > 0) tickResend.h = setTimeout(tickResend, 1000);
+}
+async function selfVerify(e) {
+    e.preventDefault();
+    if (await send({ action: 'self_verify', code: $('sfCode').value })) $('sfCode').value = '';
+}
+
+/* ---- Guest ordering: the menu and the cart (kept on this phone until sent) ---- */
+let shopOpen = false, shopMenu = null, shopCat = null;
+const CART_KEY = 'guest-cart-' + K;
+let cart = {};
+try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '{}') || {}; } catch (e) {}
+const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} };
+const money = v => L.currency.replace(/0[.,]00/, v.toFixed(2).replace('.', L.currency.includes(',') ? ',' : '.'));
+function cartItems() {
+    if (!shopMenu) return [];
+    const all = shopMenu.flatMap(c => c.items);
+    return Object.entries(cart).filter(([, l]) => l.qty > 0).map(([id, l]) => ({ item: all.find(i => i.id === +id), ...l, id: +id })).filter(l => l.item);
+}
+function openShop() { shopOpen = true; render(state); window.scrollTo(0, 0); }
+function closeShop() { shopOpen = false; render(state); }
+async function loadShopMenu() {
+    if (shopMenu) return;
+    try {
+        const r = await fetch('/api/guest.php?k=' + encodeURIComponent(K) + '&menu=1', { cache: 'no-store' });
+        const s = await r.json();
+        shopMenu = s.menu || [];
+        shopCat = shopMenu[0] ? 0 : null;
+        renderShop();
+    } catch (e) { /* next render retries */ }
+}
+function renderShop() {
+    if (!shopMenu) { loadShopMenu(); return; }
+    $('shopCats').innerHTML = shopMenu.map((c, i) => `<button class="${i === shopCat ? 'on' : ''}" onclick="shopCat = ${i}; renderShop(); window.scrollTo(0, 0)">${esc(c.name)}</button>`).join('');
+    const c = shopMenu[shopCat];
+    $('shopMenu').innerHTML = c ? `<div class="card">${c.items.map(i => {
+        const q = cart[i.id]?.qty || 0;
+        return `<div class="shop-item">
+            <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}</div>
+            <div class="price">${esc(i.price)}</div>
+            <div class="qty">${q ? `<button onclick="cartAdd(${i.id}, -1)" aria-label="-">−</button><span>${q}</span>` : ''}<button class="plus" onclick="cartAdd(${i.id}, 1)" aria-label="+">+</button></div>
+        </div>`; }).join('')}</div>` : `<div class="card"><div class="empty"><?= te('no_items_cat') ?></div></div>`;
+    renderCartBar();
+}
+function cartAdd(id, d) {
+    const l = cart[id] || { qty: 0, note: '' };
+    l.qty = Math.max(0, Math.min(20, l.qty + d));
+    if (l.qty) cart[id] = l; else delete cart[id];
+    saveCart();
+    renderShop();
+    if ($('cartSheet').classList.contains('on')) renderCartLines();
+}
+function cartSum() { return cartItems().reduce((s, l) => s + l.qty * (l.item.amount || 0), 0); }
+function renderCartBar() {
+    const n = cartItems().reduce((s, l) => s + l.qty, 0);
+    $('cartBar').hidden = $('shop').hidden || !n;
+    $('cartCount').textContent = L.self_dishes.replace('{n}', n);
+    $('cartTotal').textContent = money(cartSum());
+}
+function openCart() { renderCartLines(); $('cartSheet').classList.add('on'); }
+function renderCartLines() {
+    const lines = cartItems();
+    if (!lines.length) { $('cartSheet').classList.remove('on'); return; }
+    $('cartLines').innerHTML = lines.map(l => `
+        <div class="cart-line">
+            <div class="top"><strong>${esc(l.item.name)}</strong>
+                <div class="qty"><button onclick="cartAdd(${l.id}, -1)">−</button><span>${l.qty}</span><button class="plus" onclick="cartAdd(${l.id}, 1)">+</button></div></div>
+            <input maxlength="200" placeholder="${esc(L.self_note_ph)}" value="${esc(l.note || '')}" oninput="cart[${l.id}].note = this.value; saveCart()">
+        </div>`).join('');
+    $('cartSheetTotal').textContent = money(cartSum());
+}
+async function sendCart() {
+    const lines = cartItems().map(l => ({ id: l.id, qty: l.qty, note: l.note || '' }));
+    if (!lines.length) return;
+    $('cartSend').disabled = true;
+    const ok = await send({ action: 'self_send', cart: lines });
+    $('cartSend').disabled = false;
+    if (!ok) return;
+    cart = {}; saveCart();
+    $('cartSheet').classList.remove('on');
+    shopOpen = false;
+    render(state);
+    toast(L.self_sent);
 }
 async function unlock(e) {
     e.preventDefault();
@@ -321,8 +552,14 @@ function render(s) {
     if (s.locked) return renderLocked(s);
     state = s;
     $('gate').hidden = true;
-    $('app').hidden = false;
-    $('actionsBar').hidden = false;
+    // Guest ordering: the menu first (nothing ordered yet) or when asked for more.
+    const shop = !!s.can_order && (shopOpen || !s.items.length);
+    $('shop').hidden = !shop;
+    $('app').hidden = shop;
+    $('actionsBar').hidden = shop;
+    $('shopBack').hidden = !s.items.length;
+    $('orderMore').hidden = !s.can_order;
+    if (shop) renderShop(); else $('cartBar').hidden = true;
     if (s.table) $('tableName').textContent = s.table;
     $('dishes').innerHTML = s.items.length ? s.items.map(i => `
         <div class="dish">

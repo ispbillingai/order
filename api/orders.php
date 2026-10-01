@@ -358,55 +358,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order is closed']);
             }
 
-            // Dishes added after the order was first sent print as an ADDITION,
-            // so the work point tops up the table instead of re-cooking it.
-            $kind = ($order['status'] === 'open') ? TICKET_NEW : TICKET_ADDITION;
-
-            // Capture the items being sent NOW (still 'pending') so the kitchen
-            // ticket prints exactly these dishes — not ones already in the kitchen.
-            $stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND status = 'pending'");
-            $stmt->execute([$orderId]);
-            $sentItemIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
-
-            if (empty($sentItemIds)) {
+            $sent = sendPendingToKitchen((int) $orderId);
+            if (!$sent['items']) {
                 jsonResponse(['success' => false, 'message' => 'No new items to send']);
             }
-
-            // Update pending items to in_kitchen
-            $stmt = $pdo->prepare("
-                UPDATE order_items
-                SET status = 'in_kitchen', sent_to_kitchen_at = NOW()
-                WHERE order_id = ? AND status = 'pending'
-            ");
-            $stmt->execute([$orderId]);
-
-            // Update order status
-            $stmt = $pdo->prepare("UPDATE orders SET status = 'sent_to_kitchen' WHERE id = ?");
-            $stmt->execute([$orderId]);
-
-            // Create kitchen tickets for pending items
-            $stmt = $pdo->prepare("
-                INSERT INTO kitchen_tickets (order_id, order_item_id, status)
-                SELECT ?, id, 'queued' FROM order_items
-                WHERE order_id = ? AND status = 'in_kitchen'
-                AND id NOT IN (SELECT order_item_id FROM kitchen_tickets WHERE order_id = ?)
-            ");
-            $stmt->execute([$orderId, $orderId, $orderId]);
-
-            logActivity('sent_to_kitchen', 'orders', $orderId);
-
-            // Print the work-point tickets (table number + dishes only, no
-            // prices): one slip per area the dishes belong to. Non-fatal — if a
-            // printer is offline the order is still sent.
-            $print = printKitchenTicketForOrder((int) $orderId, $sentItemIds, $order, $kind);
-
             jsonResponse([
                 'success'     => true,
-                'addition'    => $kind === TICKET_ADDITION,
-                'items'       => count($sentItemIds),
-                'tickets'     => $print['tickets'] ?? 0,
-                'printed'     => $print['ok'],
-                'print_error' => $print['error'] ?? null,
+                'addition'    => $sent['addition'],
+                'items'       => $sent['items'],
+                'tickets'     => $sent['print']['tickets'] ?? 0,
+                'printed'     => $sent['print']['ok'],
+                'print_error' => $sent['print']['error'] ?? null,
             ]);
             break;
             

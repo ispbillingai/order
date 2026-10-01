@@ -242,6 +242,7 @@ function guestMenu(): array
             'name'        => $r['name'],
             'description' => (string) $r['description'],
             'price'       => formatCurrency($r['base_price']),
+            'amount'      => (float) $r['base_price'],
         ];
     }
     return array_values($menu);
