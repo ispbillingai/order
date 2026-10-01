@@ -52,6 +52,9 @@ $L = [
     'call_coming_name' => t('guest_call_coming_name'),
     'call_coming_sub'  => t('guest_call_coming_sub'),
     'self_sent'    => t('self_sent_toast'),
+    'self_custom'  => t('self_custom_label'),
+    'self_fixed'   => t('self_custom_fixed'),
+    'self_add_basket' => t('self_add_basket'),
     'self_dishes'  => t('self_cart_dishes'),
     'self_note_ph' => t('self_note_ph'),
     'self_resend'  => t('self_resend'),
@@ -184,6 +187,10 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .shop-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .shop-thumb .pl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.35); font-size: .95rem; }
 .shop-thumb.novideo .pl { display: none; }
+.shop-item .info small.custom { color: var(--p); font-weight: 700; }
+.cart-line .top strong small.mods { display: block; font-weight: 400; font-size: .8rem; color: var(--muted); }
+.cart-line .lp { font-weight: 700; white-space: nowrap; }
+.custom-qty { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-weight: 700; }
 .video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .shop-item .info strong { display: block; }
 .shop-item .info small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
@@ -335,6 +342,20 @@ $contactsHtml = ob_get_clean(); ?>
 <div class="cart-bar" id="cartBar" hidden>
     <div class="sum"><small id="cartCount"></small><strong id="cartTotal"></strong></div>
     <button onclick="openCart()"><i class="fas fa-basket-shopping"></i> <?= te('self_review_send') ?></button>
+</div>
+<!-- "Customise" a dish: ingredients off / extras on -->
+<div class="sheet-bg" id="customSheet" onclick="if (event.target === this) this.classList.remove('on')">
+    <div class="sheet">
+        <h3 id="customTitle"></h3>
+        <p class="hint-small" style="margin-top:-6px;"><?= te('self_custom_hint') ?></p>
+        <div id="customList"></div>
+        <div class="custom-qty"><span><?= te('quantity') ?></span>
+            <div class="qty"><button type="button" onclick="customQtyStep(-1)">−</button><span id="customQty">1</span><button type="button" class="plus" onclick="customQtyStep(1)">+</button></div></div>
+        <div class="row">
+            <button class="btn-no" onclick="$('customSheet').classList.remove('on')"><?= te('cancel') ?></button>
+            <button class="btn-go" id="customAddBtn" onclick="customAdd()"></button>
+        </div>
+    </div>
 </div>
 <div class="sheet-bg" id="videoSheet" onclick="if (event.target === this) closeDishVideo()">
     <div class="sheet video-sheet">
@@ -508,15 +529,33 @@ async function selfVerify(e) {
 
 /* ---- Guest ordering: the menu and the cart (kept on this phone until sent) ---- */
 let shopOpen = false, shopMenu = null, shopCat = null;
-const CART_KEY = 'guest-cart-' + K;
-let cart = {};
-try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '{}') || {}; } catch (e) {}
+// The basket: one line per dish *as chosen* (same dish with different
+// ingredients = two lines): {key, id, qty, note, add: [ingredient ids], remove: [...]}.
+const CART_KEY = 'guest-cart2-' + K;
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]') || []; if (!Array.isArray(cart)) cart = []; } catch (e) {}
 const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} };
 const money = v => L.currency.replace(/0[.,]00/, v.toFixed(2).replace('.', L.currency.includes(',') ? ',' : '.'));
+const itemOf = id => (shopMenu || []).flatMap(c => c.items).find(i => i.id === id);
+function lineUnit(l) {
+    const it = itemOf(l.id);
+    return (it ? it.amount : 0) + (l.add || []).reduce((s, cid) => s + ((it?.components || []).find(c => c.id === cid)?.extra || 0), 0);
+}
+function lineMods(l) {
+    const comps = itemOf(l.id)?.components || [];
+    const nm = cid => comps.find(c => c.id === cid)?.name;
+    return [...(l.remove || []).map(cid => '− ' + nm(cid)), ...(l.add || []).map(cid => '+ ' + nm(cid))].filter(x => !x.endsWith('undefined')).join(', ');
+}
 function cartItems() {
     if (!shopMenu) return [];
-    const all = shopMenu.flatMap(c => c.items);
-    return Object.entries(cart).filter(([, l]) => l.qty > 0).map(([id, l]) => ({ item: all.find(i => i.id === +id), ...l, id: +id })).filter(l => l.item);
+    return cart.filter(l => l.qty > 0 && itemOf(l.id)).map((l, idx) => ({ ...l, item: itemOf(l.id), idx: cart.indexOf(l) }));
+}
+const itemQty = id => cart.filter(l => l.id === id).reduce((s, l) => s + l.qty, 0);
+function addLine(id, add = [], remove = [], qty = 1) {
+    const key = id + '|' + [...add].sort().join('.') + '|' + [...remove].sort().join('.');
+    const same = cart.find(l => l.key === key);
+    if (same) same.qty = Math.min(20, same.qty + qty); else cart.push({ key, id, qty, note: '', add, remove });
+    saveCart();
 }
 function openShop() { shopOpen = true; render(state); window.scrollTo(0, 0); }
 function closeShop() { shopOpen = false; render(state); }
@@ -535,14 +574,14 @@ function renderShop() {
     $('shopCats').innerHTML = shopMenu.map((c, i) => `<button class="${i === shopCat ? 'on' : ''}" onclick="shopCat = ${i}; renderShop(); window.scrollTo(0, 0)">${esc(c.name)}</button>`).join('');
     const c = shopMenu[shopCat];
     $('shopMenu').innerHTML = c ? `<div class="card">${c.items.map(i => {
-        const q = cart[i.id]?.qty || 0;
+        const q = itemQty(i.id);
         const thumb = (i.image || i.video)
             ? `<button type="button" class="shop-thumb ${i.video ? '' : 'novideo'}" ${i.video ? `onclick="openDishVideo(${i.id})" aria-label="Video"` : 'tabindex="-1"'}>
                    ${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy">` : ''}<span class="pl"><i class="fas fa-play"></i></span></button>` : '';
         return `<div class="shop-item">${thumb}
-            <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}</div>
+            <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}${i.components?.length ? `<small class="custom"><i class="fas fa-sliders"></i> ${esc(L.self_custom)}</small>` : ''}</div>
             <div class="price">${esc(i.price)}</div>
-            <div class="qty">${q ? `<button onclick="cartAdd(${i.id}, -1)" aria-label="-">−</button><span>${q}</span>` : ''}<button class="plus" onclick="cartAdd(${i.id}, 1)" aria-label="+">+</button></div>
+            <div class="qty">${q ? `<button onclick="itemMinus(${i.id})" aria-label="-">−</button><span>${q}</span>` : ''}<button class="plus" onclick="itemPlus(${i.id})" aria-label="+">+</button></div>
         </div>`; }).join('')}</div>` : `<div class="card"><div class="empty"><?= te('no_items_cat') ?></div></div>`;
     renderCartBar();
 }
@@ -559,15 +598,66 @@ function openDishVideo(id) {
 }
 function closeDishVideo() { const v = $('dishVideo'); v.pause(); v.removeAttribute('src'); v.load(); $('videoSheet').classList.remove('on'); }
 
-function cartAdd(id, d) {
-    const l = cart[id] || { qty: 0, note: '' };
+// "+": a dish with ingredients opens "Customise"; otherwise straight in the basket.
+function itemPlus(id) {
+    if (itemOf(id)?.components?.length) { openCustomize(id); return; }
+    addLine(id); cartChanged();
+}
+// "−" in the menu: one less of the latest line of that dish.
+function itemMinus(id) {
+    for (let i = cart.length - 1; i >= 0; i--) if (cart[i].id === id) { lineInc(i, -1); return; }
+}
+function lineInc(idx, d) {
+    const l = cart[idx];
+    if (!l) return;
     l.qty = Math.max(0, Math.min(20, l.qty + d));
-    if (l.qty) cart[id] = l; else delete cart[id];
-    saveCart();
+    if (!l.qty) cart.splice(idx, 1);
+    saveCart(); cartChanged();
+}
+function cartAdd(id, d) { if (d > 0) itemPlus(id); else itemMinus(id); }   // kept for older calls
+function cartChanged() {
     renderShop();
     if ($('cartSheet').classList.contains('on')) renderCartLines();
 }
-function cartSum() { return cartItems().reduce((s, l) => s + l.qty * (l.item.amount || 0), 0); }
+function cartSum() { return cartItems().reduce((s, l) => s + l.qty * lineUnit(l), 0); }
+
+/* ---- "Customise": take ingredients off / add extras (with their price) ---- */
+let customId = null, customQty = 1;
+function openCustomize(id) {
+    const it = itemOf(id);
+    if (!it) return;
+    customId = id; customQty = 1;
+    $('customTitle').textContent = it.name;
+    $('customList').innerHTML = it.components.map(c => `
+        <label class="pick">
+            <input type="checkbox" data-cid="${c.id}" data-default="${c.default ? 1 : 0}" ${c.default ? 'checked' : ''} ${c.default && !c.removable ? 'disabled' : ''} onchange="customPrice()">
+            <span>${esc(c.name)}${c.default && !c.removable ? ` <small class="hint-small">(${esc(L.self_fixed)})</small>` : ''}</span>
+            <span class="price">${esc(c.extra_fmt)}</span>
+        </label>`).join('');
+    customPrice();
+    $('customSheet').classList.add('on');
+}
+function customChoice() {
+    const add = [], remove = [];
+    document.querySelectorAll('#customList input[data-cid]').forEach(b => {
+        const cid = +b.dataset.cid, def = b.dataset.default === '1';
+        if (def && !b.checked) remove.push(cid);
+        if (!def && b.checked) add.push(cid);
+    });
+    return { add, remove };
+}
+function customQtyStep(d) { customQty = Math.max(1, Math.min(20, customQty + d)); customPrice(); }
+function customPrice() {
+    const { add } = customChoice();
+    $('customQty').textContent = customQty;
+    $('customAddBtn').textContent = L.self_add_basket.replace('{price}', money(customQty * lineUnit({ id: customId, add })));
+}
+function customAdd() {
+    const { add, remove } = customChoice();
+    addLine(customId, add, remove, customQty);
+    $('customSheet').classList.remove('on');
+    cartChanged();
+}
 function renderCartBar() {
     const n = cartItems().reduce((s, l) => s + l.qty, 0);
     $('cartBar').hidden = $('shop').hidden || !n;
@@ -580,20 +670,21 @@ function renderCartLines() {
     if (!lines.length) { $('cartSheet').classList.remove('on'); return; }
     $('cartLines').innerHTML = lines.map(l => `
         <div class="cart-line">
-            <div class="top"><strong>${esc(l.item.name)}</strong>
-                <div class="qty"><button onclick="cartAdd(${l.id}, -1)">−</button><span>${l.qty}</span><button class="plus" onclick="cartAdd(${l.id}, 1)">+</button></div></div>
-            <input maxlength="200" placeholder="${esc(L.self_note_ph)}" value="${esc(l.note || '')}" oninput="cart[${l.id}].note = this.value; saveCart()">
+            <div class="top"><strong>${esc(l.item.name)}${lineMods(l) ? `<small class="mods">${esc(lineMods(l))}</small>` : ''}</strong>
+                <span class="lp">${money(l.qty * lineUnit(l))}</span>
+                <div class="qty"><button onclick="lineInc(${l.idx}, -1)">−</button><span>${l.qty}</span><button class="plus" onclick="lineInc(${l.idx}, 1)">+</button></div></div>
+            <input maxlength="200" placeholder="${esc(L.self_note_ph)}" value="${esc(l.note || '')}" oninput="cart[${l.idx}].note = this.value; saveCart()">
         </div>`).join('');
     $('cartSheetTotal').textContent = money(cartSum());
 }
 async function sendCart() {
-    const lines = cartItems().map(l => ({ id: l.id, qty: l.qty, note: l.note || '' }));
+    const lines = cartItems().map(l => ({ id: l.id, qty: l.qty, note: l.note || '', add: l.add || [], remove: l.remove || [] }));
     if (!lines.length) return;
     $('cartSend').disabled = true;
     const ok = await send({ action: 'self_send', cart: lines });
     $('cartSend').disabled = false;
     if (!ok) return;
-    cart = {}; saveCart();
+    cart = []; saveCart();
     $('cartSheet').classList.remove('on');
     shopOpen = false;
     render(state);

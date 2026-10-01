@@ -203,8 +203,10 @@ function selfOrderSend(array $order, array $cart): array
 {
     if (!selfOrderCanOrder($order)) return ['error' => 'self_err_off'];
     $pdo  = getDBConnection();
-    $menu = $pdo->prepare("SELECT mi.id, mi.base_price FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
-    $add  = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes) VALUES (?, NULL, ?, ?, ?, ?, ?)");
+    $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
+    $comps = $pdo->prepare("SELECT * FROM menu_item_components WHERE menu_item_id = ?");
+    $add   = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes) VALUES (?, NULL, ?, ?, ?, ?, ?)");
+    $mod   = $pdo->prepare("INSERT INTO order_item_modifications (order_item_id, component_name, action, extra_price) VALUES (?, ?, ?, ?)");
     $n = 0;
     foreach (array_slice($cart, 0, 60) as $line) {
         $qty = (int) ($line['qty'] ?? 0);
@@ -213,7 +215,28 @@ function selfOrderSend(array $order, array $cart): array
         if (!$item = $menu->fetch()) continue;              // gone from the menu meanwhile
         $qty  = min($qty, 20);
         $note = mb_substr(trim((string) ($line['note'] ?? '')), 0, 200);
-        $add->execute([(int) $order['id'], (int) $item['id'], $qty, $item['base_price'], $item['base_price'] * $qty, $note !== '' ? $note : null]);
+
+        // Ingredients taken off / added, as the waiter does: only the dish's
+        // own, only where allowed; the price comes from here, not the phone.
+        $mods = [];
+        $unit = (float) $item['base_price'];
+        if (!empty($item['allow_composition'])) {
+            $comps->execute([(int) $item['id']]);
+            $byId   = array_column($comps->fetchAll(), null, 'id');
+            $remove = array_map('intval', (array) ($line['remove'] ?? []));
+            $addIds = array_map('intval', (array) ($line['add'] ?? []));
+            foreach (array_unique($remove) as $cid) {
+                $c = $byId[$cid] ?? null;
+                if ($c && $c['is_default'] && $c['removable']) $mods[] = [$c['component_name'], 'removed', 0];
+            }
+            foreach (array_unique($addIds) as $cid) {
+                $c = $byId[$cid] ?? null;
+                if ($c && !$c['is_default']) { $mods[] = [$c['component_name'], 'added', (float) $c['extra_price']]; $unit += (float) $c['extra_price']; }
+            }
+        }
+        $add->execute([(int) $order['id'], (int) $item['id'], $qty, $unit, $unit * $qty, $note !== '' ? $note : null]);
+        $itemId = (int) $pdo->lastInsertId();
+        foreach ($mods as [$name, $action, $extra]) $mod->execute([$itemId, $name, $action, $extra]);
         $n += $qty;
     }
     if (!$n) return ['error' => 'self_err_empty'];

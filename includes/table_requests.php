@@ -232,11 +232,24 @@ function openTableRequestsForRole(string $role, ?int $userId = null): array
 function guestMenu(): array
 {
     $rows = getDBConnection()->query("
-        SELECT mc.id AS category_id, mc.name AS category, mi.id, mi.name, mi.description, mi.base_price, mi.image_url, mi.video_url
+        SELECT mc.id AS category_id, mc.name AS category, mc.allow_composition, mi.id, mi.name, mi.description, mi.base_price, mi.image_url, mi.video_url
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE mi.active = 1 AND mc.active = 1
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
     ")->fetchAll();
+    // Ingredients the guest may take off / add (categories allowing composition).
+    $comps = [];
+    $ids = array_column(array_filter($rows, fn($r) => !empty($r['allow_composition'])), 'id');
+    if ($ids) {
+        $in = implode(',', array_map('intval', $ids));
+        foreach (getDBConnection()->query("SELECT * FROM menu_item_components WHERE menu_item_id IN ($in) ORDER BY is_default DESC, id") as $c) {
+            $comps[(int) $c['menu_item_id']][] = [
+                'id' => (int) $c['id'], 'name' => $c['component_name'], 'default' => (bool) $c['is_default'],
+                'removable' => (bool) $c['removable'], 'extra' => (float) $c['extra_price'],
+                'extra_fmt' => (float) $c['extra_price'] > 0 ? '+' . formatCurrency($c['extra_price']) : '',
+            ];
+        }
+    }
     $menu = [];
     foreach ($rows as $r) {
         $cid = (int) $r['category_id'];
@@ -249,6 +262,7 @@ function guestMenu(): array
             'amount'      => (float) $r['base_price'],
             'image'       => $r['image_url'] ?: null,
             'video'       => $r['video_url'] ?: null,
+            'components'  => $comps[(int) $r['id']] ?? [],
         ];
     }
     return array_values($menu);

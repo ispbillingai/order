@@ -1219,4 +1219,8 @@ return [
     'err_video_too_big' => 'Video too large: 25 MB max. Shorten it or export it at a lower resolution (e.g. 720p).',
     'err_video_bad_format' => 'Video format not supported: use MP4 (H.264) or WebM. From a phone: export/share the video as MP4.',
     'err_video_failed' => 'The video couldn\'t be uploaded. Please try again.',
+    'self_custom_label' => 'Customisable',
+    'self_custom_hint' => 'Take off the ingredients you don\'t want or add an extra.',
+    'self_custom_fixed' => 'can\'t be removed',
+    'self_add_basket' => 'Add · {price}',
 ];
